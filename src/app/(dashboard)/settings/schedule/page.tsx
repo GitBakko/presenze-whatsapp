@@ -25,7 +25,7 @@ const DAY_NAMES = ["", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerd�
 export default function SchedulePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState("");
-  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
+  const [, setSchedule] = useState<ScheduleEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -43,7 +43,7 @@ export default function SchedulePage() {
         if (sorted.length > 0 && !selectedEmpId) setSelectedEmpId(sorted[0].id);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedEmpId]);
 
   const loadSchedule = useCallback(() => {
     if (!selectedEmpId) return;

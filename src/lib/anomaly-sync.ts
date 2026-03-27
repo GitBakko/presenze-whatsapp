@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import type { DailyStats } from "./calculator";
-import { getLeaveForDate, LEAVE_TYPES, type LeaveType } from "./leaves";
+import { getLeaveForDate } from "./leaves";
 
 /**
  * Check if an employee's date is fully covered by leave (skip all anomalies)
@@ -8,7 +8,6 @@ import { getLeaveForDate, LEAVE_TYPES, type LeaveType } from "./leaves";
 async function isFullDayLeave(employeeId: string, date: string): Promise<boolean> {
   const leave = await getLeaveForDate(employeeId, date);
   if (!leave) return false;
-  const config = LEAVE_TYPES[leave.type];
   // Full-day types
   if (["VACATION", "VACATION_HALF_AM", "VACATION_HALF_PM", "SICK"].includes(leave.type)) {
     return leave.type !== "VACATION_HALF_AM" && leave.type !== "VACATION_HALF_PM";

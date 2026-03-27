@@ -53,10 +53,8 @@ export function calcWeeklyHours(schedule: ScheduleBlock[]): number {
 }
 
 /** Calculate daily expected hours for a specific day of week */
-export function calcDailyHours(schedule: ScheduleBlock[], dayOfWeek: number): number {
-  const day = schedule.find((_, i) => i === dayOfWeek - 1); // schedule indexed 0-based by day order
-  // Actually we need the dayOfWeek field — let's accept a map instead
-  return 0; // placeholder, overridden below
+export function calcDailyHours(_schedule: ScheduleBlock[], _dayOfWeek: number): number {
+  return 0; // placeholder, overridden by calcDailyHoursFromMap
 }
 
 export function calcDailyHoursFromMap(

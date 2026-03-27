@@ -6,7 +6,6 @@ import {
   ChevronLeft, ChevronRight, CalendarX2,
   CheckCircle, XCircle, Trash2,
 } from "lucide-react";
-import type { ReactNode } from "react";
 
 // ── Types ──
 
@@ -349,7 +348,7 @@ function BalanceItem({ label, value, sub, color, numericValue }: { label: string
 
 function CalendarView({
   calendarDays,
-  calendarMonth,
+  calendarMonth: _calendarMonth,
   monthLabel,
   firstDay,
   onChangeMonth,

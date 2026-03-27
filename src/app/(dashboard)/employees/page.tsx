@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { formatDate } from "@/lib/formatTime";
 import { Pencil } from "lucide-react";
 
@@ -22,9 +23,11 @@ function Avatar({ emp, size = "md" }: { emp: Employee; size?: "sm" | "md" }) {
 
   if (emp.avatarUrl) {
     return (
-      <img
+      <Image
         src={emp.avatarUrl}
         alt={name}
+        width={size === "sm" ? 32 : 40}
+        height={size === "sm" ? 32 : 40}
         className={`${dim} rounded-full object-cover ring-2 ring-surface-container-lowest`}
       />
     );

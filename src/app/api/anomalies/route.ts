@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
-import { WORK_SCHEDULE } from "@/lib/constants";
 
 function getDayOfWeek(dateStr: string): number {
   const [y, m, d] = dateStr.split("-").map(Number);

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { hoursToHHMM, minutesToHHMM, formatDate } from "@/lib/formatTime";
 import {
   CalendarDays, Clock, Coffee, Flame, AlertTriangle,
@@ -126,7 +127,7 @@ export default function EmployeeDetailPage() {
         setLeaveMap(lm);
       })
       .finally(() => setLoading(false));
-  }, [from, to, id]);
+  }, [from, to, id, m, y]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -171,7 +172,7 @@ export default function EmployeeDetailPage() {
         </Link>
         <div className="flex items-center gap-3">
           {profile?.avatarUrl ? (
-            <img src={profile.avatarUrl} alt={employeeName} className="h-10 w-10 rounded-full object-cover ring-2 ring-surface-container-lowest shadow" />
+            <Image src={profile.avatarUrl} alt={employeeName} width={40} height={40} className="h-10 w-10 rounded-full object-cover ring-2 ring-surface-container-lowest shadow" />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-container text-sm font-bold text-on-primary ring-2 ring-surface-container-lowest shadow">
               {initials}

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 interface EmployeeProfile {
   id: string;
@@ -117,9 +118,11 @@ export default function EmployeeEditPage() {
             className="group relative h-24 w-24 overflow-hidden rounded-full border-2 border-surface-container transition-all hover:border-primary hover:shadow-elevated"
           >
             {preview ? (
-              <img
+              <Image
                 src={preview}
                 alt="Avatar"
+                fill
+                unoptimized
                 className="h-full w-full object-cover"
               />
             ) : (

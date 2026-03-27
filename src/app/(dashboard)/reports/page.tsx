@@ -16,16 +16,6 @@ interface EmployeeReport {
   anomalies: number;
 }
 
-function currentMonthRange(): { from: string; to: string } {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  return {
-    from: `${y}-${m}-01`,
-    to: `${y}-${m}-${new Date(y, now.getMonth() + 1, 0).getDate()}`,
-  };
-}
-
 export default function ReportsPage() {
   const [month, setMonth] = useState(() => {
     const now = new Date();

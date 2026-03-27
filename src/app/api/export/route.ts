@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { calculateDailyStats, aggregateMonthlyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
+import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
 import { hoursToHHMM, minutesToHHMM } from "@/lib/formatTime";
 import * as XLSX from "xlsx";
 import { checkAuth } from "@/lib/auth-guard";

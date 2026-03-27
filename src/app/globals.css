@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/* ── Equilibrium Enterprise / The Executive Ledger ── */
+@theme {
+  /* ─ Primary ─ */
+  --color-primary: #004253;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #005b71;
+  --color-on-primary-container: #a7d8e8;
+  --color-primary-fixed: #b8eaff;
+  --color-on-primary-fixed: #001f29;
+
+  /* ─ Secondary ─ */
+  --color-secondary: #4a6269;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #cde7ef;
+  --color-on-secondary-container: #526a71;
+
+  /* ─ Tertiary ─ */
+  --color-tertiary: #55597c;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #6d7198;
+  --color-on-tertiary-container: #d8dafe;
+  --color-tertiary-fixed: #dde0ff;
+  --color-on-tertiary-fixed: #121535;
+
+  /* ─ Error ─ */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* ─ Surfaces ─ */
+  --color-surface: #f8f9fa;
+  --color-surface-dim: #d7dadb;
+  --color-surface-bright: #f8f9fa;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f4f5;
+  --color-surface-container: #edeeef;
+  --color-surface-container-high: #e7e8e9;
+  --color-surface-container-highest: #e1e3e4;
+
+  /* ─ On Surface ─ */
+  --color-on-surface: #191c1d;
+  --color-on-surface-variant: #3f484b;
+  --color-outline: #6f797c;
+  --color-outline-variant: #bfc8cb;
+
+  /* ─ Inverse ─ */
+  --color-inverse-surface: #2d3132;
+  --color-inverse-on-surface: #eff1f2;
+  --color-inverse-primary: #7fd0ee;
+
+  /* ─ Semantic shortcuts ─ */
+  --color-success: #1a6b2d;
+  --color-on-success: #ffffff;
+  --color-success-container: #a3f5a5;
+  --color-warning: #7c5800;
+  --color-on-warning: #ffffff;
+  --color-warning-container: #ffdea2;
+
+  /* ─ Typography ─ */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+
+  /* ─ Shadows ─ */
+  --shadow-editorial: 0 20px 40px rgba(25, 28, 29, 0.06);
+  --shadow-card: 0 1px 3px rgba(25, 28, 29, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(25, 28, 29, 0.08);
+  --shadow-glass: 0 8px 32px rgba(25, 28, 29, 0.06);
+
+  /* ─ Border radius ─ */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* ─ Animations ─ */
+  --ease-editorial: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Base layer ── */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-on-surface);
+    background-color: var(--color-surface);
+  }
+
+  /* Micro-caps utility */
+  .micro-caps {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--color-on-surface-variant);
+  }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-outline);
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

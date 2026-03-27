@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  name           String
+  passwordHash   String
+  createdAt      DateTime       @default(now())
+  anomalies      Anomaly[]      @relation("ResolvedBy")
+  approvedLeaves LeaveRequest[] @relation("ApprovedLeaves")
+}
+
+model Employee {
+  id           String             @id @default(cuid())
+  name         String             @unique
+  displayName  String?            // Nome visualizzato in piattaforma (se diverso da name)
+  avatarUrl    String?            // Path avatar relativo a /uploads/avatars/
+  aliases      String             @default("[]") // JSON array of alternative names
+  hireDate     DateTime?          // Data assunzione (per calcolo maturazione ferie/ROL)
+  contractType String             @default("FULL_TIME") // FULL_TIME | PART_TIME
+  createdAt    DateTime           @default(now())
+  records      AttendanceRecord[]
+  anomalies    Anomaly[]
+  schedule     EmployeeSchedule[]
+  leaves       LeaveRequest[]
+  balances     LeaveBalance[]
+}
+
+model AttendanceRecord {
+  id           String   @id @default(cuid())
+  employeeId   String
+  date         String   // YYYY-MM-DD
+  type         String   // ENTRY | EXIT | PAUSE_START | PAUSE_END | OVERTIME_START | OVERTIME_END
+  declaredTime String   // HH:MM — the time declared by employee or from message timestamp
+  messageTime  String   // HH:MM — WhatsApp message timestamp
+  rawMessage   String
+  source       String   @default("PARSED") // PARSED | MANUAL
+  isManual     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date, type, declaredTime])
+  @@index([employeeId, date])
+  @@index([date, type])
+}
+
+model Anomaly {
+  id           String    @id @default(cuid())
+  employeeId   String
+  date         String    // YYYY-MM-DD
+  type         String    // MISSING_EXIT | MISSING_ENTRY | MISSING_PAUSE | DUPLICATE_ENTRY | DUPLICATE_EXIT | MISMATCHED_PAIRS | OVERTIME_NO_END | PAUSE_NO_END
+  description  String
+  resolved     Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolution   String?
+  createdAt    DateTime  @default(now())
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  resolvedBy User?    @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  @@index([employeeId, date])
+  @@index([resolved])
+}
+
+model ExcludedName {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
+model EmployeeSchedule {
+  id         String  @id @default(cuid())
+  employeeId String
+  dayOfWeek  Int     // 1=Monday ... 5=Friday
+  block1Start String? // HH:MM — morning start (null = not working this block)
+  block1End   String? // HH:MM — morning end
+  block2Start String? // HH:MM — afternoon start (null = not working this block)
+  block2End   String? // HH:MM — afternoon end
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, dayOfWeek])
+  @@index([employeeId])
+}
+
+model ImportLog {
+  id              String   @id @default(cuid())
+  filename        String
+  recordsImported Int
+  recordsSkipped  Int
+  errors          String   @default("[]") // JSON array of error strings
+  importedAt      DateTime @default(now())
+}
+
+// ── Leave Management ──
+
+model LeaveRequest {
+  id           String    @id @default(cuid())
+  employeeId   String
+  type         String    // VACATION | VACATION_HALF_AM | VACATION_HALF_PM | ROL | SICK | BEREAVEMENT | MARRIAGE | LAW_104 | MEDICAL_VISIT
+  startDate    String    // YYYY-MM-DD
+  endDate      String    // YYYY-MM-DD (= startDate for single day)
+  hours        Float?    // For ROL/hourly permits: total hours
+  timeSlots    String?   // JSON: [{"from":"09:00","to":"10:00"}] for ROL blocks
+  sickProtocol String?   // INPS certificate protocol number (optional, sick only)
+  notes        String?
+  status       String    @default("APPROVED") // APPROVED | PENDING | REJECTED
+  source       String    @default("MANAGER")  // MANAGER | EXTERNAL_API
+  createdAt    DateTime  @default(now())
+  approvedById String?
+  approvedAt   DateTime?
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approvedBy User?    @relation("ApprovedLeaves", fields: [approvedById], references: [id])
+
+  @@index([employeeId, startDate])
+  @@index([employeeId, endDate])
+  @@index([status])
+}
+
+model LeaveBalance {
+  id               String @id @default(cuid())
+  employeeId       String
+  year             Int
+  vacationAccrued  Float  @default(0) // days accrued this year
+  vacationUsed     Float  @default(0) // days used this year
+  vacationCarryOver Float @default(0) // days carried from previous year
+  rolAccrued       Float  @default(0) // hours accrued this year
+  rolUsed          Float  @default(0) // hours used this year (ROL + special permits)
+  rolCarryOver     Float  @default(0) // hours carried from previous year
+  sickDays         Int    @default(0) // sick days count (no budget)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year])
+  @@index([employeeId])
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  keyHash   String   @unique // SHA-256 hash of the API key
+  name      String            // description (e.g. "Employee App")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}

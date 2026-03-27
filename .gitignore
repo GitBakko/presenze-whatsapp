@@ -1,0 +1,42 @@
+# ── Dipendenze ──
+node_modules/
+
+# ── Next.js ──
+.next/
+out/
+
+# ── Environment ──
+.env
+.env.local
+.env.*.local
+
+# ── Database ──
+*.db
+*.db-journal
+prisma/migrations/
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Build ──
+dist/
+build/
+
+# ── Upload ──
+public/uploads/avatars/*
+!public/uploads/avatars/.gitkeep
+
+# ── Misc ──
+*.log
+npm-debug.log*
+cookies.txt
+_test_mcp.cjs
+stitch-prompt.md
+tsconfig.tsbuildinfo

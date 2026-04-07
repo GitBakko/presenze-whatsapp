@@ -25,6 +25,8 @@ export async function GET() {
       avatarUrl: emp.avatarUrl,
       aliases: JSON.parse(emp.aliases) as string[],
       nfcUid: emp.nfcUid,
+      telegramChatId: emp.telegramChatId,
+      telegramUsername: emp.telegramUsername,
       totalDays,
       lastSeen: emp.records[0]?.date || null,
     };

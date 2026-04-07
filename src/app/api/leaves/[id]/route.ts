@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
+import { notifyLeaveDecision } from "@/lib/telegram-handlers";
 
 export async function GET(
   _request: NextRequest,
@@ -75,6 +76,24 @@ export async function PUT(
     data,
     include: { employee: true, approvedBy: true },
   });
+
+  // Notifica al dipendente via Telegram (se ha un chat associato e
+  // lo status e' cambiato in APPROVED/REJECTED). Errori loggati ma
+  // non bloccano la response.
+  if (status === "APPROVED" || status === "REJECTED") {
+    try {
+      await notifyLeaveDecision({
+        employeeChatId: updated.employee.telegramChatId,
+        status: status as "APPROVED" | "REJECTED",
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        type: updated.type,
+        notes: updated.notes,
+      });
+    } catch (err) {
+      console.error("[leaves/PUT] notifyLeaveDecision failed:", err);
+    }
+  }
 
   return NextResponse.json({
     id: updated.id,

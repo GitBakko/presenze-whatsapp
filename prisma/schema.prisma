@@ -26,6 +26,8 @@ model Employee {
   hireDate     DateTime?          // Data assunzione (per calcolo maturazione ferie/ROL)
   contractType String             @default("FULL_TIME") // FULL_TIME | PART_TIME
   nfcUid       String?            @unique // UID tessera NFC/CIE associata (hex uppercase)
+  telegramChatId   String?        @unique // chat_id Telegram (string per evitare overflow Int64)
+  telegramUsername String?                // @username Telegram (cosmetico, mostrato nella UI admin)
   createdAt    DateTime           @default(now())
   records      AttendanceRecord[]
   anomalies    Anomaly[]
@@ -162,6 +164,21 @@ model UnrecognizedNfc {
   lastSeenAt  DateTime @default(now())
   attempts    Int      @default(1)
   notes       String?
+
+  @@index([lastSeenAt])
+}
+
+// ── Telegram Bot ──
+
+model UnrecognizedTelegramChat {
+  id          String   @id @default(cuid())
+  chatId      String   @unique // chat_id Telegram (string per coerenza con Employee.telegramChatId)
+  username    String?
+  firstName   String?
+  lastName    String?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  attempts    Int      @default(1)
 
   @@index([lastSeenAt])
 }

@@ -32,6 +32,8 @@ export async function GET(
     hireDate: employee.hireDate?.toISOString().split("T")[0] ?? null,
     contractType: employee.contractType,
     nfcUid: employee.nfcUid,
+    telegramChatId: employee.telegramChatId,
+    telegramUsername: employee.telegramUsername,
   });
 }
 
@@ -55,6 +57,8 @@ export async function PUT(
   const hireDate = formData.get("hireDate") as string | null;
   const contractType = formData.get("contractType") as string | null;
   const nfcUidRaw = formData.get("nfcUid") as string | null;
+  const telegramChatIdRaw = formData.get("telegramChatId") as string | null;
+  const telegramUsernameRaw = formData.get("telegramUsername") as string | null;
 
   const updateData: {
     displayName?: string | null;
@@ -62,6 +66,8 @@ export async function PUT(
     hireDate?: Date | null;
     contractType?: string;
     nfcUid?: string | null;
+    telegramChatId?: string | null;
+    telegramUsername?: string | null;
   } = {};
 
   // Update display name (empty string = reset to null/use original name)
@@ -94,6 +100,27 @@ export async function PUT(
       }
       updateData.nfcUid = uid;
     }
+  }
+
+  // Update Telegram chat_id (stringa vuota = scollega bot)
+  if (telegramChatIdRaw !== null) {
+    const trimmed = telegramChatIdRaw.trim();
+    if (trimmed === "") {
+      updateData.telegramChatId = null;
+    } else if (!/^-?\d+$/.test(trimmed)) {
+      return NextResponse.json(
+        { error: "telegramChatId deve essere un id numerico Telegram" },
+        { status: 400 }
+      );
+    } else {
+      updateData.telegramChatId = trimmed;
+    }
+  }
+
+  // Update Telegram username (cosmetico, stringa vuota = null)
+  if (telegramUsernameRaw !== null) {
+    const trimmed = telegramUsernameRaw.trim().replace(/^@/, "");
+    updateData.telegramUsername = trimmed || null;
   }
 
   // Handle avatar upload
@@ -131,10 +158,12 @@ export async function PUT(
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return NextResponse.json(
-        { error: "UID NFC già associato a un altro dipendente" },
-        { status: 409 }
-      );
+      const target = (e.meta as { target?: string[] | string } | undefined)?.target;
+      const targetStr = Array.isArray(target) ? target.join(",") : String(target ?? "");
+      const msg = targetStr.includes("telegram")
+        ? "Chat Telegram già associata a un altro dipendente"
+        : "UID NFC già associato a un altro dipendente";
+      return NextResponse.json({ error: msg }, { status: 409 });
     }
     throw e;
   }
@@ -148,5 +177,7 @@ export async function PUT(
     hireDate: updated.hireDate?.toISOString().split("T")[0] ?? null,
     contractType: updated.contractType,
     nfcUid: updated.nfcUid,
+    telegramChatId: updated.telegramChatId,
+    telegramUsername: updated.telegramUsername,
   });
 }

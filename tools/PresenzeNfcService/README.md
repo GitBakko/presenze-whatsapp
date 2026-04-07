@@ -12,8 +12,8 @@ I badge Mifare Classic 1K hanno un UID a 4 byte **fisso e immutabile**, costano 
 
 ## Caratteristiche
 
-- **Single .exe** ~50 KB, **C# .NET Framework 3.5 x86** → gira su Windows 7+ anche su HW molto vecchio
-- **Zero dipendenze esterne** (no NuGet, niente runtime aggiuntivo oltre a .NET 3.5 che è preinstallato/preinstallabile su tutte le Windows ≥7)
+- **Single .exe** ~30 KB, **C# .NET Framework 4.8 x86** → gira su Windows 7+ con .NET 4.8 installato (il PC di produzione attuale ha 4.8, non 3.5 — 3.5 e 4.x sono due runtime distinti su Windows). Il codice non usa feature 4.x-specifiche quindi retargettare a 3.5 o 4.0 è una modifica da una sola riga nel .csproj.
+- **Zero dipendenze esterne** (no NuGet, niente runtime aggiuntivo oltre a .NET 4.8 che è installabile su tutte le Windows ≥7)
 - **Tutta la logica di business sta sul server**: il client legge l'UID via APDU `FF CA 00 00 00`, lo POSTa al backend, beep
 - **Headless** (Windows Service in background) ma include modalità `--console` per debug
 - **Feedback sonoro distinto** per ENTRY / EXIT / PAUSE / UID sconosciuto / errore — onde sintetizzate in memoria, niente file audio da distribuire

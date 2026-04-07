@@ -9,7 +9,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>PresenzeNfcService</RootNamespace>
     <AssemblyName>PresenzeNfcService</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">

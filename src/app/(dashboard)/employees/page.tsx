@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { toast } from "sonner";
 import { formatDate } from "@/lib/formatTime";
 import { Pencil, UserPlus, X } from "lucide-react";
 
@@ -105,6 +106,7 @@ export default function EmployeesPage() {
         return;
       }
       setShowModal(false);
+      toast.success("Dipendente creato");
       load();
     } catch {
       setFormError("Errore di rete");

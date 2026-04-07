@@ -1,17 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import { Toaster } from "sonner";
 import { Sidebar } from "./Sidebar";
 import { Menu, PanelLeftClose, Search, HelpCircle } from "lucide-react";
 import { NotificationsProvider } from "./NotificationsProvider";
 import { NotificationBell } from "./NotificationBell";
 import { NotificationToast } from "./NotificationToast";
+import { ConfirmProvider } from "./ConfirmProvider";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
+    <ConfirmProvider>
     <NotificationsProvider>
+    {/* Toaster posizionato top-center per non collidere con la campanella
+        notifiche (top-right) ne' con i toast NFC (bottom-right) */}
+    <Toaster
+      position="top-center"
+      richColors
+      closeButton
+      toastOptions={{ duration: 4000 }}
+    />
     <div className="flex h-screen overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -65,5 +76,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <NotificationToast />
     </div>
     </NotificationsProvider>
+    </ConfirmProvider>
   );
 }

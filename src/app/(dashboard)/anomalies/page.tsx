@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import {
   CheckCircle, CheckCircle2, HelpCircle, RefreshCw, AlertTriangle,
@@ -241,7 +242,7 @@ export default function AnomaliesPage() {
       if (orig.type === edit.type && orig.declaredTime === edit.declaredTime) continue;
       if (!/^\d{2}:\d{2}$/.test(edit.declaredTime)) {
         setSubmitting(false);
-        alert(`Orario non valido per il record ${TYPE_LABELS[orig.type] ?? orig.type}`);
+        toast.error(`Orario non valido per il record ${TYPE_LABELS[orig.type] ?? orig.type}`);
         return;
       }
       actions.push({
@@ -277,19 +278,20 @@ export default function AnomaliesPage() {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || `Errore ${res.status}`);
+      toast.error(err.error || `Errore ${res.status}`);
       setSubmitting(false);
       return;
     }
 
     setSubmitting(false);
     closePanel();
+    toast.success("Anomalia risolta");
     load();
   };
 
   const handleDismiss = async (anomaly: Anomaly) => {
     setSubmitting(true);
-    await fetch("/api/anomalies/dismiss", {
+    const res = await fetch("/api/anomalies/dismiss", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -300,6 +302,11 @@ export default function AnomaliesPage() {
       }),
     });
     setSubmitting(false);
+    if (res.ok) {
+      toast.success("Anomalia segnata come corretta");
+    } else {
+      toast.error("Errore nel salvataggio");
+    }
     load();
   };
 

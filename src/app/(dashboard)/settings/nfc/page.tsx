@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { ArrowLeft, Nfc, Trash2, Link2, Link2Off, RefreshCw, AlertTriangle } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface Employee {
   id: string;
@@ -18,8 +20,6 @@ interface UnrecognizedNfc {
   lastSeenAt: string;
   attempts: number;
 }
-
-type Banner = { kind: "success" | "error"; text: string } | null;
 
 function formatDateTime(iso: string): string {
   try {
@@ -37,19 +37,14 @@ function formatDateTime(iso: string): string {
 }
 
 export default function NfcSettingsPage() {
+  const confirm = useConfirm();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [unrecognized, setUnrecognized] = useState<UnrecognizedNfc[]>([]);
   const [loading, setLoading] = useState(true);
-  const [banner, setBanner] = useState<Banner>(null);
   // Mappa: id UID non riconosciuto → employee selezionato per l'associazione
   const [pendingAssoc, setPendingAssoc] = useState<Record<string, string>>({});
   // Mappa: employee.id → nuovo UID in fase di edit (modal inline)
   const [editing, setEditing] = useState<Record<string, string>>({});
-
-  const showBanner = useCallback((b: Banner) => {
-    setBanner(b);
-    if (b) setTimeout(() => setBanner(null), 4000);
-  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -64,11 +59,11 @@ export default function NfcSettingsPage() {
       setEmployees(emps);
       setUnrecognized(unks);
     } catch {
-      showBanner({ kind: "error", text: "Errore nel caricamento dei dati" });
+      toast.error("Errore nel caricamento dei dati");
     } finally {
       setLoading(false);
     }
-  }, [showBanner]);
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -78,7 +73,7 @@ export default function NfcSettingsPage() {
   const handleAssociate = async (unkId: string, uid: string) => {
     const empId = pendingAssoc[unkId];
     if (!empId) {
-      showBanner({ kind: "error", text: "Seleziona prima un dipendente" });
+      toast.warning("Seleziona prima un dipendente");
       return;
     }
     try {
@@ -87,12 +82,12 @@ export default function NfcSettingsPage() {
       const res = await fetch(`/api/employees/${empId}`, { method: "PUT", body: fd });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        showBanner({ kind: "error", text: err.error || `Errore ${res.status}` });
+        toast.error(err.error || `Errore ${res.status}`);
         return;
       }
       // Rimuovi dalla lista non riconosciuti
       await fetch(`/api/settings/unrecognized-nfc?id=${unkId}`, { method: "DELETE" });
-      showBanner({ kind: "success", text: "Tessera associata con successo" });
+      toast.success("Tessera associata con successo");
       setPendingAssoc((p) => {
         const rest = { ...p };
         delete rest[unkId];
@@ -100,23 +95,29 @@ export default function NfcSettingsPage() {
       });
       loadAll();
     } catch {
-      showBanner({ kind: "error", text: "Errore di rete" });
+      toast.error("Errore di rete");
     }
   };
 
   // ── Ignora (cancella) un UID non riconosciuto ─────────────────────────
   const handleIgnore = async (unkId: string) => {
-    if (!confirm("Eliminare questo UID dalla lista? Se la tessera verrà passata di nuovo riapparirà.")) return;
+    const ok = await confirm({
+      title: "Rimuovi UID",
+      message: "Eliminare questo UID dalla lista? Se la tessera verrà passata di nuovo riapparirà.",
+      confirmLabel: "Rimuovi",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/settings/unrecognized-nfc?id=${unkId}`, { method: "DELETE" });
       if (!res.ok) {
-        showBanner({ kind: "error", text: `Errore ${res.status}` });
+        toast.error(`Errore ${res.status}`);
         return;
       }
-      showBanner({ kind: "success", text: "UID rimosso dalla lista" });
+      toast.success("UID rimosso dalla lista");
       loadAll();
     } catch {
-      showBanner({ kind: "error", text: "Errore di rete" });
+      toast.error("Errore di rete");
     }
   };
 
@@ -128,10 +129,10 @@ export default function NfcSettingsPage() {
       const res = await fetch(`/api/employees/${empId}`, { method: "PUT", body: fd });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        showBanner({ kind: "error", text: err.error || `Errore ${res.status}` });
+        toast.error(err.error || `Errore ${res.status}`);
         return;
       }
-      showBanner({ kind: "success", text: "Tessera aggiornata" });
+      toast.success("Tessera aggiornata");
       setEditing((e) => {
         const rest = { ...e };
         delete rest[empId];
@@ -139,12 +140,18 @@ export default function NfcSettingsPage() {
       });
       loadAll();
     } catch {
-      showBanner({ kind: "error", text: "Errore di rete" });
+      toast.error("Errore di rete");
     }
   };
 
   const handleUnlink = async (empId: string) => {
-    if (!confirm("Scollegare la tessera da questo dipendente?")) return;
+    const ok = await confirm({
+      title: "Scollega tessera",
+      message: "Scollegare la tessera da questo dipendente?",
+      confirmLabel: "Scollega",
+      danger: true,
+    });
+    if (!ok) return;
     handleSaveEdit(empId, "");
   };
 
@@ -194,18 +201,6 @@ export default function NfcSettingsPage() {
           </div>
         </div>
       </div>
-
-      {banner && (
-        <div
-          className={`rounded-lg border p-3 text-sm ${
-            banner.kind === "success"
-              ? "border-green-200 bg-green-50 text-green-800"
-              : "border-red-200 bg-red-50 text-red-800"
-          }`}
-        >
-          {banner.text}
-        </div>
-      )}
 
       {loading && <div className="text-sm text-on-surface-variant">Caricamento…</div>}
 

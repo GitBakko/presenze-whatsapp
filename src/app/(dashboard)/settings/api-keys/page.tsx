@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { CheckCircle, KeyRound, Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface ApiKeyItem {
   id: string;
@@ -12,6 +14,7 @@ interface ApiKeyItem {
 }
 
 export default function ApiKeysPage() {
+  const confirm = useConfirm();
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [name, setName] = useState("");
   const [newKey, setNewKey] = useState<string | null>(null);
@@ -46,8 +49,19 @@ export default function ApiKeysPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Eliminare questa chiave API? Le applicazioni che la usano perderanno l'accesso.")) return;
-    await fetch(`/api/settings/api-keys?id=${id}`, { method: "DELETE" });
+    const ok = await confirm({
+      title: "Elimina chiave API",
+      message: "Eliminare questa chiave API? Le applicazioni che la usano perderanno l'accesso.",
+      confirmLabel: "Elimina",
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/settings/api-keys?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Chiave API eliminata");
+    } else {
+      toast.error("Errore nella cancellazione");
+    }
     fetchKeys();
   }
 

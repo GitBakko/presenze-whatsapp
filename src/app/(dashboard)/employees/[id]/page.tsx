@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { toast } from "sonner";
 import { hoursToHHMM, minutesToHHMM, formatDate } from "@/lib/formatTime";
+import { useConfirm } from "@/components/ConfirmProvider";
 import {
   CalendarDays, Clock, Coffee, Flame, AlertTriangle,
   DoorOpen, Home, Timer, X, Hourglass, CheckCircle2,
@@ -73,6 +75,7 @@ const MONTH_NAMES = [
 ];
 
 export default function EmployeeDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const [month, setMonth] = useState(() => {
     const now = new Date();
@@ -555,12 +558,21 @@ export default function EmployeeDetailPage() {
                             <button
                               title="Elimina record"
                               className="ml-auto rounded-full p-1 text-outline-variant hover:bg-error/10 hover:text-error transition-colors"
-                              onClick={() => {
-                                if (!confirm("Eliminare questa registrazione?")) return;
-                                fetch(`/api/records/${rec.id}`, { method: "DELETE" })
-                                  .then(() => {
-                                    setEditingRecords(editingRecords.filter((_, j) => j !== i));
-                                  });
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: "Elimina registrazione",
+                                  message: "Eliminare questa registrazione?",
+                                  confirmLabel: "Elimina",
+                                  danger: true,
+                                });
+                                if (!ok) return;
+                                const res = await fetch(`/api/records/${rec.id}`, { method: "DELETE" });
+                                if (res.ok) {
+                                  toast.success("Registrazione eliminata");
+                                  setEditingRecords(editingRecords.filter((_, j) => j !== i));
+                                } else {
+                                  toast.error("Errore nella cancellazione");
+                                }
                               }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -584,8 +596,11 @@ export default function EmployeeDetailPage() {
                                   })
                                 )
                               );
+                              toast.success("Modifiche salvate");
                               setEditingRecords(null);
                               load();
+                            } catch {
+                              toast.error("Errore nel salvataggio");
                             } finally {
                               setSavingRecords(false);
                             }

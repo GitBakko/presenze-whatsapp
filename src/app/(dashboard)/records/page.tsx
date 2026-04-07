@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Clock, Trash2, Pencil, Filter, Nfc, RefreshCw, Save, X } from "lucide-react";
 import { formatDate } from "@/lib/formatTime";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface Employee {
   id: string;
@@ -61,6 +63,7 @@ function todayStr() {
 }
 
 export default function RecordsPage() {
+  const confirm = useConfirm();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<Record[]>([]);
   const [total, setTotal] = useState(0);
@@ -79,11 +82,9 @@ export default function RecordsPage() {
   const [editType, setEditType] = useState("");
   const [editTime, setEditTime] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const params = new URLSearchParams();
       if (from) params.set("from", from);
@@ -95,14 +96,14 @@ export default function RecordsPage() {
       params.set("offset", String(page * PAGE_SIZE));
       const res = await fetch(`/api/records?${params.toString()}`);
       if (!res.ok) {
-        setError(`Errore ${res.status}`);
+        toast.error(`Errore ${res.status}`);
         return;
       }
       const data: ListResponse = await res.json();
       setRecords(data.items);
       setTotal(data.total);
     } catch {
-      setError("Errore di rete");
+      toast.error("Errore di rete");
     } finally {
       setLoading(false);
     }
@@ -133,7 +134,6 @@ export default function RecordsPage() {
     setEditingId(r.id);
     setEditType(r.type);
     setEditTime(r.declaredTime);
-    setError(null);
   };
 
   const cancelEdit = () => {
@@ -144,7 +144,7 @@ export default function RecordsPage() {
 
   const saveEdit = async (r: Record) => {
     if (!/^\d{2}:\d{2}$/.test(editTime)) {
-      setError("Orario non valido (HH:MM)");
+      toast.error("Orario non valido (HH:MM)");
       return;
     }
     setBusyId(r.id);
@@ -156,9 +156,10 @@ export default function RecordsPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || `Errore ${res.status}`);
+        toast.error(err.error || `Errore ${res.status}`);
         return;
       }
+      toast.success("Timbratura aggiornata");
       cancelEdit();
       load();
     } finally {
@@ -167,15 +168,21 @@ export default function RecordsPage() {
   };
 
   const handleDelete = async (r: Record) => {
-    if (!confirm(`Eliminare la timbratura ${TYPE_LABELS[r.type] ?? r.type} del ${formatDate(r.date)} alle ${r.declaredTime}?`))
-      return;
+    const ok = await confirm({
+      title: "Elimina timbratura",
+      message: `Eliminare la timbratura ${TYPE_LABELS[r.type] ?? r.type} del ${formatDate(r.date)} alle ${r.declaredTime} per ${r.employee}?`,
+      confirmLabel: "Elimina",
+      danger: true,
+    });
+    if (!ok) return;
     setBusyId(r.id);
     try {
       const res = await fetch(`/api/records/${r.id}`, { method: "DELETE" });
       if (!res.ok) {
-        setError(`Errore ${res.status}`);
+        toast.error(`Errore ${res.status}`);
         return;
       }
+      toast.success("Timbratura eliminata");
       load();
     } finally {
       setBusyId(null);
@@ -289,12 +296,6 @@ export default function RecordsPage() {
           </div>
         </div>
       </div>
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </div>
-      )}
 
       {/* ── Tabella ─────────────────────────────────────────────── */}
       {loading ? (

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import {
   Hourglass, Plus, Calendar, List, X,
   ChevronLeft, ChevronRight, CalendarX2,
   CheckCircle, XCircle, Trash2,
 } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 // ── Types ──
 
@@ -102,6 +104,7 @@ const STATUS_LABELS: Record<string, string> = {
 // ── Main page ──
 
 export default function LeavesPage() {
+  const confirm = useConfirm();
   const [tab, setTab] = useState<"calendar" | "requests">("calendar");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -181,8 +184,19 @@ export default function LeavesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Eliminare questa richiesta?")) return;
-    await fetch(`/api/leaves/${id}`, { method: "DELETE" });
+    const ok = await confirm({
+      title: "Elimina richiesta",
+      message: "Eliminare questa richiesta di ferie/permesso?",
+      confirmLabel: "Elimina",
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/leaves/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Richiesta eliminata");
+    } else {
+      toast.error("Errore nella cancellazione");
+    }
     fetchRequests();
     fetchCalendar();
   }

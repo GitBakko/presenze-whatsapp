@@ -6,6 +6,7 @@ import { todayRome, nowRomeHHMM, dowRome } from "@/lib/tz";
 import { decideAction } from "@/lib/kiosk-classifier";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
 import { syncAnomalies } from "@/lib/anomaly-sync";
+import { notificationsBus, type NotificationAction } from "@/lib/notifications-bus";
 
 /**
  * Endpoint chiamato dal servizio Windows del kiosk NFC ad ogni tap.
@@ -177,6 +178,19 @@ export async function POST(request: NextRequest) {
     await syncAnomalies([stats]);
   } catch (err) {
     console.error("[kiosk/punch] syncAnomalies failed:", err);
+  }
+
+  // 7b. Notifica in tempo reale agli admin SSE-connessi
+  try {
+    notificationsBus.publish({
+      employeeId: employee.id,
+      employeeName: employee.displayName || employee.name,
+      action: action as NotificationAction,
+      time: declaredTime,
+      date,
+    });
+  } catch (err) {
+    console.error("[kiosk/punch] notificationsBus.publish failed:", err);
   }
 
   // 8. Risposta

@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { Sidebar } from "./Sidebar";
-import { Menu, PanelLeftClose, Search, Bell, HelpCircle } from "lucide-react";
+import { Menu, PanelLeftClose, Search, HelpCircle } from "lucide-react";
+import { NotificationsProvider } from "./NotificationsProvider";
+import { NotificationBell } from "./NotificationBell";
+import { NotificationToast } from "./NotificationToast";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
+    <NotificationsProvider>
     <div className="flex h-screen overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -48,9 +52,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary">
-              <Bell className="h-5 w-5 text-amber-400" />
-            </button>
+            <NotificationBell />
             <button className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary">
               <HelpCircle className="h-5 w-5 text-blue-400" />
             </button>
@@ -60,6 +62,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* Page content */}
         <div className="px-4 pb-12 pt-24 sm:px-8">{children}</div>
       </main>
+      <NotificationToast />
     </div>
+    </NotificationsProvider>
   );
 }

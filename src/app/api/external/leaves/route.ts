@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createHash } from "crypto";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
-
-async function validateApiKey(request: NextRequest): Promise<boolean> {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return false;
-
-  const token = authHeader.slice(7);
-  const hash = createHash("sha256").update(token).digest("hex");
-
-  const key = await prisma.apiKey.findUnique({ where: { keyHash: hash } });
-  return key !== null && key.active;
-}
+import { validateApiKey } from "@/lib/api-key-auth";
 
 export async function POST(request: NextRequest) {
   const isValid = await validateApiKey(request);

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Ban, Calendar, KeyRound } from "lucide-react";
+import { Ban, Calendar, KeyRound, Nfc } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -28,6 +28,17 @@ export default function SettingsPage() {
           <p className="mt-2 text-sm text-on-surface-variant">
             Configura gli orari lavorativi personalizzati per ogni dipendente
             (per calcolo ritardi e straordinari).
+          </p>
+        </Link>
+
+        <Link
+          href="/settings/nfc"
+          className="rounded-lg bg-surface-container-lowest shadow-card p-6 transition-shadow hover:shadow-elevated"
+        >
+          <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2"><Nfc className="h-4 w-4 text-emerald-500" /> Postazione NFC</h2>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Associa le tessere CIE/NFC ai dipendenti e gestisci gli UID
+            non riconosciuti dal kiosk di ingresso.
           </p>
         </Link>
 

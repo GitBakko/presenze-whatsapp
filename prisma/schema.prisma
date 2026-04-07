@@ -25,6 +25,7 @@ model Employee {
   aliases      String             @default("[]") // JSON array of alternative names
   hireDate     DateTime?          // Data assunzione (per calcolo maturazione ferie/ROL)
   contractType String             @default("FULL_TIME") // FULL_TIME | PART_TIME
+  nfcUid       String?            @unique // UID tessera NFC/CIE associata (hex uppercase)
   createdAt    DateTime           @default(now())
   records      AttendanceRecord[]
   anomalies    Anomaly[]
@@ -41,7 +42,7 @@ model AttendanceRecord {
   declaredTime String   // HH:MM — the time declared by employee or from message timestamp
   messageTime  String   // HH:MM — WhatsApp message timestamp
   rawMessage   String
-  source       String   @default("PARSED") // PARSED | MANUAL
+  source       String   @default("PARSED") // PARSED | MANUAL | NFC
   isManual     Boolean  @default(false)
   createdAt    DateTime @default(now())
 
@@ -150,4 +151,17 @@ model ApiKey {
   name      String            // description (e.g. "Employee App")
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+// ── NFC Kiosk ──
+
+model UnrecognizedNfc {
+  id          String   @id @default(cuid())
+  uid         String   @unique // UID hex uppercase letto dal lettore NFC ma non associato a nessun dipendente
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  attempts    Int      @default(1)
+  notes       String?
+
+  @@index([lastSeenAt])
 }

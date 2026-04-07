@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { randomBytes } from "crypto";
 import { checkAuth } from "@/lib/auth-guard";
+
+/** Normalizza un UID NFC: hex uppercase, niente separatori. Stringa vuota se input non valido. */
+function normalizeNfcUid(raw: string): string {
+  return raw.replace(/[^0-9a-fA-F]/g, "").toUpperCase();
+}
 
 export async function GET(
   _request: NextRequest,
@@ -25,6 +31,7 @@ export async function GET(
     aliases: JSON.parse(employee.aliases) as string[],
     hireDate: employee.hireDate?.toISOString().split("T")[0] ?? null,
     contractType: employee.contractType,
+    nfcUid: employee.nfcUid,
   });
 }
 
@@ -47,8 +54,15 @@ export async function PUT(
 
   const hireDate = formData.get("hireDate") as string | null;
   const contractType = formData.get("contractType") as string | null;
+  const nfcUidRaw = formData.get("nfcUid") as string | null;
 
-  const updateData: { displayName?: string | null; avatarUrl?: string; hireDate?: Date | null; contractType?: string } = {};
+  const updateData: {
+    displayName?: string | null;
+    avatarUrl?: string;
+    hireDate?: Date | null;
+    contractType?: string;
+    nfcUid?: string | null;
+  } = {};
 
   // Update display name (empty string = reset to null/use original name)
   if (displayName !== null) {
@@ -63,6 +77,23 @@ export async function PUT(
   // Update contract type
   if (contractType && ["FULL_TIME", "PART_TIME"].includes(contractType)) {
     updateData.contractType = contractType;
+  }
+
+  // Update NFC UID (stringa vuota = scollega tessera)
+  if (nfcUidRaw !== null) {
+    const trimmed = nfcUidRaw.trim();
+    if (trimmed === "") {
+      updateData.nfcUid = null;
+    } else {
+      const uid = normalizeNfcUid(trimmed);
+      if (!uid) {
+        return NextResponse.json(
+          { error: "UID NFC non valido (sono ammessi solo caratteri esadecimali)" },
+          { status: 400 }
+        );
+      }
+      updateData.nfcUid = uid;
+    }
   }
 
   // Handle avatar upload
@@ -92,10 +123,21 @@ export async function PUT(
     updateData.avatarUrl = `/uploads/avatars/${filename}`;
   }
 
-  const updated = await prisma.employee.update({
-    where: { id },
-    data: updateData,
-  });
+  let updated;
+  try {
+    updated = await prisma.employee.update({
+      where: { id },
+      data: updateData,
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        { error: "UID NFC già associato a un altro dipendente" },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
 
   return NextResponse.json({
     id: updated.id,
@@ -105,5 +147,6 @@ export async function PUT(
     aliases: JSON.parse(updated.aliases) as string[],
     hireDate: updated.hireDate?.toISOString().split("T")[0] ?? null,
     contractType: updated.contractType,
+    nfcUid: updated.nfcUid,
   });
 }

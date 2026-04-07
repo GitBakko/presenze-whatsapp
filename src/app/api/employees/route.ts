@@ -23,6 +23,7 @@ export async function GET() {
       displayName: emp.displayName,
       avatarUrl: emp.avatarUrl,
       aliases: JSON.parse(emp.aliases) as string[],
+      nfcUid: emp.nfcUid,
       totalDays,
       lastSeen: emp.records[0]?.date || null,
     };

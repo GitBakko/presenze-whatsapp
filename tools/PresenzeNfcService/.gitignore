@@ -1,0 +1,8 @@
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.cache
+*.pdb
+config.ini

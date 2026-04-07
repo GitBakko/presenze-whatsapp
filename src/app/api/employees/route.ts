@@ -27,6 +27,7 @@ export async function GET() {
       nfcUid: emp.nfcUid,
       telegramChatId: emp.telegramChatId,
       telegramUsername: emp.telegramUsername,
+      email: emp.email,
       totalDays,
       lastSeen: emp.records[0]?.date || null,
     };

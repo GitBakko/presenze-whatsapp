@@ -28,6 +28,7 @@ model Employee {
   nfcUid       String?            @unique // UID tessera NFC/CIE associata (hex uppercase)
   telegramChatId   String?        @unique // chat_id Telegram (string per evitare overflow Int64)
   telegramUsername String?                // @username Telegram (cosmetico, mostrato nella UI admin)
+  email        String?            @unique // email associata per richieste ferie via mail
   createdAt    DateTime           @default(now())
   records      AttendanceRecord[]
   anomalies    Anomaly[]
@@ -181,4 +182,33 @@ model UnrecognizedTelegramChat {
   attempts    Int      @default(1)
 
   @@index([lastSeenAt])
+}
+
+// ── Email-to-leaves ──
+
+model UnrecognizedEmail {
+  id          String   @id @default(cuid())
+  fromAddress String   // mittente (email lowercase)
+  subject     String
+  snippet     String   // primi ~200 char del corpo
+  receivedAt  DateTime @default(now())
+  attempts    Int      @default(1)
+
+  @@index([receivedAt])
+  @@index([fromAddress])
+}
+
+model EmailIngestLog {
+  id             String   @id @default(cuid())
+  messageId      String   @unique // header Message-ID per idempotency
+  fromAddress    String
+  subject        String
+  status         String   // OK | UNKNOWN_SENDER | PARSE_ERROR | INTERNAL_ERROR | DUPLICATE
+  errorDetail    String?
+  leaveRequestId String?
+  processedAt    DateTime @default(now())
+
+  @@index([processedAt])
+  @@index([fromAddress])
+  @@index([status])
 }

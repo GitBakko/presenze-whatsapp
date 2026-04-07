@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Ban, Calendar, KeyRound, MessageCircle, Nfc } from "lucide-react";
+import { Ban, Calendar, KeyRound, Mail, MessageCircle, Nfc } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -50,6 +50,17 @@ export default function SettingsPage() {
           <p className="mt-2 text-sm text-on-surface-variant">
             Collega i chat Telegram dei dipendenti per consentire timbrature
             e richieste ferie via bot.
+          </p>
+        </Link>
+
+        <Link
+          href="/settings/email-ingest"
+          className="rounded-lg bg-surface-container-lowest shadow-card p-6 transition-shadow hover:shadow-elevated"
+        >
+          <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2"><Mail className="h-4 w-4 text-violet-500" /> Ferie via Email</h2>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Acquisizione automatica delle richieste ferie inviate via email
+            con oggetto &quot;ferie&quot; e formato DAL/AL.
           </p>
         </Link>
 

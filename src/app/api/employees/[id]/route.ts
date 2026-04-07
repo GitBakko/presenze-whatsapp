@@ -34,6 +34,7 @@ export async function GET(
     nfcUid: employee.nfcUid,
     telegramChatId: employee.telegramChatId,
     telegramUsername: employee.telegramUsername,
+    email: employee.email,
   });
 }
 
@@ -59,6 +60,7 @@ export async function PUT(
   const nfcUidRaw = formData.get("nfcUid") as string | null;
   const telegramChatIdRaw = formData.get("telegramChatId") as string | null;
   const telegramUsernameRaw = formData.get("telegramUsername") as string | null;
+  const emailRaw = formData.get("email") as string | null;
 
   const updateData: {
     displayName?: string | null;
@@ -68,6 +70,7 @@ export async function PUT(
     nfcUid?: string | null;
     telegramChatId?: string | null;
     telegramUsername?: string | null;
+    email?: string | null;
   } = {};
 
   // Update display name (empty string = reset to null/use original name)
@@ -123,6 +126,18 @@ export async function PUT(
     updateData.telegramUsername = trimmed || null;
   }
 
+  // Update email (stringa vuota = scollega)
+  if (emailRaw !== null) {
+    const trimmed = emailRaw.trim().toLowerCase();
+    if (trimmed === "") {
+      updateData.email = null;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      return NextResponse.json({ error: "Formato email non valido" }, { status: 400 });
+    } else {
+      updateData.email = trimmed;
+    }
+  }
+
   // Handle avatar upload
   if (avatarFile && avatarFile.size > 0) {
     // Validate file type
@@ -162,6 +177,8 @@ export async function PUT(
       const targetStr = Array.isArray(target) ? target.join(",") : String(target ?? "");
       const msg = targetStr.includes("telegram")
         ? "Chat Telegram già associata a un altro dipendente"
+        : targetStr.includes("email")
+        ? "Email già associata a un altro dipendente"
         : "UID NFC già associato a un altro dipendente";
       return NextResponse.json({ error: msg }, { status: 409 });
     }
@@ -179,5 +196,6 @@ export async function PUT(
     nfcUid: updated.nfcUid,
     telegramChatId: updated.telegramChatId,
     telegramUsername: updated.telegramUsername,
+    email: updated.email,
   });
 }

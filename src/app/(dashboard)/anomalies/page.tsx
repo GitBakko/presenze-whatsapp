@@ -5,7 +5,7 @@ import { DateRangePicker } from "@/components/DateRangePicker";
 import {
   CheckCircle, CheckCircle2, HelpCircle, RefreshCw, AlertTriangle,
   Wrench, X, Clock, LogIn, LogOut, Pause, Play,
-  Timer, PlusCircle, MinusCircle, Check, ExternalLink,
+  Timer, PlusCircle, MinusCircle, Check, ExternalLink, Pencil,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -33,10 +33,15 @@ interface ExistingRecord {
 }
 
 interface ResolveAction {
-  kind: "add" | "delete";
+  kind: "add" | "delete" | "edit";
   type?: string;
   declaredTime?: string;
   recordId?: string;
+}
+
+interface RecordEdit {
+  type: string;
+  declaredTime: string;
 }
 
 // Map anomaly types to the corrective action they need
@@ -108,13 +113,16 @@ export default function AnomaliesPage() {
   const [loading, setLoading] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
 
-  // Resolution panel state
-  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  // Resolution panel state — holds a snapshot of the anomaly being resolved.
+  // For computed anomalies, the `id` is rewritten to the freshly persisted
+  // DB id by openResolvePanel before the modal is rendered.
+  const [resolvingAnomaly, setResolvingAnomaly] = useState<Anomaly | null>(null);
   const [resolution, setResolution] = useState("");
   const [addTime, setAddTime] = useState("");
   const [addType, setAddType] = useState("");
   const [existingRecords, setExistingRecords] = useState<ExistingRecord[]>([]);
   const [deleteIds, setDeleteIds] = useState<Set<string>>(new Set());
+  const [edits, setEdits] = useState<Record<string, RecordEdit>>({});
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(() => {
@@ -129,15 +137,39 @@ export default function AnomaliesPage() {
   useEffect(() => { load(); }, [load]);
 
   const openResolvePanel = async (anomaly: Anomaly) => {
-    setResolvingId(anomaly.id);
+    let realId = anomaly.id;
+
+    // Computed anomalies have synthetic ids ("computed-...") and aren't in
+    // the DB yet. Persist them as unresolved before opening the modal so the
+    // existing PUT /api/anomalies/[id] resolution flow can act on a real row.
+    if (anomaly.computed) {
+      const res = await fetch("/api/anomalies/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: anomaly.employeeId,
+          date: anomaly.date,
+          type: anomaly.type,
+          description: anomaly.description,
+          persistOnly: true,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        realId = data.id;
+      }
+    }
+
+    setResolvingAnomaly({ ...anomaly, id: realId, computed: false });
     setResolution("");
     setAddTime("");
     setDeleteIds(new Set());
+    setEdits({});
     const config = ANOMALY_CONFIG[anomaly.type];
     setAddType(config?.addType ?? "");
 
     // Fetch existing records for this employee+date
-    const res = await fetch(`/api/anomalies/${anomaly.id}`);
+    const res = await fetch(`/api/anomalies/${realId}`);
     if (res.ok) {
       const records = await res.json();
       setExistingRecords(Array.isArray(records) ? records : []);
@@ -145,12 +177,42 @@ export default function AnomaliesPage() {
   };
 
   const closePanel = () => {
-    setResolvingId(null);
+    setResolvingAnomaly(null);
     setResolution("");
     setAddTime("");
     setAddType("");
     setExistingRecords([]);
     setDeleteIds(new Set());
+    setEdits({});
+  };
+
+  const startEditRecord = (r: ExistingRecord) => {
+    setEdits((prev) => ({
+      ...prev,
+      [r.id]: { type: r.type, declaredTime: r.declaredTime },
+    }));
+    // Annulla l'eventuale flag di delete sullo stesso record
+    setDeleteIds((prev) => {
+      if (!prev.has(r.id)) return prev;
+      const next = new Set(prev);
+      next.delete(r.id);
+      return next;
+    });
+  };
+
+  const cancelEditRecord = (recordId: string) => {
+    setEdits((prev) => {
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
+  };
+
+  const updateEdit = (recordId: string, patch: Partial<RecordEdit>) => {
+    setEdits((prev) => ({
+      ...prev,
+      [recordId]: { ...prev[recordId], ...patch },
+    }));
   };
 
   const toggleDelete = (recordId: string) => {
@@ -171,6 +233,26 @@ export default function AnomaliesPage() {
       actions.push({ kind: "add", type: addType, declaredTime: addTime });
     }
 
+    // Edit record actions — solo se davvero cambiati rispetto all'originale
+    let editsApplied = 0;
+    for (const [recordId, edit] of Object.entries(edits)) {
+      const orig = existingRecords.find((r) => r.id === recordId);
+      if (!orig) continue;
+      if (orig.type === edit.type && orig.declaredTime === edit.declaredTime) continue;
+      if (!/^\d{2}:\d{2}$/.test(edit.declaredTime)) {
+        setSubmitting(false);
+        alert(`Orario non valido per il record ${TYPE_LABELS[orig.type] ?? orig.type}`);
+        return;
+      }
+      actions.push({
+        kind: "edit",
+        recordId,
+        type: edit.type,
+        declaredTime: edit.declaredTime,
+      });
+      editsApplied++;
+    }
+
     // Delete record actions
     for (const recordId of deleteIds) {
       actions.push({ kind: "delete", recordId });
@@ -179,10 +261,11 @@ export default function AnomaliesPage() {
     const resolutionText = [
       resolution,
       addTime ? `Aggiunto ${TYPE_LABELS[addType] ?? addType} alle ${addTime}` : "",
+      editsApplied > 0 ? `Modificat${editsApplied > 1 ? "i" : "o"} ${editsApplied} record` : "",
       deleteIds.size > 0 ? `Eliminat${deleteIds.size > 1 ? "i" : "o"} ${deleteIds.size} record` : "",
     ].filter(Boolean).join(" — ");
 
-    await fetch(`/api/anomalies/${anomaly.id}`, {
+    const res = await fetch(`/api/anomalies/${anomaly.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -191,6 +274,13 @@ export default function AnomaliesPage() {
         actions,
       }),
     });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || `Errore ${res.status}`);
+      setSubmitting(false);
+      return;
+    }
 
     setSubmitting(false);
     closePanel();
@@ -212,8 +302,6 @@ export default function AnomaliesPage() {
     setSubmitting(false);
     load();
   };
-
-  const resolvingAnomaly = anomalies.find((a) => a.id === resolvingId);
 
   return (
     <div className="space-y-6">
@@ -263,14 +351,14 @@ export default function AnomaliesPage() {
                   <td className="px-4 py-3 font-medium">{a.employee}</td>
                   <td className="px-4 py-3 tabular-nums text-on-surface-variant">{formatDate(a.date)}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${a.resolved ? "bg-surface-container text-on-surface-variant" : isComputed ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" : "bg-error-container text-error"}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${a.resolved ? "bg-surface-container text-on-surface-variant" : isComputed ? "border border-amber-300 bg-amber-200 text-amber-950 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-50" : "bg-error-container text-error"}`}>
                       {isComputed
                         ? <AlertTriangle className="h-3.5 w-3.5" />
                         : a.type.includes("MISSING") ? <HelpCircle className="h-3.5 w-3.5" /> : a.type.includes("MISMATCH") ? <RefreshCw className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
                       {a.description}
                     </span>
                     {isComputed && (
-                      <span className="ml-2 rounded bg-amber-100/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Possibile</span>
+                      <span className="ml-2 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-800 dark:text-amber-50">Possibile</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -280,38 +368,41 @@ export default function AnomaliesPage() {
                         Risolta
                       </span>
                     ) : isComputed ? (
-                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Da verificare</span>
+                      <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">Da verificare</span>
                     ) : (
                       <span className="text-xs font-medium text-error">Aperta</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {!a.resolved && !isComputed && (
-                      <button
-                        onClick={() => openResolvePanel(a)}
-                        className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-primary to-primary-container px-3 py-1.5 text-xs font-medium text-on-primary transition-shadow hover:shadow-elevated"
-                      >
-                        <Wrench className="h-3.5 w-3.5" />
-                        Risolvi
-                      </button>
-                    )}
-                    {!a.resolved && isComputed && (
+                    {!a.resolved && (
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => handleDismiss(a)}
+                          onClick={() => openResolvePanel(a)}
                           disabled={submitting}
-                          className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-shadow hover:bg-emerald-700 hover:shadow-elevated disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-primary to-primary-container px-3 py-1.5 text-xs font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50"
                         >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Corretto
+                          <Wrench className="h-3.5 w-3.5" />
+                          Risolvi
                         </button>
-                        <Link
-                          href={`/employees/${a.employeeId}?date=${a.date}`}
-                          className="inline-flex items-center gap-1 rounded-md bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-high"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Dettaglio
-                        </Link>
+                        {isComputed && (
+                          <>
+                            <button
+                              onClick={() => handleDismiss(a)}
+                              disabled={submitting}
+                              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-shadow hover:bg-emerald-700 hover:shadow-elevated disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Corretto
+                            </button>
+                            <Link
+                              href={`/employees/${a.employeeId}?date=${a.date}`}
+                              className="inline-flex items-center gap-1 rounded-md bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-high"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Dettaglio
+                            </Link>
+                          </>
+                        )}
                       </div>
                     )}
                     {a.resolved && a.resolution && (
@@ -361,40 +452,88 @@ export default function AnomaliesPage() {
                 </h3>
                 <div className="space-y-1">
                   {existingRecords.map((r) => {
-                    const config = ANOMALY_CONFIG[resolvingAnomaly.type];
-                    const canDelete = config?.canDelete?.includes(r.type) ||
-                      resolvingAnomaly.type === "MISMATCHED_PAIRS";
+                    const editing = !!edits[r.id];
+                    const isDeleted = deleteIds.has(r.id);
                     return (
                       <div
                         key={r.id}
-                        className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${
-                          deleteIds.has(r.id)
+                        className={`flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-sm ${
+                          isDeleted
                             ? "bg-error-container/30 line-through"
+                            : editing
+                            ? "bg-primary-fixed/20"
                             : "bg-surface-container-low"
                         }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex min-w-[100px] items-center gap-1 text-xs font-medium text-on-surface-variant">
-                            {r.type === "ENTRY" ? <LogIn className="h-3.5 w-3.5" /> : r.type === "EXIT" ? <LogOut className="h-3.5 w-3.5" /> : r.type === "PAUSE_START" ? <Pause className="h-3.5 w-3.5" /> : r.type === "PAUSE_END" ? <Play className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
-                            {TYPE_LABELS[r.type] ?? r.type}
-                          </span>
-                          <span className="font-mono tabular-nums">{r.declaredTime}</span>
-                          {r.isManual && (
-                            <span className="rounded bg-primary-fixed/20 px-1.5 py-0.5 text-[10px] text-primary">manuale</span>
+                        <div className="flex flex-1 items-center gap-2">
+                          {editing ? (
+                            <>
+                              <select
+                                value={edits[r.id].type}
+                                onChange={(e) => updateEdit(r.id, { type: e.target.value })}
+                                className="rounded border-0 bg-surface-container-highest px-2 py-1 text-xs focus:ring-1 focus:ring-primary/40"
+                              >
+                                {Object.keys(TYPE_LABELS).map((t) => (
+                                  <option key={t} value={t}>
+                                    {TYPE_LABELS[t]}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="time"
+                                value={edits[r.id].declaredTime}
+                                onChange={(e) => updateEdit(r.id, { declaredTime: e.target.value })}
+                                className="w-24 rounded border-0 bg-surface-container-highest px-2 py-1 font-mono text-xs focus:ring-1 focus:ring-primary/40"
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <span className="inline-flex min-w-[100px] items-center gap-1 text-xs font-medium text-on-surface-variant">
+                                {r.type === "ENTRY" ? <LogIn className="h-3.5 w-3.5" /> : r.type === "EXIT" ? <LogOut className="h-3.5 w-3.5" /> : r.type === "PAUSE_START" ? <Pause className="h-3.5 w-3.5" /> : r.type === "PAUSE_END" ? <Play className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
+                                {TYPE_LABELS[r.type] ?? r.type}
+                              </span>
+                              <span className="font-mono tabular-nums">{r.declaredTime}</span>
+                              {r.isManual && (
+                                <span className="rounded bg-primary-fixed/20 px-1.5 py-0.5 text-[10px] text-primary">manuale</span>
+                              )}
+                            </>
                           )}
                         </div>
-                        {canDelete && (
-                          <button
-                            onClick={() => toggleDelete(r.id)}
-                            className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                              deleteIds.has(r.id)
-                                ? "bg-error text-on-error"
-                                : "text-error hover:bg-error-container"
-                            }`}
-                          >
-                            {deleteIds.has(r.id) ? "Annulla" : "Elimina"}
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {editing ? (
+                            <button
+                              type="button"
+                              onClick={() => cancelEditRecord(r.id)}
+                              className="rounded-md bg-surface-container-high px-2 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest"
+                            >
+                              Annulla modifica
+                            </button>
+                          ) : (
+                            !isDeleted && (
+                              <button
+                                type="button"
+                                onClick={() => startEditRecord(r)}
+                                className="inline-flex items-center gap-1 rounded-md bg-surface-container-high px-2 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest"
+                                title="Modifica tipo e/o orario"
+                              >
+                                <Pencil className="h-3 w-3" />
+                                Modifica
+                              </button>
+                            )
+                          )}
+                          {!editing && (
+                            <button
+                              onClick={() => toggleDelete(r.id)}
+                              className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                                isDeleted
+                                  ? "bg-error text-on-error"
+                                  : "text-error hover:bg-error-container"
+                              }`}
+                            >
+                              {isDeleted ? "Annulla" : "Elimina"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -447,7 +586,7 @@ export default function AnomaliesPage() {
             </div>
 
             {/* Actions summary */}
-            {(addTime || deleteIds.size > 0) && (
+            {(addTime || deleteIds.size > 0 || Object.keys(edits).length > 0) && (
               <div className="mb-5 rounded-md bg-primary-fixed/10 px-4 py-3">
                 <p className="text-[10px] font-bold uppercase tracking-[0.05em] text-primary">Riepilogo azioni</p>
                 <ul className="mt-1 space-y-0.5 text-sm text-on-surface-variant">
@@ -457,6 +596,17 @@ export default function AnomaliesPage() {
                       {TYPE_LABELS[addType] ?? addType} alle {addTime}
                     </li>
                   )}
+                  {Object.entries(edits).map(([rid, ed]) => {
+                    const orig = existingRecords.find((r) => r.id === rid);
+                    if (!orig) return null;
+                    if (orig.type === ed.type && orig.declaredTime === ed.declaredTime) return null;
+                    return (
+                      <li key={rid} className="flex items-center gap-1">
+                        <Pencil className="h-3.5 w-3.5 text-primary" />
+                        {TYPE_LABELS[orig.type] ?? orig.type} {orig.declaredTime} → {TYPE_LABELS[ed.type] ?? ed.type} {ed.declaredTime}
+                      </li>
+                    );
+                  })}
                   {deleteIds.size > 0 && (
                     <li className="flex items-center gap-1">
                       <MinusCircle className="h-3.5 w-3.5 text-error" />
@@ -477,7 +627,7 @@ export default function AnomaliesPage() {
               </button>
               <button
                 onClick={() => handleResolve(resolvingAnomaly)}
-                disabled={submitting || (!addTime && deleteIds.size === 0 && !resolution)}
+                disabled={submitting || (!addTime && deleteIds.size === 0 && Object.keys(edits).length === 0 && !resolution)}
                 className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50"
               >
                 <Check className="h-3.5 w-3.5" />

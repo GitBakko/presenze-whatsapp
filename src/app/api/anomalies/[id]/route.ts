@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 
 interface ResolveAction {
-  /** "add" = create a missing record, "delete" = remove an extra record */
-  kind: "add" | "delete";
-  /** For "add": the record type (ENTRY, EXIT, PAUSE_END, OVERTIME_END) */
+  /**
+   * "add"   = create a missing record
+   * "delete"= remove an extra record
+   * "edit"  = change type and/or declaredTime of an existing record (used to
+   *           realign mis-classified entries on TIME_BLOCK_MISMATCH /
+   *           TIME_OVERLAP anomalies)
+   */
+  kind: "add" | "delete" | "edit";
+  /** For "add" / "edit": the record type */
   type?: string;
-  /** For "add": the time HH:MM */
+  /** For "add" / "edit": the time HH:MM */
   declaredTime?: string;
-  /** For "delete": the record ID to remove */
+  /** For "delete" / "edit": the record ID to act on */
   recordId?: string;
 }
 
@@ -44,8 +51,8 @@ export async function PUT(
       return NextResponse.json({ error: "Massimo 20 azioni correttive" }, { status: 400 });
     }
     for (const action of actions) {
-      if (action.kind !== "add" && action.kind !== "delete") {
-        return NextResponse.json({ error: "Tipo azione non valido (add/delete)" }, { status: 400 });
+      if (action.kind !== "add" && action.kind !== "delete" && action.kind !== "edit") {
+        return NextResponse.json({ error: "Tipo azione non valido (add/delete/edit)" }, { status: 400 });
       }
       if (action.kind === "add") {
         if (!action.type || !VALID_TYPES.includes(action.type)) {
@@ -65,44 +72,80 @@ export async function PUT(
           return NextResponse.json({ error: "Record non trovato o non appartenente a questa anomalia" }, { status: 400 });
         }
       }
+      if (action.kind === "edit") {
+        if (!action.recordId) {
+          return NextResponse.json({ error: "recordId richiesto per azione edit" }, { status: 400 });
+        }
+        if (!action.type || !VALID_TYPES.includes(action.type)) {
+          return NextResponse.json({ error: `Tipo record non valido. Valori ammessi: ${VALID_TYPES.join(", ")}` }, { status: 400 });
+        }
+        if (!action.declaredTime || !timeRegex.test(action.declaredTime)) {
+          return NextResponse.json({ error: "Formato orario non valido (HH:MM)" }, { status: 400 });
+        }
+        const record = await prisma.attendanceRecord.findUnique({ where: { id: action.recordId } });
+        if (!record || record.employeeId !== anomaly.employeeId || record.date !== anomaly.date) {
+          return NextResponse.json({ error: "Record non trovato o non appartenente a questa anomalia" }, { status: 400 });
+        }
+      }
     }
   }
 
   // Execute corrective actions inside a transaction
-  await prisma.$transaction(async (tx) => {
-    if (actions && actions.length > 0) {
-      for (const action of actions) {
-        if (action.kind === "add" && action.type && action.declaredTime) {
-          await tx.attendanceRecord.create({
-            data: {
-              employeeId: anomaly.employeeId,
-              date: anomaly.date,
-              type: action.type,
-              declaredTime: action.declaredTime,
-              messageTime: action.declaredTime,
-              rawMessage: `[Risoluzione anomalia] ${action.type} ${action.declaredTime}`,
-              source: "MANUAL",
-              isManual: true,
-            },
-          });
-        } else if (action.kind === "delete" && action.recordId) {
-          await tx.attendanceRecord.delete({
-            where: { id: action.recordId },
-          });
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (actions && actions.length > 0) {
+        for (const action of actions) {
+          if (action.kind === "add" && action.type && action.declaredTime) {
+            await tx.attendanceRecord.create({
+              data: {
+                employeeId: anomaly.employeeId,
+                date: anomaly.date,
+                type: action.type,
+                declaredTime: action.declaredTime,
+                messageTime: action.declaredTime,
+                rawMessage: `[Risoluzione anomalia] ${action.type} ${action.declaredTime}`,
+                source: "MANUAL",
+                isManual: true,
+              },
+            });
+          } else if (action.kind === "delete" && action.recordId) {
+            await tx.attendanceRecord.delete({
+              where: { id: action.recordId },
+            });
+          } else if (action.kind === "edit" && action.recordId && action.type && action.declaredTime) {
+            await tx.attendanceRecord.update({
+              where: { id: action.recordId },
+              data: {
+                type: action.type,
+                declaredTime: action.declaredTime,
+                messageTime: action.declaredTime,
+                isManual: true,
+                rawMessage: `[Risoluzione anomalia] modificato in ${action.type} ${action.declaredTime}`,
+              },
+            });
+          }
         }
       }
-    }
 
-    // Mark anomaly as resolved
-    await tx.anomaly.update({
-      where: { id },
-      data: {
-        resolved,
-        resolution: resolution ?? null,
-        resolvedAt: resolved ? new Date() : null,
-      },
+      // Mark anomaly as resolved
+      await tx.anomaly.update({
+        where: { id },
+        data: {
+          resolved,
+          resolution: resolution ?? null,
+          resolvedAt: resolved ? new Date() : null,
+        },
+      });
     });
-  });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        { error: "Conflitto: esiste già un record con stesso tipo e orario per questa giornata" },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
 
   // Return updated anomaly
   const updated = await prisma.anomaly.findUnique({

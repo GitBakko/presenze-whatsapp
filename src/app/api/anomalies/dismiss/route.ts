@@ -4,20 +4,28 @@ import { checkAuth } from "@/lib/auth-guard";
 
 /**
  * POST /api/anomalies/dismiss
- * Create-and-resolve an anomaly in one step (for calculated anomalies
- * that don't exist in DB yet). If an anomaly with the same
- * (employeeId, date, type, description) already exists, toggle its resolved flag.
+ * Create-or-find a persisted anomaly from a computed one.
+ *
+ * Behaviour:
+ *  - If the anomaly already exists (same employeeId+date+type+description):
+ *      - default: toggle the `resolved` flag (used by "Corretto" button)
+ *      - if `persistOnly: true` was passed: do nothing, just return the id
+ *  - If it doesn't exist:
+ *      - default: create it already resolved
+ *      - if `persistOnly: true`: create it as unresolved, so the caller can
+ *        then open the standard "Risolvi" modal on a real DB id
  */
 export async function POST(request: NextRequest) {
   const denied = await checkAuth();
   if (denied) return denied;
 
   const body = await request.json();
-  const { employeeId, date, type, description } = body as {
+  const { employeeId, date, type, description, persistOnly } = body as {
     employeeId: string;
     date: string;
     type: string;
     description: string;
+    persistOnly?: boolean;
   };
 
   if (!employeeId || !date || !type || !description) {
@@ -44,6 +52,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (existing) {
+    if (persistOnly) {
+      // Just return the id without altering state — used to open the
+      // Risolvi modal on a real DB row.
+      return NextResponse.json({ id: existing.id, resolved: existing.resolved });
+    }
     // Toggle resolved state
     const updated = await prisma.anomaly.update({
       where: { id: existing.id },
@@ -56,18 +69,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: updated.id, resolved: updated.resolved });
   }
 
-  // Create new anomaly already resolved
+  // Create new anomaly: resolved (dismiss) or unresolved (persistOnly)
   const anomaly = await prisma.anomaly.create({
     data: {
       employeeId,
       date,
       type,
       description,
-      resolved: true,
-      resolvedAt: new Date(),
-      resolution: "Segnato come corretto",
+      resolved: !persistOnly,
+      resolvedAt: !persistOnly ? new Date() : null,
+      resolution: !persistOnly ? "Segnato come corretto" : null,
     },
   });
 
-  return NextResponse.json({ id: anomaly.id, resolved: true });
+  return NextResponse.json({ id: anomaly.id, resolved: !persistOnly });
 }

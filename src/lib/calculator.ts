@@ -143,10 +143,42 @@ export function calculateDailyStats(
     }
   }
 
-  // Check that pauses fall within a work block
+  // Check that pauses fall within a work block.
+  //
+  // A pause is considered valid if it overlaps EITHER:
+  //   (a) one of the registered ENTRY/EXIT pairs, OR
+  //   (b) one of the contracted schedule blocks (block1 / block2) of the
+  //       employee, with the same fallback to WORK_SCHEDULE used elsewhere.
+  //
+  // Case (b) is needed because employees often punch only one entry in the
+  // morning and one exit in the afternoon (single big "work block" of records)
+  // but actually take a pause during their scheduled afternoon block. Without
+  // checking the schedule we'd raise a false positive every time.
+  const pauseScheduleBlocks: { start: number; end: number }[] = [];
+  const pauseSched = schedule || {
+    block1Start: WORK_SCHEDULE.morning.start,
+    block1End: WORK_SCHEDULE.morning.end,
+    block2Start: WORK_SCHEDULE.afternoon.start,
+    block2End: WORK_SCHEDULE.afternoon.end,
+  };
+  if (pauseSched.block1Start && pauseSched.block1End) {
+    pauseScheduleBlocks.push({
+      start: timeToMinutes(pauseSched.block1Start),
+      end: timeToMinutes(pauseSched.block1End),
+    });
+  }
+  if (pauseSched.block2Start && pauseSched.block2End) {
+    pauseScheduleBlocks.push({
+      start: timeToMinutes(pauseSched.block2Start),
+      end: timeToMinutes(pauseSched.block2End),
+    });
+  }
+
   for (let p = 0; p < pauseStarts.length; p++) {
     const ps = timeToMinutes(pauseStarts[p]);
     const pe = pauseEnds[p] ? timeToMinutes(pauseEnds[p]) : null;
+
+    // (a) inside a registered ENTRY/EXIT block
     let insideBlock = false;
     for (let i = 0; i < Math.min(entries.length, exits.length); i++) {
       const eIn = timeToMinutes(entries[i]);
@@ -156,6 +188,17 @@ export function calculateDailyStats(
         break;
       }
     }
+
+    // (b) inside one of the contracted schedule blocks
+    if (!insideBlock) {
+      for (const blk of pauseScheduleBlocks) {
+        if (ps >= blk.start && ps <= blk.end && (pe === null || pe <= blk.end)) {
+          insideBlock = true;
+          break;
+        }
+      }
+    }
+
     if (!insideBlock && entries.length > 0 && exits.length > 0) {
       anomalies.push({
         type: "TIME_OVERLAP",

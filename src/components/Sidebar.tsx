@@ -11,6 +11,7 @@ import {
   Upload,
   AlertTriangle,
   FileBarChart,
+  Clock,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import {
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, color: "text-blue-500" },
   { href: "/employees", label: "Dipendenti", icon: Users, color: "text-indigo-500" },
+  { href: "/records", label: "Timbrature", icon: Clock, color: "text-teal-500" },
   { href: "/leaves", label: "Ferie & Permessi", icon: CalendarCheck, color: "text-emerald-500" },
   { href: "/import", label: "Importa", icon: Upload, color: "text-cyan-500" },
   { href: "/anomalies", label: "Anomalie", icon: AlertTriangle, color: "text-amber-500" },

@@ -511,3 +511,55 @@ export async function notifyLeaveDecision(args: {
     console.error("[telegram] notifyLeaveDecision failed:", err);
   }
 }
+
+// ── Notifica al dipendente: ferie cancellata ─────────────────────────
+
+export async function notifyLeaveCancellation(args: {
+  employeeChatId: string | null;
+  previousStatus: "PENDING" | "APPROVED" | "REJECTED";
+  startDate: string;
+  endDate: string;
+  reason?: string | null;
+}) {
+  if (!args.employeeChatId) return;
+  const bot = getTelegramBot();
+  if (!bot) return;
+
+  const period =
+    args.startDate === args.endDate
+      ? formatItDate(args.startDate)
+      : `dal ${formatItDate(args.startDate)} al ${formatItDate(args.endDate)}`;
+
+  const statusLabel =
+    args.previousStatus === "APPROVED"
+      ? "già approvata"
+      : args.previousStatus === "PENDING"
+      ? "in attesa di approvazione"
+      : "rifiutata";
+
+  const lines = [
+    `🗑 La tua richiesta di ferie <b>${statusLabel}</b> è stata <b>cancellata</b> dall'amministratore.`,
+    ``,
+    `Periodo: <b>${period}</b>`,
+  ];
+  if (args.reason && args.reason.trim()) {
+    lines.push(``, `Motivo: ${escapeHtml(args.reason.trim())}`);
+  }
+  if (args.previousStatus === "APPROVED") {
+    lines.push(
+      ``,
+      `⚠️ <b>ATTENZIONE</b>: queste ferie erano già state approvate. Assicurati di essere al lavoro nei giorni indicati.`
+    );
+  }
+
+  try {
+    await bot.sendMessage({
+      chat_id: args.employeeChatId,
+      text: lines.join("\n"),
+      parse_mode: "HTML",
+      reply_markup: PUNCH_KEYBOARD,
+    });
+  } catch (err) {
+    console.error("[telegram] notifyLeaveCancellation failed:", err);
+  }
+}

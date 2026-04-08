@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, CalendarX2,
   CheckCircle, XCircle, Trash2,
 } from "lucide-react";
-import { useConfirm } from "@/components/ConfirmProvider";
+import { useConfirm, useConfirmWithPrompt } from "@/components/ConfirmProvider";
 
 // ── Types ──
 
@@ -105,6 +105,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function LeavesPage() {
   const confirm = useConfirm();
+  const confirmWithPrompt = useConfirmWithPrompt();
   const [tab, setTab] = useState<"calendar" | "requests">("calendar");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -196,19 +197,70 @@ export default function LeavesPage() {
     fetchCalendar();
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(r: LeaveRequest) {
+    const period =
+      r.startDate === r.endDate
+        ? r.startDate
+        : `dal ${r.startDate} al ${r.endDate}`;
+
+    // Per le APPROVED chiediamo un motivo (che verra' comunicato al
+    // dipendente nella notifica di cancellazione). Per PENDING/REJECTED
+    // usiamo un confirm semplice senza prompt.
+    if (r.status === "APPROVED") {
+      const { confirmed, value: reason } = await confirmWithPrompt({
+        title: "Elimina ferie già approvate",
+        message: (
+          <>
+            Stai eliminando le ferie <strong>già approvate</strong> di{" "}
+            <strong>{r.employeeName}</strong> {period}.
+            <br />
+            <br />
+            Il dipendente sarà notificato della cancellazione via email e
+            Telegram (se configurato). Vuoi continuare?
+          </>
+        ),
+        promptLabel: "Motivo (comunicato al dipendente)",
+        promptPlaceholder: "Opzionale — es. annullata su richiesta del dipendente",
+        promptMultiline: true,
+        confirmLabel: "Elimina e notifica",
+        danger: true,
+      });
+      if (!confirmed) return;
+
+      const res = await fetch(`/api/leaves/${r.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason || null }),
+      });
+      if (res.ok) {
+        toast.success("Ferie eliminate. Dipendente notificato.");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Errore nella cancellazione");
+      }
+      fetchRequests();
+      fetchCalendar();
+      return;
+    }
+
+    // PENDING / REJECTED: confirm semplice
     const ok = await confirm({
       title: "Elimina richiesta",
-      message: "Eliminare questa richiesta di ferie/permesso?",
+      message:
+        r.status === "PENDING"
+          ? `Eliminare la richiesta in attesa di ${r.employeeName} ${period}? Il dipendente sarà notificato.`
+          : `Eliminare questa richiesta rifiutata di ${r.employeeName} ${period}?`,
       confirmLabel: "Elimina",
       danger: true,
     });
     if (!ok) return;
-    const res = await fetch(`/api/leaves/${id}`, { method: "DELETE" });
+
+    const res = await fetch(`/api/leaves/${r.id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Richiesta eliminata");
     } else {
-      toast.error("Errore nella cancellazione");
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Errore nella cancellazione");
     }
     fetchRequests();
     fetchCalendar();
@@ -499,7 +551,7 @@ function RequestsList({
   onStatusFilter: (s: string) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (r: LeaveRequest) => void;
   onSelectEmployee: (id: string) => void;
 }) {
   return (
@@ -576,7 +628,7 @@ function RequestsList({
                           </button>
                         </>
                       )}
-                      <button onClick={() => onDelete(r.id)} className="rounded-lg p-1 text-outline-variant hover:bg-surface-container-high hover:text-red-500" title="Elimina">
+                      <button onClick={() => onDelete(r)} className="rounded-lg p-1 text-outline-variant hover:bg-surface-container-high hover:text-red-500" title="Elimina">
                         <Trash2 className="h-5 w-5" />
                       </button>
                     </div>

@@ -75,6 +75,50 @@ export function replyRequestAccepted(args: {
   };
 }
 
+/**
+ * Notifica al dipendente quando un admin cancella una richiesta
+ * esistente (indipendentemente dallo status precedente: PENDING,
+ * APPROVED, REJECTED).
+ */
+export function leaveCancellationNotification(args: {
+  previousStatus: "PENDING" | "APPROVED" | "REJECTED";
+  startDate: string;
+  endDate: string;
+  employeeName: string;
+  reason?: string | null;
+}): MailReply {
+  const period =
+    args.startDate === args.endDate
+      ? formatItDate(args.startDate)
+      : `dal ${formatItDate(args.startDate)} al ${formatItDate(args.endDate)}`;
+
+  const statusLabel =
+    args.previousStatus === "APPROVED"
+      ? "già approvata"
+      : args.previousStatus === "PENDING"
+      ? "in attesa di approvazione"
+      : "rifiutata";
+
+  let text =
+    `Ciao ${args.employeeName},\n\n` +
+    `la tua richiesta di ferie ${statusLabel} per il periodo ${period} ` +
+    `è stata cancellata dall'amministratore.\n`;
+  if (args.reason && args.reason.trim()) {
+    text += `\nMotivo:\n${args.reason.trim()}\n`;
+  }
+  if (args.previousStatus === "APPROVED") {
+    text +=
+      `\nATTENZIONE: queste ferie erano già state approvate. ` +
+      `Assicurati di essere al lavoro nei giorni indicati.\n`;
+  }
+  text += FOOTER;
+
+  return {
+    subject: "Ferie cancellate",
+    text,
+  };
+}
+
 /** Notifica al dipendente quando un admin approva o rifiuta una richiesta. */
 export function leaveDecisionNotification(args: {
   status: "APPROVED" | "REJECTED";

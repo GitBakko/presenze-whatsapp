@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
-import { notifyLeaveDecision } from "@/lib/telegram-handlers";
+import { notifyLeaveDecision, notifyLeaveCancellation } from "@/lib/telegram-handlers";
 import { sendMail } from "@/lib/mail-send";
-import { leaveDecisionNotification } from "@/lib/mail-templates";
+import { leaveDecisionNotification, leaveCancellationNotification } from "@/lib/mail-templates";
 
 export async function GET(
   _request: NextRequest,
@@ -144,18 +144,77 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const denied = await checkAuth();
   if (denied) return denied;
 
   const { id } = await params;
-  const leave = await prisma.leaveRequest.findUnique({ where: { id } });
+  const leave = await prisma.leaveRequest.findUnique({
+    where: { id },
+    include: { employee: true },
+  });
   if (!leave) {
     return NextResponse.json({ error: "Richiesta non trovata" }, { status: 404 });
   }
 
+  // Motivo opzionale (da body JSON o da query string). DELETE in HTTP
+  // puo' avere un body ma non tutti i client lo mandano, accettiamo
+  // anche ?reason=... come fallback.
+  let reason: string | null = null;
+  try {
+    const body = await request.json().catch(() => null);
+    if (body && typeof body.reason === "string" && body.reason.trim()) {
+      reason = body.reason.trim();
+    }
+  } catch {
+    // ignore
+  }
+  if (!reason) {
+    const urlReason = new URL(request.url).searchParams.get("reason");
+    if (urlReason && urlReason.trim()) reason = urlReason.trim();
+  }
+
+  const previousStatus = leave.status as "PENDING" | "APPROVED" | "REJECTED";
+
   await prisma.leaveRequest.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+
+  // Notifica al dipendente (Telegram + email) per PENDING e APPROVED.
+  // Niente notifica per REJECTED: lo status finale e' lo stesso
+  // (nessun impatto pratico per il dipendente) e sarebbe solo rumore.
+  if (previousStatus === "PENDING" || previousStatus === "APPROVED") {
+    try {
+      await notifyLeaveCancellation({
+        employeeChatId: leave.employee.telegramChatId,
+        previousStatus,
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        reason,
+      });
+    } catch (err) {
+      console.error("[leaves/DELETE] notifyLeaveCancellation failed:", err);
+    }
+
+    if (leave.employee.email) {
+      try {
+        const reply = leaveCancellationNotification({
+          previousStatus,
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          employeeName: leave.employee.displayName || leave.employee.name,
+          reason,
+        });
+        await sendMail({
+          to: leave.employee.email,
+          subject: reply.subject,
+          text: reply.text,
+        });
+      } catch (err) {
+        console.error("[leaves/DELETE] sendMail cancellation failed:", err);
+      }
+    }
+  }
+
+  return NextResponse.json({ success: true, previousStatus });
 }

@@ -165,22 +165,35 @@ export default function LeavesPage() {
   // ── Actions ──
 
   async function handleApprove(id: string) {
-    await fetch(`/api/leaves/${id}`, {
+    const res = await fetch(`/api/leaves/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "APPROVED" }),
     });
+    if (res.ok) {
+      toast.success("Richiesta approvata");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || `Errore ${res.status}`);
+    }
     fetchRequests();
     fetchCalendar();
   }
 
   async function handleReject(id: string) {
-    await fetch(`/api/leaves/${id}`, {
+    const res = await fetch(`/api/leaves/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "REJECTED" }),
     });
+    if (res.ok) {
+      toast.success("Richiesta rifiutata");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || `Errore ${res.status}`);
+    }
     fetchRequests();
+    fetchCalendar();
   }
 
   async function handleDelete(id: string) {

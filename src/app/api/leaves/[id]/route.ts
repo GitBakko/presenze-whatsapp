@@ -66,8 +66,20 @@ export async function PUT(
 
   if (status && ["APPROVED", "REJECTED"].includes(status)) {
     data.status = status;
-    data.approvedById = session?.user?.id ?? null;
     data.approvedAt = new Date();
+    // Verifica che l'user della sessione esista ancora in DB (difesa contro
+    // cookie stale dopo reset del db in dev). Se non esiste, approve senza
+    // riferimento all'utente invece di fallire con P2003.
+    const sessionUserId = session?.user?.id;
+    if (sessionUserId) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id: sessionUserId },
+        select: { id: true },
+      });
+      data.approvedById = existingUser ? sessionUserId : null;
+    } else {
+      data.approvedById = null;
+    }
   }
   if (notes !== undefined) {
     data.notes = notes;

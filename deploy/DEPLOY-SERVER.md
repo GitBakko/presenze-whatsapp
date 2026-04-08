@@ -124,7 +124,7 @@ Se salti questo passaggio, IIS non farà il reverse proxy nemmeno se il
 1. Scarica da https://nssm.cc/download (ultima stable)
 2. Estrai il contenuto in `C:\Tools\nssm\`
 3. Usa `C:\Tools\nssm\win64\nssm.exe` (rinomina o sposta a
-   `C:\Tools\nssm\nssm.exe` per semplicita')
+   `C:\ProgramData\chocolatey\bin\nssm.exe` per semplicita')
 
 ---
 

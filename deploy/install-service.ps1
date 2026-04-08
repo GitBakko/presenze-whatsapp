@@ -11,7 +11,7 @@
 
 param(
   [string]$ServiceName = "PresenzeHR",
-  [string]$Nssm        = "C:\Tools\nssm\nssm.exe",
+  [string]$Nssm        = "C:\ProgramData\chocolatey\bin\nssm.exe",
   [string]$NodeExe     = "C:\Program Files\nodejs\node.exe",
   [string]$AppDir      = "E:\HR\app",
   [string]$ServerJs    = "E:\HR\app\server.js",

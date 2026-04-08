@@ -4,6 +4,12 @@ import { compare } from "bcryptjs";
 import { prisma } from "./db";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Fidati dell'host della richiesta (Host, X-Forwarded-Host). Necessario
+  // dietro reverse proxy (IIS + ARR) altrimenti Auth.js v5 rifiuta con
+  // "UntrustedHost: Host must be trusted". In alternativa si puo'
+  // impostare la env var AUTH_TRUST_HOST=true, ma hardcoded nel config
+  // e' piu' robusto a deploy successivi.
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {

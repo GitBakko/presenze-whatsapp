@@ -89,12 +89,14 @@ export function monthlyRolAccrual(weeklyHours: number): number {
 export interface LeaveBalanceSummary {
   // Vacation (days)
   vacationAccrued: number;
+  vacationAccrualAdjust: number;
   vacationUsed: number;
   vacationCarryOver: number;
   vacationRemaining: number;
   vacationUsedThisMonth: number;
   // ROL (hours)
   rolAccrued: number;
+  rolAccrualAdjust: number;
   rolUsed: number;
   rolCarryOver: number;
   rolRemaining: number;
@@ -163,12 +165,17 @@ export async function computeLeaveBalance(
   const vacationAccrued = Math.round(monthsAccrued * monthlyVacationAccrual(weeklyHours) * 100) / 100;
   const rolAccrued = Math.round(monthsAccrued * monthlyRolAccrual(weeklyHours) * 100) / 100;
 
-  // Get carry-over from DB (or 0)
+  // Get carry-over and accrual adjustments from DB (or 0).
+  // Carry-over = riporto manuale dell'anno precedente.
+  // AccrualAdjust = rettifica manuale ai maturati per riallinearsi alla
+  // busta paga (positivo = il sistema ne calcola troppo pochi).
   const balance = await prisma.leaveBalance.findUnique({
     where: { employeeId_year: { employeeId, year } },
   });
   const vacationCarryOver = balance?.vacationCarryOver ?? 0;
   const rolCarryOver = balance?.rolCarryOver ?? 0;
+  const vacationAccrualAdjust = balance?.vacationAccrualAdjust ?? 0;
+  const rolAccrualAdjust = balance?.rolAccrualAdjust ?? 0;
 
   // Calculate used from approved leave requests this year
   const yearStart = `${year}-01-01`;
@@ -220,16 +227,26 @@ export async function computeLeaveBalance(
     }
   }
 
+  // Formula:
+  //   remaining = carryOver + (accrued + accrualAdjust) - used
   return {
     vacationAccrued,
+    vacationAccrualAdjust,
     vacationUsed: Math.round(vacationUsed * 100) / 100,
     vacationCarryOver,
-    vacationRemaining: Math.round((vacationCarryOver + vacationAccrued - vacationUsed) * 100) / 100,
+    vacationRemaining:
+      Math.round(
+        (vacationCarryOver + vacationAccrued + vacationAccrualAdjust - vacationUsed) * 100
+      ) / 100,
     vacationUsedThisMonth: Math.round(vacationUsedThisMonth * 100) / 100,
     rolAccrued,
+    rolAccrualAdjust,
     rolUsed: Math.round(rolUsed * 100) / 100,
     rolCarryOver,
-    rolRemaining: Math.round((rolCarryOver + rolAccrued - rolUsed) * 100) / 100,
+    rolRemaining:
+      Math.round(
+        (rolCarryOver + rolAccrued + rolAccrualAdjust - rolUsed) * 100
+      ) / 100,
     rolUsedThisMonth: Math.round(rolUsedThisMonth * 100) / 100,
     sickDays,
     sickDaysThisMonth,

@@ -134,12 +134,14 @@ model LeaveBalance {
   id               String @id @default(cuid())
   employeeId       String
   year             Int
-  vacationAccrued  Float  @default(0) // days accrued this year
-  vacationUsed     Float  @default(0) // days used this year
-  vacationCarryOver Float @default(0) // days carried from previous year
-  rolAccrued       Float  @default(0) // hours accrued this year
-  rolUsed          Float  @default(0) // hours used this year (ROL + special permits)
-  rolCarryOver     Float  @default(0) // hours carried from previous year
+  vacationAccrued  Float  @default(0) // days accrued this year (NB: ricalcolato dinamicamente, valore qui ignorato)
+  vacationUsed     Float  @default(0) // days used this year (NB: ricalcolato dinamicamente)
+  vacationCarryOver Float @default(0) // days carried from previous year (manuale, riporto)
+  vacationAccrualAdjust Float @default(0) // rettifica manuale ai giorni maturati (riallineamento con busta paga)
+  rolAccrued       Float  @default(0) // hours accrued this year (NB: ricalcolato dinamicamente)
+  rolUsed          Float  @default(0) // hours used this year (NB: ricalcolato dinamicamente)
+  rolCarryOver     Float  @default(0) // hours carried from previous year (manuale, riporto)
+  rolAccrualAdjust Float  @default(0) // rettifica manuale alle ore maturate (riallineamento con busta paga)
   sickDays         Int    @default(0) // sick days count (no budget)
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

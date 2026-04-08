@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Hourglass, Plus, Calendar, List, X,
+  Hourglass, Plus, Calendar, List, X, Users,
   ChevronLeft, ChevronRight, CalendarX2,
   CheckCircle, XCircle, Trash2,
 } from "lucide-react";
@@ -53,16 +54,40 @@ interface Employee {
 interface LeaveBalance {
   year: number;
   vacationAccrued: number;
+  vacationAccrualAdjust?: number;
   vacationUsed: number;
   vacationCarryOver: number;
   vacationRemaining: number;
   rolAccrued: number;
+  rolAccrualAdjust?: number;
   rolUsed: number;
   rolCarryOver: number;
   rolRemaining: number;
   sickDays: number;
   weeklyHours: number;
   contractType: string;
+}
+
+interface ByEmployeeRequest {
+  id: string;
+  type: string;
+  typeLabel: string;
+  startDate: string;
+  endDate: string;
+  hours: number | null;
+  status: string;
+  source: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+interface ByEmployeeCard {
+  id: string;
+  name: string;
+  displayName: string;
+  avatarUrl: string | null;
+  balance: LeaveBalance | null;
+  requests: ByEmployeeRequest[];
 }
 
 const LEAVE_TYPE_OPTIONS = [
@@ -106,7 +131,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function LeavesPage() {
   const confirm = useConfirm();
   const confirmWithPrompt = useConfirmWithPrompt();
-  const [tab, setTab] = useState<"calendar" | "requests">("calendar");
+  const [tab, setTab] = useState<"calendar" | "requests" | "byEmployee">("calendar");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -119,6 +144,8 @@ export default function LeavesPage() {
   const [loading, setLoading] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
+  const [byEmployee, setByEmployee] = useState<ByEmployeeCard[]>([]);
+  const [byEmployeeLoading, setByEmployeeLoading] = useState(false);
 
   // ── Fetch data ──
 
@@ -155,9 +182,25 @@ export default function LeavesPage() {
     else setBalance(null);
   }, []);
 
+  const fetchByEmployee = useCallback(async () => {
+    setByEmployeeLoading(true);
+    try {
+      const res = await fetch("/api/leaves/by-employee");
+      if (res.ok) {
+        const data = await res.json();
+        setByEmployee(data.employees);
+      }
+    } finally {
+      setByEmployeeLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchCalendar(); }, [fetchCalendar]);
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  useEffect(() => {
+    if (tab === "byEmployee") fetchByEmployee();
+  }, [tab, fetchByEmployee]);
   useEffect(() => {
     if (selectedEmployee) fetchBalance(selectedEmployee);
     else setBalance(null);
@@ -343,6 +386,13 @@ export default function LeavesPage() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setTab("byEmployee")}
+          className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "byEmployee" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
+        >
+          <Users className="mr-1 inline h-4 w-4 align-middle text-emerald-500" />
+          Per dipendente
+        </button>
       </div>
 
       {/* Tab content */}
@@ -369,6 +419,14 @@ export default function LeavesPage() {
         />
       )}
 
+      {tab === "byEmployee" && (
+        <ByEmployeeView
+          loading={byEmployeeLoading}
+          cards={byEmployee}
+          onRefresh={fetchByEmployee}
+        />
+      )}
+
       {/* Create form modal */}
       {showForm && (
         <CreateLeaveModal
@@ -388,6 +446,265 @@ export default function LeavesPage() {
 }
 
 // ── Balance Card ──
+
+// ── By-Employee View (terza tab) ──
+
+function ByEmployeeView({
+  loading,
+  cards,
+  onRefresh,
+}: {
+  loading: boolean;
+  cards: ByEmployeeCard[];
+  onRefresh: () => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const filtered = cards.filter((c) =>
+    !query.trim() ||
+    c.displayName.toLowerCase().includes(query.toLowerCase().trim())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-on-surface-variant">
+        Caricamento…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filtra per nome dipendente…"
+          className="flex-1 rounded-lg border-0 bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary/20"
+        />
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="rounded-lg bg-surface-container px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-high"
+        >
+          Aggiorna
+        </button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-8 text-center text-sm text-on-surface-variant">
+          {query ? "Nessun dipendente corrisponde al filtro." : "Nessun dipendente."}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((card) => (
+            <ByEmployeeCardView key={card.id} card={card} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
+  const initials = card.displayName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  // Statistiche aggregate per stato dell'anno
+  const counts = {
+    APPROVED: card.requests.filter((r) => r.status === "APPROVED").length,
+    PENDING: card.requests.filter((r) => r.status === "PENDING").length,
+    REJECTED: card.requests.filter((r) => r.status === "REJECTED").length,
+  };
+
+  const formatPeriod = (r: ByEmployeeRequest) =>
+    r.startDate === r.endDate ? r.startDate : `${r.startDate} → ${r.endDate}`;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+      {/* Header card */}
+      <div className="flex items-center justify-between border-b border-surface-container px-5 py-4">
+        <div className="flex items-center gap-3">
+          {card.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={card.avatarUrl}
+              alt={card.displayName}
+              className="h-10 w-10 rounded-full object-cover ring-2 ring-surface-container-lowest"
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-container text-sm font-bold text-on-primary ring-2 ring-surface-container-lowest">
+              {initials}
+            </div>
+          )}
+          <div>
+            <Link
+              href={`/employees/${card.id}/edit`}
+              className="font-semibold text-on-surface hover:text-primary hover:underline"
+            >
+              {card.displayName}
+            </Link>
+            {card.balance && (
+              <div className="text-xs text-on-surface-variant">
+                {card.balance.contractType === "FULL_TIME" ? "Full-time" : "Part-time"} ·{" "}
+                {card.balance.weeklyHours}h/sett
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          {counts.APPROVED > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-800">
+              {counts.APPROVED} approvate
+            </span>
+          )}
+          {counts.PENDING > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 font-semibold text-yellow-800">
+              {counts.PENDING} in attesa
+            </span>
+          )}
+          {counts.REJECTED > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-800">
+              {counts.REJECTED} rifiutate
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Saldi mini-grid */}
+      {card.balance ? (
+        <div className="grid grid-cols-2 gap-3 border-b border-surface-container bg-surface-container-low/30 px-5 py-3 sm:grid-cols-4">
+          <BalanceMini
+            label="Ferie residue"
+            value={`${card.balance.vacationRemaining} gg`}
+            sub={`Mat ${card.balance.vacationAccrued} · Rip ${card.balance.vacationCarryOver} · Usa ${card.balance.vacationUsed}`}
+            adjust={card.balance.vacationAccrualAdjust}
+            negative={card.balance.vacationRemaining < 0}
+            color="blue"
+          />
+          <BalanceMini
+            label="ROL residui"
+            value={`${card.balance.rolRemaining} h`}
+            sub={`Mat ${card.balance.rolAccrued} · Rip ${card.balance.rolCarryOver} · Usa ${card.balance.rolUsed}`}
+            adjust={card.balance.rolAccrualAdjust}
+            negative={card.balance.rolRemaining < 0}
+            color="amber"
+          />
+          <BalanceMini
+            label="Malattia"
+            value={`${card.balance.sickDays} gg`}
+            sub="Senza limite"
+            color="red"
+          />
+          <BalanceMini
+            label="Richieste anno"
+            value={`${card.requests.length}`}
+            sub="totali"
+            color="teal"
+          />
+        </div>
+      ) : (
+        <div className="border-b border-surface-container bg-surface-container-low/30 px-5 py-3 text-xs text-on-surface-variant">
+          Saldo non calcolabile (manca lo schedule del dipendente).
+        </div>
+      )}
+
+      {/* Lista richieste */}
+      {card.requests.length === 0 ? (
+        <div className="px-5 py-4 text-center text-xs text-on-surface-variant">
+          Nessuna richiesta per quest&apos;anno.
+        </div>
+      ) : (
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-surface-container bg-surface-container-low/20">
+              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tipo</th>
+              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Periodo</th>
+              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Ore</th>
+              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Stato</th>
+              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Origine</th>
+              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {card.requests.map((r) => (
+              <tr key={r.id} className="border-b border-surface-container last:border-0">
+                <td className="px-4 py-2">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${TYPE_COLORS[r.type] ?? "bg-surface-container-high text-on-surface"}`}>
+                    {r.typeLabel}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-xs tabular-nums text-on-surface-variant">
+                  {formatPeriod(r)}
+                </td>
+                <td className="px-4 py-2 text-xs tabular-nums text-on-surface-variant">
+                  {r.hours ? `${r.hours}h` : "—"}
+                </td>
+                <td className="px-4 py-2">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_COLORS[r.status] ?? ""}`}>
+                    {STATUS_LABELS[r.status] ?? r.status}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-[11px] text-outline-variant">
+                  {r.source === "EXTERNAL_API" ? "API/Bot/Email" : "Manager"}
+                </td>
+                <td className="px-4 py-2 max-w-xs truncate text-[11px] text-on-surface-variant" title={r.notes ?? ""}>
+                  {r.notes ?? "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function BalanceMini({
+  label,
+  value,
+  sub,
+  adjust,
+  negative,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  adjust?: number;
+  negative?: boolean;
+  color: "blue" | "amber" | "red" | "teal";
+}) {
+  const colorMap: Record<string, string> = {
+    blue: "text-blue-700",
+    amber: "text-amber-700",
+    red: "text-red-700",
+    teal: "text-teal-700",
+  };
+  return (
+    <div className="rounded-md bg-white px-3 py-2 shadow-sm ring-1 ring-surface-container">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <p className={`mt-0.5 text-lg font-extrabold tabular-nums ${negative ? "text-red-600" : colorMap[color]}`}>
+        {value}
+      </p>
+      <p className="mt-0.5 text-[10px] text-outline-variant">{sub}</p>
+      {adjust !== undefined && adjust !== 0 && (
+        <p className="mt-0.5 text-[10px] font-semibold text-violet-700">
+          Rettifica: {adjust > 0 ? "+" : ""}
+          {adjust}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function BalanceCard({ balance, employeeName, onClose }: { balance: LeaveBalance; employeeName: string; onClose: () => void }) {
   return (

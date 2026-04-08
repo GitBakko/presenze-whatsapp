@@ -17,6 +17,10 @@ interface EmployeeProfile {
   nfcUid: string | null;
   telegramChatId: string | null;
   telegramUsername: string | null;
+  vacationCarryOver: number;
+  rolCarryOver: number;
+  vacationAccrualAdjust: number;
+  rolAccrualAdjust: number;
 }
 
 export default function EmployeeEditPage() {
@@ -31,6 +35,10 @@ export default function EmployeeEditPage() {
   const [nfcUid, setNfcUid] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramUsername, setTelegramUsername] = useState("");
+  const [vacationCarryOver, setVacationCarryOver] = useState("0");
+  const [rolCarryOver, setRolCarryOver] = useState("0");
+  const [vacationAccrualAdjust, setVacationAccrualAdjust] = useState("0");
+  const [rolAccrualAdjust, setRolAccrualAdjust] = useState("0");
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +57,10 @@ export default function EmployeeEditPage() {
         setNfcUid(data.nfcUid ?? "");
         setTelegramChatId(data.telegramChatId ?? "");
         setTelegramUsername(data.telegramUsername ?? "");
+        setVacationCarryOver(String(data.vacationCarryOver ?? 0));
+        setRolCarryOver(String(data.rolCarryOver ?? 0));
+        setVacationAccrualAdjust(String(data.vacationAccrualAdjust ?? 0));
+        setRolAccrualAdjust(String(data.rolAccrualAdjust ?? 0));
         if (data.avatarUrl) setPreview(data.avatarUrl);
       })
       .finally(() => setLoading(false));
@@ -74,6 +86,10 @@ export default function EmployeeEditPage() {
     form.append("nfcUid", nfcUid);
     form.append("telegramChatId", telegramChatId);
     form.append("telegramUsername", telegramUsername);
+    form.append("vacationCarryOver", vacationCarryOver);
+    form.append("rolCarryOver", rolCarryOver);
+    form.append("vacationAccrualAdjust", vacationAccrualAdjust);
+    form.append("rolAccrualAdjust", rolAccrualAdjust);
     if (selectedFile) form.append("avatar", selectedFile);
 
     const res = await fetch(`/api/employees/${id}`, { method: "PUT", body: form });
@@ -296,6 +312,70 @@ export default function EmployeeEditPage() {
                 </Link>
                 .
               </p>
+            </div>
+          </div>
+
+          {/* ── Saldi ferie e permessi ─────────────────────────────── */}
+          <div className="border-t border-surface-container pt-4">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              Saldi ferie e permessi (anno corrente)
+            </h3>
+            <p className="mb-3 text-xs text-outline-variant">
+              I valori di maturazione automatici (in base ad anzianità e contratto) e l&apos;utilizzato calcolato dalle richieste approvate restano gestiti dal sistema. Qui imposti i due riporti dall&apos;anno scorso e gli aggiustamenti manuali per allineare i totali alla busta paga.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                  Riporto ferie da anno precedente (giorni)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={vacationCarryOver}
+                  onChange={(e) => setVacationCarryOver(e.target.value)}
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm tabular-nums text-on-surface focus:border-primary focus:ring-0"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                  Riporto ROL da anno precedente (ore)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={rolCarryOver}
+                  onChange={(e) => setRolCarryOver(e.target.value)}
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm tabular-nums text-on-surface focus:border-primary focus:ring-0"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                  Rettifica ferie maturate (giorni)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={vacationAccrualAdjust}
+                  onChange={(e) => setVacationAccrualAdjust(e.target.value)}
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm tabular-nums text-on-surface focus:border-primary focus:ring-0"
+                />
+                <p className="mt-1 text-[11px] text-outline-variant">
+                  Positivo se la busta paga ne mostra di più del sistema, negativo se di meno
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                  Rettifica ROL maturati (ore)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={rolAccrualAdjust}
+                  onChange={(e) => setRolAccrualAdjust(e.target.value)}
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm tabular-nums text-on-surface focus:border-primary focus:ring-0"
+                />
+              </div>
             </div>
           </div>
         </div>

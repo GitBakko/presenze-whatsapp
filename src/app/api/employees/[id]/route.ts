@@ -23,6 +23,13 @@ export async function GET(
   if (!employee) {
     return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
   }
+
+  // Carica anche il saldo dell'anno corrente per precompilare il form
+  const currentYear = new Date().getFullYear();
+  const balance = await prisma.leaveBalance.findUnique({
+    where: { employeeId_year: { employeeId: id, year: currentYear } },
+  });
+
   return NextResponse.json({
     id: employee.id,
     name: employee.name,
@@ -35,6 +42,10 @@ export async function GET(
     telegramChatId: employee.telegramChatId,
     telegramUsername: employee.telegramUsername,
     email: employee.email,
+    vacationCarryOver: balance?.vacationCarryOver ?? 0,
+    rolCarryOver: balance?.rolCarryOver ?? 0,
+    vacationAccrualAdjust: balance?.vacationAccrualAdjust ?? 0,
+    rolAccrualAdjust: balance?.rolAccrualAdjust ?? 0,
   });
 }
 
@@ -61,6 +72,14 @@ export async function PUT(
   const telegramChatIdRaw = formData.get("telegramChatId") as string | null;
   const telegramUsernameRaw = formData.get("telegramUsername") as string | null;
   const emailRaw = formData.get("email") as string | null;
+
+  // Saldi ferie/permessi (anno corrente). Tutti opzionali. Se almeno
+  // uno e' presente nel form, facciamo upsert sulla tabella LeaveBalance
+  // dopo l'update dell'employee.
+  const vacationCarryOverRaw = formData.get("vacationCarryOver") as string | null;
+  const rolCarryOverRaw = formData.get("rolCarryOver") as string | null;
+  const vacationAccrualAdjustRaw = formData.get("vacationAccrualAdjust") as string | null;
+  const rolAccrualAdjustRaw = formData.get("rolAccrualAdjust") as string | null;
 
   const updateData: {
     displayName?: string | null;
@@ -163,6 +182,57 @@ export async function PUT(
     const uploadPath = join(process.cwd(), "public", "uploads", "avatars", filename);
     await writeFile(uploadPath, buffer);
     updateData.avatarUrl = `/uploads/avatars/${filename}`;
+  }
+
+  // ── Upsert LeaveBalance per l'anno corrente ─────────────────────
+  // Solo se almeno uno dei 4 campi e' stato passato dal form. Tutti
+  // accettano stringa vuota = 0 e numeri (anche negativi per gli adjust).
+  const balanceFieldsPresent =
+    vacationCarryOverRaw !== null ||
+    rolCarryOverRaw !== null ||
+    vacationAccrualAdjustRaw !== null ||
+    rolAccrualAdjustRaw !== null;
+
+  if (balanceFieldsPresent) {
+    const parseFloatField = (raw: string | null): number | undefined => {
+      if (raw === null) return undefined;
+      const trimmed = raw.trim();
+      if (trimmed === "") return 0;
+      const n = parseFloat(trimmed.replace(",", "."));
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    const vCO = parseFloatField(vacationCarryOverRaw);
+    const rCO = parseFloatField(rolCarryOverRaw);
+    const vAdj = parseFloatField(vacationAccrualAdjustRaw);
+    const rAdj = parseFloatField(rolAccrualAdjustRaw);
+
+    if (vCO === undefined || rCO === undefined || vAdj === undefined || rAdj === undefined) {
+      return NextResponse.json(
+        { error: "Saldi non validi: usa numeri (es. 2.5 oppure -1)" },
+        { status: 400 }
+      );
+    }
+
+    const currentYear = new Date().getFullYear();
+    const data: Record<string, number | undefined> = {};
+    if (vacationCarryOverRaw !== null) data.vacationCarryOver = vCO;
+    if (rolCarryOverRaw !== null) data.rolCarryOver = rCO;
+    if (vacationAccrualAdjustRaw !== null) data.vacationAccrualAdjust = vAdj;
+    if (rolAccrualAdjustRaw !== null) data.rolAccrualAdjust = rAdj;
+
+    await prisma.leaveBalance.upsert({
+      where: { employeeId_year: { employeeId: id, year: currentYear } },
+      create: {
+        employeeId: id,
+        year: currentYear,
+        vacationCarryOver: vCO,
+        rolCarryOver: rCO,
+        vacationAccrualAdjust: vAdj,
+        rolAccrualAdjust: rAdj,
+      },
+      update: data,
+    });
   }
 
   let updated;

@@ -45,7 +45,7 @@ model AttendanceRecord {
   declaredTime String   // HH:MM — the time declared by employee or from message timestamp
   messageTime  String   // HH:MM — WhatsApp message timestamp
   rawMessage   String
-  source       String   @default("PARSED") // PARSED | MANUAL | NFC
+  source       String   @default("PARSED") // PARSED | MANUAL | NFC | TELEGRAM
   isManual     Boolean  @default(false)
   createdAt    DateTime @default(now())
 

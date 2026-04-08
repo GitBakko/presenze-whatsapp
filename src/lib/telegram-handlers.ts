@@ -148,7 +148,7 @@ async function doPunch(ctx: CommandContext, action: KioskAction): Promise<void> 
         declaredTime,
         messageTime: declaredTime,
         rawMessage: `[Telegram] ${action} da chat ${ctx.chatId}`,
-        source: "MANUAL",
+        source: "TELEGRAM",
         isManual: false,
       },
     });

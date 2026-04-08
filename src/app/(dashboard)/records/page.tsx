@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Clock, Trash2, Pencil, Filter, Nfc, RefreshCw, Save, X } from "lucide-react";
+import { Clock, Trash2, Pencil, Filter, Nfc, MessageCircle, RefreshCw, Save, X } from "lucide-react";
 import { formatDate } from "@/lib/formatTime";
 import { useConfirm } from "@/components/ConfirmProvider";
 
@@ -54,6 +54,7 @@ const SOURCE_LABELS: { [k: string]: string } = {
   PARSED: "WhatsApp",
   MANUAL: "Manuale",
   NFC: "NFC",
+  TELEGRAM: "Telegram",
 };
 
 const PAGE_SIZE = 50;
@@ -278,6 +279,7 @@ export default function RecordsPage() {
               <option value="PARSED">WhatsApp</option>
               <option value="MANUAL">Manuale</option>
               <option value="NFC">NFC</option>
+              <option value="TELEGRAM">Telegram</option>
             </select>
           </div>
           <div className="flex items-end">
@@ -366,12 +368,15 @@ export default function RecordsPage() {
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                             r.source === "NFC"
                               ? "bg-emerald-100 text-emerald-900"
+                              : r.source === "TELEGRAM"
+                              ? "bg-sky-100 text-sky-900"
                               : r.source === "MANUAL"
                               ? "bg-blue-100 text-blue-900"
                               : "bg-surface-container text-on-surface-variant"
                           }`}
                         >
                           {r.source === "NFC" && <Nfc className="h-3 w-3" />}
+                          {r.source === "TELEGRAM" && <MessageCircle className="h-3 w-3" />}
                           {SOURCE_LABELS[r.source] ?? r.source}
                         </span>
                       </td>

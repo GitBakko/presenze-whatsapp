@@ -1,39 +1,26 @@
 /**
- * IMAP poller per le richieste ferie via email.
+ * Poller Microsoft Graph per le richieste ferie via email.
  *
- * Si connette periodicamente alla casella indicata da MAIL_IMAP_*,
- * scarica i messaggi UNREAD nel folder configurato, li elabora UNO per UNO
- * con la pipeline:
- *   1. parsing del Message-ID per dedup (tabella EmailIngestLog)
- *   2. lookup employee per email mittente (case insensitive)
+ * Si connette periodicamente alla mailbox configurata via
+ * MAIL_MAILBOX, lista i messaggi non letti nella folder MAIL_FOLDER
+ * (default "Ferie"), e per ognuno:
+ *   1. check idempotency via EmailIngestLog.messageId
+ *   2. lookup Employee per mittente (case insensitive sul from.address)
  *      → se non trovato: log + reply "non autorizzato" + UnrecognizedEmail
- *   3. parse del subject (deve essere "ferie", case insensitive)
- *      → se diverso: ignora silenziosamente (non sappiamo se e' una mail
- *        non destinata al sistema)
- *   4. parse del body con parseLeaveDates()
- *      → se fallisce: log + reply errore + non marca come letta? marca
- *        comunque per evitare loop
- *   5. crea LeaveRequest PENDING + reply "richiesta acquisita"
- *   6. marca il messaggio come letto
+ *   3. validazione subject (deve essere "ferie")
+ *   4. parse body con parseLeaveDates
+ *      → se fallisce: reply errore
+ *   5. crea LeaveRequest PENDING + reply conferma
+ *   6. marca messaggio come letto via PATCH
  *
  * Tutto il flusso e' protetto da try/catch granulari: una mail rotta
  * non blocca le altre.
  *
- * Configurazione via env vars:
- *   MAIL_IMAP_HOST
- *   MAIL_IMAP_PORT       (default 993)
- *   MAIL_IMAP_USER
- *   MAIL_IMAP_PASSWORD
- *   MAIL_IMAP_TLS        ("true" default; "false" => plain)
- *   MAIL_IMAP_FOLDER     (default INBOX)
- *   MAIL_POLL_INTERVAL_SEC  (default 120)
- *
  * Singleton: il poller viene avviato una sola volta a server start
- * via instrumentation.ts. Se le env IMAP non sono configurate, il
+ * via instrumentation.ts. Se le env Graph non sono configurate, il
  * poller fa no-op silenzioso.
  */
 
-import { ImapFlow } from "imapflow";
 import { createHash } from "crypto";
 import { prisma } from "./db";
 import { parseLeaveDates } from "./leave-date-parser";
@@ -43,6 +30,13 @@ import {
   replyParseError,
   replyRequestAccepted,
 } from "./mail-templates";
+import {
+  isMailGraphConfigured,
+  findFolderIdByName,
+  listUnreadInFolder,
+  markMessageRead,
+  type GraphMessage,
+} from "./mail-graph";
 
 const MAX_PER_CYCLE = 50;
 
@@ -53,28 +47,25 @@ interface IngestStats {
   parseError: number;
   duplicate: number;
   internalError: number;
+  wrongSubject: number;
 }
 
 let _running = false;
 let _timer: ReturnType<typeof setTimeout> | null = null;
 
 export function isMailIngestConfigured(): boolean {
-  return !!(
-    process.env.MAIL_IMAP_HOST &&
-    process.env.MAIL_IMAP_USER &&
-    process.env.MAIL_IMAP_PASSWORD
-  );
+  return isMailGraphConfigured();
 }
 
-/** Avvia il poller. Idempotente: chiamare piu' volte non duplica i timer. */
+/** Avvia il poller. Idempotente. */
 export function ensureMailPollerStarted() {
   if (_running) return;
   if (!isMailIngestConfigured()) {
-    console.log("[mail-ingest] IMAP non configurato, poller disattivato");
+    console.log("[mail-ingest] Graph non configurato, poller disattivato");
     return;
   }
   _running = true;
-  console.log("[mail-ingest] poller avviato");
+  console.log("[mail-ingest] poller avviato (Graph API)");
   scheduleNext(0);
 }
 
@@ -100,8 +91,8 @@ function scheduleNext(delayMs: number) {
 }
 
 /**
- * Esegue un singolo ciclo di polling. Esportata per poterla invocare
- * manualmente da una API admin (es. "Aggiorna ora") o per i test.
+ * Esegue un singolo ciclo di ingest. Esportata per poterla invocare
+ * manualmente da una API admin (es. "Esegui ora") o per i test.
  */
 export async function runOnce(): Promise<IngestStats> {
   const stats: IngestStats = {
@@ -111,59 +102,42 @@ export async function runOnce(): Promise<IngestStats> {
     parseError: 0,
     duplicate: 0,
     internalError: 0,
+    wrongSubject: 0,
   };
   if (!isMailIngestConfigured()) return stats;
 
-  const host = process.env.MAIL_IMAP_HOST!;
-  const port = parseInt(process.env.MAIL_IMAP_PORT || "993", 10);
-  const user = process.env.MAIL_IMAP_USER!;
-  const pass = process.env.MAIL_IMAP_PASSWORD!;
-  const tls = (process.env.MAIL_IMAP_TLS || "true").toLowerCase() !== "false";
-  const folder = process.env.MAIL_IMAP_FOLDER || "INBOX";
+  const folderName = process.env.MAIL_FOLDER || "Ferie";
 
-  const client = new ImapFlow({
-    host,
-    port,
-    secure: tls,
-    auth: { user, pass },
-    logger: false,
-  });
-
+  // 1. Trova la folder per nome
+  let folderId: string | null;
   try {
-    await client.connect();
-    const lock = await client.getMailboxLock(folder);
+    folderId = await findFolderIdByName(folderName);
+  } catch (err) {
+    console.error("[mail-ingest] findFolderIdByName failed:", err);
+    throw err;
+  }
+  if (!folderId) {
+    console.warn(`[mail-ingest] folder "${folderName}" non trovata nella mailbox`);
+    return stats;
+  }
+
+  // 2. Lista messaggi non letti
+  const messages = await listUnreadInFolder(folderId, MAX_PER_CYCLE);
+  if (messages.length === 0) return stats;
+
+  for (const msg of messages) {
+    stats.scanned++;
     try {
-      // Cerca i messaggi non letti
-      const uids = await client.search({ seen: false }, { uid: true });
-      if (!uids || uids.length === 0) return stats;
-
-      // Cap di sicurezza
-      const targets = uids.slice(0, MAX_PER_CYCLE);
-
-      for (const uid of targets) {
-        stats.scanned++;
-        try {
-          await processOne(client, uid, stats);
-        } catch (err) {
-          stats.internalError++;
-          console.error("[mail-ingest] processOne failed for uid", uid, err);
-          // marca come letto comunque per evitare loop infinito su una
-          // mail problematica
-          try {
-            await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
-          } catch {
-            // ignore
-          }
-        }
+      await processOne(msg, stats);
+    } catch (err) {
+      stats.internalError++;
+      console.error("[mail-ingest] processOne failed for message", msg.id, err);
+      // Marca come letta comunque per evitare loop su mail problematica
+      try {
+        await markMessageRead(msg.id);
+      } catch {
+        // ignore
       }
-    } finally {
-      lock.release();
-    }
-  } finally {
-    try {
-      await client.logout();
-    } catch {
-      // ignore
     }
   }
 
@@ -171,32 +145,28 @@ export async function runOnce(): Promise<IngestStats> {
   return stats;
 }
 
-async function processOne(client: ImapFlow, uid: number, stats: IngestStats) {
-  // Scarica headers + body
-  const fetched = await client.fetchOne(
-    String(uid),
-    { source: true, envelope: true, bodyStructure: true },
-    { uid: true }
-  );
-  if (!fetched) return;
+async function processOne(msg: GraphMessage, stats: IngestStats) {
+  const messageId = msg.internetMessageId || `graph-${msg.id}`;
+  const subject = msg.subject || "";
+  const fromAddr = msg.from?.emailAddress?.address?.toLowerCase() || "";
+  const fromName = msg.from?.emailAddress?.name || "";
 
-  const envelope = fetched.envelope;
-  const messageId = envelope?.messageId || `imap-${uid}`;
-  const subject = envelope?.subject || "";
-  const fromAddr = envelope?.from?.[0]?.address?.toLowerCase() || "";
-  const fromName = envelope?.from?.[0]?.name || "";
-
-  // 1. Filtro subject. Solo "ferie" (case insensitive, eventualmente
-  //    preceduto da "Re:"/"Fwd:" che ignoriamo).
+  // 1. Filtro subject (deve essere "ferie" dopo aver tolto Re:/Fwd:)
   const subjectClean = subject
     .replace(/^(?:re:|fwd?:|r:)\s*/gi, "")
     .trim()
     .toLowerCase();
   if (subjectClean !== "ferie") {
-    // Non e' destinata a noi. Lasciamo non letta? No, marchiamola letta
-    // per evitare di rilavorarla ad ogni ciclo. L'utente puo' sempre
-    // rimetterla unread se vuole.
-    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+    // Non destinata al nostro sistema. Marchiamo come letta per non
+    // riscansionare ad ogni ciclo. Se una mail finisce nella cartella
+    // "Ferie" senza avere subject corretto, e' stata messa li' a mano
+    // oppure esisteva prima della regola M365: va comunque ignorata.
+    stats.wrongSubject++;
+    try {
+      await markMessageRead(msg.id);
+    } catch (err) {
+      console.error("[mail-ingest] markMessageRead (wrongSubject) failed:", err);
+    }
     return;
   }
 
@@ -206,26 +176,20 @@ async function processOne(client: ImapFlow, uid: number, stats: IngestStats) {
   });
   if (existingLog) {
     stats.duplicate++;
-    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+    await markMessageRead(msg.id);
     return;
   }
 
-  // 3. Estrai il body testuale dal source RFC822
-  const source = fetched.source;
-  if (!source) {
-    await logIngest(messageId, fromAddr, subject, "PARSE_ERROR", "source vuoto", null);
-    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
-    return;
-  }
-  const body = extractPlainBody(source);
+  // 3. Body testuale (Graph gia' ci da' text o html gia' parsato)
+  const body = extractBodyText(msg);
 
-  // 4. Lookup employee per mittente
   if (!fromAddr) {
     await logIngest(messageId, "", subject, "PARSE_ERROR", "mittente vuoto", null);
-    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+    await markMessageRead(msg.id);
     return;
   }
 
+  // 4. Lookup employee per mittente
   const employee = await prisma.employee.findUnique({ where: { email: fromAddr } });
   if (!employee) {
     stats.unknownSender++;
@@ -245,20 +209,18 @@ async function processOne(client: ImapFlow, uid: number, stats: IngestStats) {
         snippet: body.slice(0, 200),
       },
     });
-    // Reply
     const reply = replyUnknownSender(subject);
     await sendMail({
       to: fromAddr,
       subject: reply.subject,
       text: reply.text,
-      inReplyTo: messageId,
-      references: messageId,
+      replyToMessageId: msg.id,
     });
-    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+    await markMessageRead(msg.id);
     return;
   }
 
-  // 5. Parse delle date dal corpo
+  // 5. Parse delle date
   const parsed = parseLeaveDates(body);
   if (!parsed) {
     stats.parseError++;
@@ -268,14 +230,12 @@ async function processOne(client: ImapFlow, uid: number, stats: IngestStats) {
       to: fromAddr,
       subject: reply.subject,
       text: reply.text,
-      inReplyTo: messageId,
-      references: messageId,
+      replyToMessageId: msg.id,
     });
-    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+    await markMessageRead(msg.id);
     return;
   }
 
-  // 6. Crea la LeaveRequest PENDING
   if (parsed.startDate > parsed.endDate) {
     stats.parseError++;
     await logIngest(messageId, fromAddr, subject, "PARSE_ERROR", "endDate < startDate", null);
@@ -284,13 +244,13 @@ async function processOne(client: ImapFlow, uid: number, stats: IngestStats) {
       to: fromAddr,
       subject: reply.subject,
       text: reply.text,
-      inReplyTo: messageId,
-      references: messageId,
+      replyToMessageId: msg.id,
     });
-    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+    await markMessageRead(msg.id);
     return;
   }
 
+  // 6. Crea LeaveRequest PENDING
   const leave = await prisma.leaveRequest.create({
     data: {
       employeeId: employee.id,
@@ -306,7 +266,7 @@ async function processOne(client: ImapFlow, uid: number, stats: IngestStats) {
   stats.ok++;
   await logIngest(messageId, fromAddr, subject, "OK", null, leave.id);
 
-  // 7. Reply di conferma
+  // 7. Reply conferma
   const reply = replyRequestAccepted({
     originalSubject: subject,
     startDate: parsed.startDate,
@@ -317,12 +277,11 @@ async function processOne(client: ImapFlow, uid: number, stats: IngestStats) {
     to: fromAddr,
     subject: reply.subject,
     text: reply.text,
-    inReplyTo: messageId,
-    references: messageId,
+    replyToMessageId: msg.id,
   });
 
   // 8. Marca come letta
-  await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+  await markMessageRead(msg.id);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -346,103 +305,39 @@ async function logIngest(
         errorDetail,
         leaveRequestId,
       },
-      update: {}, // gia' loggata, no-op
+      update: {},
     });
   } catch (err) {
     console.error("[mail-ingest] logIngest failed:", err);
   }
 }
 
-/** Hash deterministico del fromAddress per usarlo come `id` stabile
- *  della UnrecognizedEmail (un solo record per indirizzo, upsert per
- *  address). 24 char alphanumerici. */
 function unrecognizedKey(fromAddress: string): string {
   return "unk-" + createHash("sha256").update(fromAddress).digest("hex").slice(0, 24);
 }
 
-/** Estrae il body text/plain da un messaggio RFC822 grezzo.
- *  Supporto best-effort: niente parser MIME completo. Per i casi piu'
- *  comuni (text/plain singolo, multipart/alternative con text/plain
- *  parte) funziona; per HTML-only fa fallback strip dei tag. */
-export function extractPlainBody(source: Buffer | Uint8Array): string {
-  const text = Buffer.from(source).toString("utf-8");
-
-  // Trova la separazione header/body (prima riga vuota)
-  const sepIdx = text.indexOf("\r\n\r\n");
-  const idx = sepIdx >= 0 ? sepIdx + 4 : text.indexOf("\n\n") + 2;
-  if (idx < 2) return text;
-
-  const headers = text.slice(0, idx);
-  const body = text.slice(idx);
-
-  // Cerca Content-Type negli header
-  const ctMatch = headers.match(/content-type:\s*([^;\r\n]+)(.*)/i);
-  const ct = (ctMatch?.[1] || "text/plain").toLowerCase().trim();
-  const params = ctMatch?.[2] || "";
-
-  if (ct === "text/plain") {
-    return decodeBody(body, headers);
-  }
-  if (ct === "text/html") {
-    return stripHtml(decodeBody(body, headers));
-  }
-  if (ct.startsWith("multipart/")) {
-    const boundaryMatch = params.match(/boundary=["']?([^"';\s]+)["']?/i);
-    if (!boundaryMatch) return stripHtml(body);
-    const boundary = "--" + boundaryMatch[1];
-    const parts = body.split(boundary).filter((p) => p.trim() && !p.startsWith("--"));
-    // Cerca prima la parte text/plain
-    for (const part of parts) {
-      const partHeadEnd = part.indexOf("\r\n\r\n");
-      if (partHeadEnd < 0) continue;
-      const partHead = part.slice(0, partHeadEnd);
-      const partBody = part.slice(partHeadEnd + 4);
-      if (/content-type:\s*text\/plain/i.test(partHead)) {
-        return decodeBody(partBody, partHead).trim();
-      }
-    }
-    // Fallback: prima parte text/html stripped
-    for (const part of parts) {
-      const partHeadEnd = part.indexOf("\r\n\r\n");
-      if (partHeadEnd < 0) continue;
-      const partHead = part.slice(0, partHeadEnd);
-      const partBody = part.slice(partHeadEnd + 4);
-      if (/content-type:\s*text\/html/i.test(partHead)) {
-        return stripHtml(decodeBody(partBody, partHead)).trim();
-      }
-    }
-  }
-
-  return stripHtml(body);
-}
-
-function decodeBody(body: string, headers: string): string {
-  const cteMatch = headers.match(/content-transfer-encoding:\s*([^\r\n]+)/i);
-  const cte = (cteMatch?.[1] || "7bit").toLowerCase().trim();
-  if (cte === "quoted-printable") {
-    return body
-      .replace(/=\r?\n/g, "")
-      .replace(/=([0-9A-F]{2})/gi, (_m, h) => String.fromCharCode(parseInt(h, 16)));
-  }
-  if (cte === "base64") {
-    try {
-      return Buffer.from(body.replace(/\s+/g, ""), "base64").toString("utf-8");
-    } catch {
-      return body;
-    }
-  }
-  return body;
-}
-
-function stripHtml(html: string): string {
-  return html
+/**
+ * Estrae testo plain dal body Graph. Se e' HTML, fa strip dei tag.
+ * Graph restituisce bodyPreview (pulito) ma e' troncato a ~255 char.
+ * body.content ha tutto: se text => direct, se html => strip.
+ */
+function extractBodyText(msg: GraphMessage): string {
+  const body = msg.body;
+  if (!body?.content) return msg.bodyPreview || "";
+  if (body.contentType === "text") return body.content;
+  // HTML → strip
+  return body.content
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

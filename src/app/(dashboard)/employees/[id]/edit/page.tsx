@@ -13,6 +13,10 @@ interface EmployeeProfile {
   aliases: string[];
   hireDate: string | null;
   contractType: string;
+  email: string | null;
+  nfcUid: string | null;
+  telegramChatId: string | null;
+  telegramUsername: string | null;
 }
 
 export default function EmployeeEditPage() {
@@ -23,6 +27,10 @@ export default function EmployeeEditPage() {
   const [displayName, setDisplayName] = useState("");
   const [hireDate, setHireDate] = useState("");
   const [contractType, setContractType] = useState("FULL_TIME");
+  const [email, setEmail] = useState("");
+  const [nfcUid, setNfcUid] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [telegramUsername, setTelegramUsername] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +45,10 @@ export default function EmployeeEditPage() {
         setDisplayName(data.displayName ?? "");
         setHireDate(data.hireDate ?? "");
         setContractType(data.contractType ?? "FULL_TIME");
+        setEmail(data.email ?? "");
+        setNfcUid(data.nfcUid ?? "");
+        setTelegramChatId(data.telegramChatId ?? "");
+        setTelegramUsername(data.telegramUsername ?? "");
         if (data.avatarUrl) setPreview(data.avatarUrl);
       })
       .finally(() => setLoading(false));
@@ -58,6 +70,10 @@ export default function EmployeeEditPage() {
     form.append("displayName", displayName);
     if (hireDate) form.append("hireDate", hireDate);
     form.append("contractType", contractType);
+    form.append("email", email);
+    form.append("nfcUid", nfcUid);
+    form.append("telegramChatId", telegramChatId);
+    form.append("telegramUsername", telegramUsername);
     if (selectedFile) form.append("avatar", selectedFile);
 
     const res = await fetch(`/api/employees/${id}`, { method: "PUT", body: form });
@@ -202,6 +218,85 @@ export default function EmployeeEditPage() {
               <option value="FULL_TIME">Full-time (40h)</option>
               <option value="PART_TIME">Part-time</option>
             </select>
+          </div>
+
+          {/* ── Canali di contatto ─────────────────────────────────── */}
+          <div className="border-t border-surface-container pt-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              Canali di contatto
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="mario.rossi@example.com"
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
+                />
+                <p className="mt-1 text-xs text-outline-variant">
+                  Usata per ricevere richieste ferie via email e per le notifiche di approvazione/rifiuto
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                  UID tessera NFC
+                </label>
+                <input
+                  type="text"
+                  value={nfcUid}
+                  onChange={(e) => setNfcUid(e.target.value)}
+                  placeholder="es. 04A1B2C3"
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 font-mono text-sm text-on-surface focus:border-primary focus:ring-0"
+                />
+                <p className="mt-1 text-xs text-outline-variant">
+                  Usa caratteri esadecimali. Puoi anche associare un UID dal pannello{" "}
+                  <Link href="/settings/nfc" className="text-primary hover:underline">
+                    Postazione NFC
+                  </Link>
+                  .
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                    Telegram chat ID
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramChatId}
+                    onChange={(e) => setTelegramChatId(e.target.value)}
+                    placeholder="es. 123456789"
+                    className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 font-mono text-sm text-on-surface focus:border-primary focus:ring-0"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                    Username Telegram
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramUsername}
+                    onChange={(e) => setTelegramUsername(e.target.value)}
+                    placeholder="@username"
+                    className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-outline-variant">
+                Il dipendente ottiene il chat ID scrivendo <code className="font-mono">/start</code> al bot. Puoi anche collegarlo dal pannello{" "}
+                <Link href="/settings/telegram" className="text-primary hover:underline">
+                  Bot Telegram
+                </Link>
+                .
+              </p>
+            </div>
           </div>
         </div>
 

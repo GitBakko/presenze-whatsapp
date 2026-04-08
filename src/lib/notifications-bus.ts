@@ -47,6 +47,9 @@ class NotificationsBus {
     };
     this.buffer.push(evt);
     this.prune();
+    console.log(
+      `[notifications-bus] publish #${evt.id} ${evt.action} ${evt.employeeName} → ${this.subscribers.size} subscribers`
+    );
     for (const cb of this.subscribers.values()) {
       try {
         cb(evt);
@@ -60,8 +63,10 @@ class NotificationsBus {
   subscribe(cb: Subscriber): () => void {
     const id = this.nextSubId++;
     this.subscribers.set(id, cb);
+    console.log(`[notifications-bus] subscribe #${id} (total: ${this.subscribers.size})`);
     return () => {
       this.subscribers.delete(id);
+      console.log(`[notifications-bus] unsubscribe #${id} (total: ${this.subscribers.size})`);
     };
   }
 

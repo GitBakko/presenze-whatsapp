@@ -40,3 +40,12 @@ cookies.txt
 _test_mcp.cjs
 stitch-prompt.md
 tsconfig.tsbuildinfo
+
+# ── Deploy artifacts ──
+# Il pacchetto standalone generato da `npm run build` + lo script di
+# staging. Viene rigenerato ad ogni release, non va versionato.
+presenze-hr-deploy*.zip
+
+# ── Claude Code working dir ──
+# Configurazione per-user dell'harness CLI, non va versionata.
+.claude/

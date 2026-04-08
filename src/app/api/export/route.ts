@@ -103,13 +103,28 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Prepare rows for export
+  // Prepare rows for export.
+  //
+  // Colonne entrate/uscite: la vecchia versione ("Entrate" = join di tutte
+  // le entries, "Uscite" = join di tutte le exits) era illeggibile quando
+  // il dipendente aveva piu' coppie nella stessa giornata. Adesso
+  // splittiamo in 4 colonne distinte:
+  //   Mattina Entrata  = entries[0]
+  //   Mattina Uscita   = exits[0]
+  //   Pomeriggio Entrata = entries[1]
+  //   Pomeriggio Uscita  = exits[1]
+  //
+  // Eventuali entrate/uscite oltre la seconda coppia (caso raro / anomalia)
+  // non vengono mostrate in queste colonne: l'eventuale anomalia di mismatch
+  // apparira' comunque nella colonna "Anomalia".
   const rows = dailyStats.map((s) => {
     const base: Record<string, string> = {
       Dipendente: s.employeeName,
       Data: s.date,
-      Entrate: s.entries.join(", "),
-      Uscite: s.exits.join(", "),
+      "Mattina Entrata": s.entries[0] ?? "",
+      "Mattina Uscita": s.exits[0] ?? "",
+      "Pomeriggio Entrata": s.entries[1] ?? "",
+      "Pomeriggio Uscita": s.exits[1] ?? "",
       "Ore Lavorate": hoursToHHMM(s.hoursWorked),
       "Ore (timestamp)": hoursToHHMM(s.hoursWorkedMsg),
       "Pausa": s.pauseMinutes > 0 ? minutesToHHMM(s.pauseMinutes) : "-",

@@ -47,6 +47,10 @@ export default function ReportsPage() {
     );
   };
 
+  const handleExportPresenze = () => {
+    window.open(`/api/export/presenze?month=${month}`, "_blank");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -69,6 +73,13 @@ export default function ReportsPage() {
             className="rounded-lg bg-surface-container-low px-3 py-2 text-sm font-medium text-primary shadow-card transition-shadow hover:shadow-elevated"
           >
             <Download className="mr-1 inline h-4 w-4" /> Excel
+          </button>
+          <button
+            onClick={handleExportPresenze}
+            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-3 py-2 text-sm font-medium text-on-primary shadow-card transition-shadow hover:shadow-elevated"
+            title="Report mensile nel formato 'foglio presenze' (griglia dipendenti × giorni)"
+          >
+            <Download className="mr-1 inline h-4 w-4" /> Foglio Presenze
           </button>
         </div>
       </div>

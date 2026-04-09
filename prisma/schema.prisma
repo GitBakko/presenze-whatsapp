@@ -31,6 +31,7 @@ model Employee {
   email        String?            @unique // email associata per richieste ferie via mail
   createdAt    DateTime           @default(now())
   records      AttendanceRecord[]
+  employeeApiKey EmployeeApiKey?
   anomalies    Anomaly[]
   schedule     EmployeeSchedule[]
   leaves       LeaveRequest[]
@@ -156,6 +157,16 @@ model ApiKey {
   name      String            // description (e.g. "Employee App")
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model EmployeeApiKey {
+  id         String   @id @default(cuid())
+  keyHash    String   @unique // SHA-256 hash della chiave personale
+  employeeId String   @unique // una sola chiave per dipendente
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 // ── NFC Kiosk ──

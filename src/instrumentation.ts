@@ -13,8 +13,13 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // Import dinamico per evitare il caricamento dell'intero stack
-  // mail (con imapflow + nodemailer) nei build edge.
+  // Mail ingest poller (Graph API)
   const { ensureMailPollerStarted } = await import("./lib/mail-ingest");
   ensureMailPollerStarted();
+
+  // WebSocket notification server (porta dedicata, bypassa IIS/ARR
+  // che bufferizza SSE). Il client si connette direttamente a questa
+  // porta senza passare dal reverse proxy.
+  const { startWsNotificationServer } = await import("./lib/ws-notifications");
+  startWsNotificationServer();
 }

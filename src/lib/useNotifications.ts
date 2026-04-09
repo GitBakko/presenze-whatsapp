@@ -17,12 +17,16 @@ export interface NotificationEvent {
 const MAX_LIST = 50;
 
 /**
- * Hook che mantiene una connessione SSE persistente a /api/notifications/stream
- * e accumula gli eventi ricevuti. Espone:
- *  - events: lista dei piu' recenti (max MAX_LIST), dal piu' nuovo al piu' vecchio
- *  - unread: contatore eventi non letti
- *  - markAllRead(): azzera il contatore
- *  - lastEvent: il piu' recente, utile per i toast
+ * Hook che mantiene una connessione WebSocket al server di notifiche
+ * (porta WS_PORT, default 3101) e accumula gli eventi ricevuti.
+ *
+ * Il WS server gira nello stesso processo Node di Next.js ma su una
+ * porta dedicata, bypassando IIS/ARR (che bufferizza SSE). Il client
+ * si connette direttamente al Node sulla porta 3101.
+ *
+ * Protocollo:
+ *   - alla connessione il server manda { type:"init", events:[...] }
+ *   - per ogni nuovo punch manda { type:"punch", event:{...} }
  *
  * Reconnect automatico con backoff esponenziale (1s -> 30s).
  */
@@ -31,17 +35,14 @@ export function useNotifications() {
   const [unread, setUnread] = useState(0);
   const [lastEvent, setLastEvent] = useState<NotificationEvent | null>(null);
   const seenIds = useRef<Set<string>>(new Set());
-  const esRef = useRef<EventSource | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef(1000);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ingest = useCallback((evt: NotificationEvent, isLive: boolean) => {
     if (seenIds.current.has(evt.id)) return;
     seenIds.current.add(evt.id);
-    setEvents((prev) => {
-      const next = [evt, ...prev].slice(0, MAX_LIST);
-      return next;
-    });
+    setEvents((prev) => [evt, ...prev].slice(0, MAX_LIST));
     if (isLive) {
       setUnread((c) => c + 1);
       setLastEvent(evt);
@@ -53,38 +54,53 @@ export function useNotifications() {
 
     const connect = () => {
       if (cancelled) return;
-      const es = new EventSource("/api/notifications/stream");
-      esRef.current = es;
 
-      es.addEventListener("init", (e) => {
-        try {
-          const data = JSON.parse((e as MessageEvent).data) as { events: NotificationEvent[] };
-          // gli eventi del buffer non incrementano "unread"
-          for (const evt of data.events) ingest(evt, false);
-          retryRef.current = 1000; // reset backoff
-        } catch {
-          // ignore
-        }
-      });
+      // Costruisci l'URL WebSocket: stessa hostname del browser, porta 3101
+      const wsPort = 3101;
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.hostname}:${wsPort}`;
 
-      es.addEventListener("punch", (e) => {
-        try {
-          const evt = JSON.parse((e as MessageEvent).data) as NotificationEvent;
-          ingest(evt, true);
-        } catch {
-          // ignore
-        }
-      });
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+      wsRef.current = ws;
 
-      es.onerror = () => {
-        es.close();
-        esRef.current = null;
-        if (cancelled) return;
-        // backoff esponenziale, max 30s
-        const wait = Math.min(retryRef.current, 30000);
-        retryRef.current = Math.min(retryRef.current * 2, 30000);
-        reconnectTimer.current = setTimeout(connect, wait);
+      ws.onopen = () => {
+        retryRef.current = 1000; // reset backoff
       };
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === "init" && Array.isArray(data.events)) {
+            for (const evt of data.events) ingest(evt, false);
+          } else if (data.type === "punch" && data.event) {
+            ingest(data.event, true);
+          }
+        } catch {
+          // ignore malformed
+        }
+      };
+
+      ws.onclose = () => {
+        wsRef.current = null;
+        if (!cancelled) scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        // onclose verra' chiamato dopo, gestisce il reconnect
+      };
+    };
+
+    const scheduleReconnect = () => {
+      if (cancelled) return;
+      const wait = Math.min(retryRef.current, 30000);
+      retryRef.current = Math.min(retryRef.current * 2, 30000);
+      reconnectTimer.current = setTimeout(connect, wait);
     };
 
     connect();
@@ -92,9 +108,9 @@ export function useNotifications() {
     return () => {
       cancelled = true;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (esRef.current) {
-        esRef.current.close();
-        esRef.current = null;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
     };
   }, [ingest]);

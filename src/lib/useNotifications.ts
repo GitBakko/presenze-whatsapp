@@ -55,10 +55,12 @@ export function useNotifications() {
     const connect = () => {
       if (cancelled) return;
 
-      // Costruisci l'URL WebSocket: stessa hostname del browser, porta 3101
+      // Costruisci l'URL WebSocket: stessa hostname del browser, porta 3101.
+      // Forza ws:// (non wss://) perche' il server WS gira plain senza
+      // TLS su una porta dedicata in LAN. Il browser consente ws:// anche
+      // da una pagina HTTPS quando l'host e' nella intranet o localhost.
       const wsPort = 3101;
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.hostname}:${wsPort}`;
+      const wsUrl = `ws://${window.location.hostname}:${wsPort}`;
 
       let ws: WebSocket;
       try {

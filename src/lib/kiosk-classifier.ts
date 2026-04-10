@@ -50,9 +50,11 @@ export interface LastRecordSummary {
  *   13:00 → USCITA_BLOCCO_1 → EXIT
  *   13:01 → PAUSA_PRANZO    → EXIT
  *
- * Valore conservativo: 15 minuti, coerente con DELAY_TOLERANCE_MINUTES.
+ * Valore: 30 minuti. Con schedule 09:00-13:00 / 14:30-18:30 significa
+ * che dalle 12:30 in poi il tap è EXIT (uscita pranzo) e dalle 18:00
+ * in poi è EXIT (fine giornata).
  */
-const EXIT_TOLERANCE_MINUTES = 15;
+const EXIT_TOLERANCE_MINUTES = 30;
 
 // ── Helpers HH:MM ────────────────────────────────────────────────────
 

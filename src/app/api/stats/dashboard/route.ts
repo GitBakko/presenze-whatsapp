@@ -324,11 +324,13 @@ export async function GET(request: NextRequest) {
 
 // ── KPI computation ──────────────────────────────────────────────────
 
+type LeaveForKpi = { type: string; startDate: string; endDate: string; hours: number | null; timeSlots: string | null; employeeId: string };
+
 function computeKpis(
   current: DailyStats[],
   prev: DailyStats[],
-  currentLeaves: { type: string; startDate: string; endDate: string }[],
-  prevLeaves: { type: string; startDate: string; endDate: string }[],
+  currentLeaves: LeaveForKpi[],
+  prevLeaves: LeaveForKpi[],
   totalEmployees: number,
   from: string, to: string,
   prevFrom: string, prevTo: string,
@@ -336,7 +338,7 @@ function computeKpis(
   resolvedPrev: number, totalPrev: number,
 ): DashboardStatsResponse["kpi"] {
 
-  function calcPeriodKpis(stats: DailyStats[], leaves: { type: string; startDate: string; endDate: string }[], rangeFrom: string, rangeTo: string) {
+  function calcPeriodKpis(stats: DailyStats[], leaves: LeaveForKpi[], rangeFrom: string, rangeTo: string) {
     const workDays = countWorkDays(rangeFrom, rangeTo);
     const possibleDays = totalEmployees * workDays;
 
@@ -344,16 +346,60 @@ function computeKpis(
     const presenceDays = new Set(stats.filter((d) => d.entries.length > 0).map((d) => `${d.employeeId}|${d.date}`)).size;
     const tassoPresenza = possibleDays > 0 ? (presenceDays / possibleDays) * 100 : 0;
 
-    // Puntualità
-    const totalPunches = stats.length;
-    const latePunches = stats.filter((d) => d.morningDelay > 0 || d.afternoonDelay > 0).length;
-    const tassoPuntualita = totalPunches > 0 ? ((totalPunches - latePunches) / totalPunches) * 100 : 100;
+    // Costruisci mappa ROL mattutini per sottrarre i minuti coperti dal
+    // ritardo: se un dipendente ha un ROL con timeSlots che copre la
+    // mattina (es. 09:00-10:00), il ritardo effettivo si riduce di quei
+    // minuti. Chiave: "employeeId|date".
+    const morningRolMinutes = new Map<string, number>();
+    for (const l of leaves) {
+      if (!l.timeSlots) continue;
+      try {
+        const slots = JSON.parse(l.timeSlots) as { from: string; to: string }[];
+        for (const slot of slots) {
+          // Consideriamo "mattutino" un slot che inizia prima delle 12:00
+          if (hmToMin(slot.from) < 720) {
+            const mins = hmToMin(slot.to) - hmToMin(slot.from);
+            if (mins > 0) {
+              // Il leave può coprire più giorni; distribuiamo su ogni giorno del range
+              const s = l.startDate < rangeFrom ? rangeFrom : l.startDate;
+              const e = l.endDate > rangeTo ? rangeTo : l.endDate;
+              const cur = new Date(s);
+              const end = new Date(e);
+              while (cur <= end) {
+                const dateStr = cur.toISOString().split("T")[0];
+                const key = `${l.employeeId}|${dateStr}`;
+                morningRolMinutes.set(key, (morningRolMinutes.get(key) ?? 0) + mins);
+                cur.setDate(cur.getDate() + 1);
+              }
+            }
+          }
+        }
+      } catch {
+        // timeSlots malformato, ignora
+      }
+    }
 
-    // Ritardo medio (solo per chi è in ritardo)
-    const delays = stats.filter((d) => d.morningDelay > 0 || d.afternoonDelay > 0);
-    const ritardoMedioMin = delays.length > 0
-      ? delays.reduce((s, d) => s + d.morningDelay + d.afternoonDelay, 0) / delays.length
-      : 0;
+    // Puntualità e ritardo: sottraiamo i minuti ROL mattutini dal delay
+    let latePunches = 0;
+    let totalDelayMinutes = 0;
+    let delayCount = 0;
+    for (const d of stats) {
+      let morningDelay = d.morningDelay;
+      const rolKey = `${d.employeeId}|${d.date}`;
+      const rolCover = morningRolMinutes.get(rolKey) ?? 0;
+      if (rolCover > 0 && morningDelay > 0) {
+        morningDelay = Math.max(0, morningDelay - rolCover);
+      }
+      const totalDelay = morningDelay + d.afternoonDelay;
+      if (totalDelay > 0) {
+        latePunches++;
+        totalDelayMinutes += totalDelay;
+        delayCount++;
+      }
+    }
+    const totalPunches = stats.length;
+    const tassoPuntualita = totalPunches > 0 ? ((totalPunches - latePunches) / totalPunches) * 100 : 100;
+    const ritardoMedioMin = delayCount > 0 ? totalDelayMinutes / delayCount : 0;
 
     // Assenteismo: giorni senza presenza / giorni possibili
     const absenceDays = possibleDays - presenceDays;
@@ -447,9 +493,14 @@ async function computeOreChart(
           if (sched.block2Start && sched.block2End)
             mins += hmToMin(sched.block2End) - hmToMin(sched.block2Start);
           contratto += mins / 60;
-        } else {
-          contratto += 8; // fallback
+        } else if (!empSched || empSched.size === 0) {
+          // Nessuno schedule configurato: fallback a 8h per giorno lavorativo
+          // solo se il dipendente non ha nessun giorno configurato (per non
+          // contare 0 solo perche' manca un singolo giorno della settimana).
+          contratto += 8;
         }
+        // Se ha lo schedule ma NON per questo giorno specifico della
+        // settimana → non lavora quel giorno → 0 ore (non 8h fallback)
       }
     }
 
@@ -512,11 +563,11 @@ function computeAssenzeChart(
     Altro: 0,
   };
   const colors: Record<string, string> = {
-    Ferie: "#378ADD",
-    Malattia: "#E24B4A",
-    ROL: "#1D9E75",
-    Permessi: "#EF9F27",
-    Altro: "#B4B2A9",
+    Ferie: "#1e40af",     // blue-800 — coerente con /leaves TYPE_COLORS
+    Malattia: "#991b1b",  // red-800
+    ROL: "#92400e",        // amber-800
+    Permessi: "#155e75",   // cyan-800 (MEDICAL_VISIT)
+    Altro: "#6b21a8",      // purple-800 (BEREAVEMENT, MARRIAGE, LAW_104)
   };
 
   for (const l of leaves) {

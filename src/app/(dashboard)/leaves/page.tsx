@@ -126,6 +126,11 @@ const STATUS_LABELS: Record<string, string> = {
   REJECTED: "Rifiutata",
 };
 
+function hmToMin(hm: string): number {
+  const [h, m] = hm.split(":").map(Number);
+  return h * 60 + m;
+}
+
 // ── Main page ──
 
 export default function LeavesPage() {
@@ -980,6 +985,8 @@ function CreateLeaveModal({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [hours, setHours] = useState("");
+  const [timeFrom, setTimeFrom] = useState("");
+  const [timeTo, setTimeTo] = useState("");
   const [sickProtocol, setSickProtocol] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -1007,7 +1014,15 @@ function CreateLeaveModal({
           type,
           startDate,
           endDate: isHalfDay ? startDate : (endDate || startDate),
-          hours: needsHours ? parseFloat(hours) || null : null,
+          hours: needsHours ? (
+            // Se l'utente ha specificato dalle/alle, calcola le ore automaticamente
+            timeFrom && timeTo
+              ? Math.round(((hmToMin(timeTo) - hmToMin(timeFrom)) / 60) * 10) / 10
+              : parseFloat(hours) || null
+          ) : null,
+          timeSlots: needsHours && timeFrom && timeTo
+            ? [{ from: timeFrom, to: timeTo }]
+            : null,
           sickProtocol: isSick ? sickProtocol || null : null,
           notes: notes || null,
         }),
@@ -1095,19 +1110,62 @@ function CreateLeaveModal({
             )}
           </div>
 
-          {/* Hours (for ROL-type) */}
+          {/* Hours (for ROL-type) — con campi opzionali dalle/alle */}
           {needsHours && (
-            <div>
-              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-on-surface-variant">Ore</label>
-              <input
-                type="number"
-                step="0.5"
-                min="0.5"
-                value={hours}
-                onChange={(e) => setHours(e.target.value)}
-                className="w-full rounded-lg border border-outline-variant/30 px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                placeholder="Es: 2"
-              />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-on-surface-variant">Dalle</label>
+                  <input
+                    type="time"
+                    value={timeFrom}
+                    onChange={(e) => {
+                      setTimeFrom(e.target.value);
+                      // auto-calcola ore se entrambi compilati
+                      if (e.target.value && timeTo) {
+                        const mins = hmToMin(timeTo) - hmToMin(e.target.value);
+                        if (mins > 0) setHours(String(Math.round((mins / 60) * 10) / 10));
+                      }
+                    }}
+                    className="w-full rounded-lg border border-outline-variant/30 px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    placeholder="09:00"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-on-surface-variant">Alle</label>
+                  <input
+                    type="time"
+                    value={timeTo}
+                    onChange={(e) => {
+                      setTimeTo(e.target.value);
+                      if (timeFrom && e.target.value) {
+                        const mins = hmToMin(e.target.value) - hmToMin(timeFrom);
+                        if (mins > 0) setHours(String(Math.round((mins / 60) * 10) / 10));
+                      }
+                    }}
+                    className="w-full rounded-lg border border-outline-variant/30 px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    placeholder="10:00"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                  Ore totali {timeFrom && timeTo ? "(calcolate)" : ""}
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                  readOnly={!!(timeFrom && timeTo)}
+                  className={`w-full rounded-lg border border-outline-variant/30 px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${timeFrom && timeTo ? "bg-gray-50 text-gray-500" : ""}`}
+                  placeholder="Es: 2"
+                />
+                <p className="mt-1 text-[11px] text-outline-variant">
+                  Specifica &quot;Dalle — Alle&quot; per inserire la fascia oraria esatta, oppure lascia vuoti e inserisci solo le ore totali.
+                </p>
+              </div>
             </div>
           )}
 

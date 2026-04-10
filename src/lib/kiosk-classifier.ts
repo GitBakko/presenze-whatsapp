@@ -1,5 +1,5 @@
 /**
- * Classificatore lato server per i tap del kiosk NFC.
+ * Classificatore lato server per i tap del kiosk NFC e del bot Telegram.
  *
  * Decide quale tipo di AttendanceRecord generare in base a:
  *   - lo stato corrente del dipendente (derivato dall'ultimo record del giorno)
@@ -23,8 +23,10 @@ export type KioskState = "FUORI" | "AL_LAVORO" | "IN_PAUSA";
 export type KioskZone =
   | "PRIMA_LAVORO"
   | "DENTRO_BLOCCO_1"
+  | "USCITA_BLOCCO_1"
   | "PAUSA_PRANZO"
   | "DENTRO_BLOCCO_2"
+  | "USCITA_BLOCCO_2"
   | "DOPO_LAVORO";
 
 export interface ScheduleBlocks {
@@ -38,12 +40,39 @@ export interface LastRecordSummary {
   type: string; // ENTRY | EXIT | PAUSE_START | PAUSE_END | OVERTIME_START | OVERTIME_END
 }
 
-/** Confronta due "HH:MM". */
-function hmLte(a: string, b: string): boolean {
-  return a <= b; // funziona perché formato fisso HH:MM con zero padding
+/**
+ * Minuti di tolleranza prima della fine del blocco orario in cui un
+ * tap viene interpretato come "uscita" e non come "inizio pausa".
+ *
+ * Esempio con block1End=13:00 e EXIT_TOLERANCE=15:
+ *   12:44 → DENTRO_BLOCCO_1 → PAUSE_START (pausa vera)
+ *   12:45 → USCITA_BLOCCO_1 → EXIT (sta andando a pranzo)
+ *   13:00 → USCITA_BLOCCO_1 → EXIT
+ *   13:01 → PAUSA_PRANZO    → EXIT
+ *
+ * Valore conservativo: 15 minuti, coerente con DELAY_TOLERANCE_MINUTES.
+ */
+const EXIT_TOLERANCE_MINUTES = 15;
+
+// ── Helpers HH:MM ────────────────────────────────────────────────────
+
+function hmToMinutes(hm: string): number {
+  const [h, m] = hm.split(":").map(Number);
+  return h * 60 + m;
 }
+
 function hmLt(a: string, b: string): boolean {
   return a < b;
+}
+
+/**
+ * True se `now` è entro `tolerance` minuti PRIMA di `boundary` (incluso
+ * il boundary stesso). Cioè: boundary - tolerance ≤ now ≤ boundary.
+ */
+function isNearEnd(now: string, boundary: string, toleranceMinutes: number): boolean {
+  const nowMin = hmToMinutes(now);
+  const boundaryMin = hmToMinutes(boundary);
+  return nowMin >= boundaryMin - toleranceMinutes && nowMin <= boundaryMin;
 }
 
 /** Risolve i blocchi orari: usa lo schedule se valido, altrimenti i defaults globali. */
@@ -89,13 +118,45 @@ export function computeState(last: LastRecordSummary | null | undefined): KioskS
   }
 }
 
-/** Determina la zona oraria del tap rispetto allo schedule. */
+/**
+ * Determina la zona oraria del tap rispetto allo schedule.
+ *
+ * Le zone USCITA_BLOCCO_1 e USCITA_BLOCCO_2 sono finestre di
+ * EXIT_TOLERANCE_MINUTES prima della fine di ogni blocco lavorativo.
+ * In queste zone un tap AL_LAVORO viene classificato come EXIT
+ * (il dipendente sta uscendo a pranzo / fine giornata) e non come
+ * PAUSE_START (sarebbe una pausa di 5-15 minuti a fine blocco,
+ * insensata).
+ *
+ * Timeline con schedule 09:00-13:00 / 14:30-18:30 e tolerance 15min:
+ *
+ *   <09:00          → PRIMA_LAVORO
+ *   09:00 – 12:44   → DENTRO_BLOCCO_1
+ *   12:45 – 13:00   → USCITA_BLOCCO_1   ← finestra "sta uscendo"
+ *   13:01 – 14:29   → PAUSA_PRANZO
+ *   14:30 – 18:14   → DENTRO_BLOCCO_2
+ *   18:15 – 18:30   → USCITA_BLOCCO_2   ← finestra "sta uscendo"
+ *   >18:30          → DOPO_LAVORO
+ */
 export function computeZone(now: string, schedule: ScheduleBlocks | null | undefined): KioskZone {
   const r = resolveSchedule(schedule);
+
   if (hmLt(now, r.block1Start)) return "PRIMA_LAVORO";
-  if (hmLte(now, r.block1End)) return "DENTRO_BLOCCO_1";
+
+  // Dentro il blocco 1 (09:00 – 13:00) con sottozona uscita
+  if (hmToMinutes(now) <= hmToMinutes(r.block1End)) {
+    if (isNearEnd(now, r.block1End, EXIT_TOLERANCE_MINUTES)) return "USCITA_BLOCCO_1";
+    return "DENTRO_BLOCCO_1";
+  }
+
   if (hmLt(now, r.block2Start)) return "PAUSA_PRANZO";
-  if (hmLte(now, r.block2End)) return "DENTRO_BLOCCO_2";
+
+  // Dentro il blocco 2 (14:30 – 18:30) con sottozona uscita
+  if (hmToMinutes(now) <= hmToMinutes(r.block2End)) {
+    if (isNearEnd(now, r.block2End, EXIT_TOLERANCE_MINUTES)) return "USCITA_BLOCCO_2";
+    return "DENTRO_BLOCCO_2";
+  }
+
   return "DOPO_LAVORO";
 }
 
@@ -103,17 +164,20 @@ export function computeZone(now: string, schedule: ScheduleBlocks | null | undef
  * Decisione finale.
  *
  * Matrice:
- *   FUORI    + qualsiasi zona              → ENTRY
- *   AL_LAVORO + DENTRO_BLOCCO_1            → PAUSE_START  ("tap dentro orario = pausa")
- *   AL_LAVORO + DENTRO_BLOCCO_2            → PAUSE_START
- *   AL_LAVORO + (PRIMA|PAUSA_PRANZO|DOPO)  → EXIT
- *   IN_PAUSA  + qualsiasi                  → PAUSE_END
+ *   FUORI     + qualsiasi zona                             → ENTRY
+ *   AL_LAVORO + DENTRO_BLOCCO_1                            → PAUSE_START
+ *   AL_LAVORO + DENTRO_BLOCCO_2                            → PAUSE_START
+ *   AL_LAVORO + USCITA_BLOCCO_1                            → EXIT  (sta uscendo a pranzo)
+ *   AL_LAVORO + USCITA_BLOCCO_2                            → EXIT  (sta uscendo fine giornata)
+ *   AL_LAVORO + (PRIMA|PAUSA_PRANZO|DOPO)                  → EXIT
+ *   IN_PAUSA  + qualsiasi                                  → PAUSE_END
  */
 export function classifyPunch(state: KioskState, zone: KioskZone): KioskAction {
   if (state === "FUORI") return "ENTRY";
   if (state === "IN_PAUSA") return "PAUSE_END";
   // state === AL_LAVORO
   if (zone === "DENTRO_BLOCCO_1" || zone === "DENTRO_BLOCCO_2") return "PAUSE_START";
+  // Tutte le altre zone (incluse USCITA_BLOCCO_1/2, PAUSA_PRANZO, PRIMA, DOPO) → EXIT
   return "EXIT";
 }
 

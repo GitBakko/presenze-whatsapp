@@ -13,6 +13,10 @@ export interface DashboardStatsResponse {
   period: "today" | "month" | "quarter";
   generatedAt: string; // ISO timestamp
 
+  // Se oggi è un giorno non lavorativo (weekend o festività)
+  isNonWorkingToday: boolean;
+  nonWorkingLabel: string | null; // "Sabato", "Domenica", "Pasqua", ecc.
+
   // Sezione A — Riepilogo Oggi (sempre relativo a oggi)
   today: {
     totalEmployees: number;
@@ -67,7 +71,7 @@ export interface AssenzaChartPoint {
 
 // ── Sezione D: stato dipendenti oggi ─────────────────────────────────
 
-export type EmployeeStatus = "present" | "late" | "absent" | "sick" | "vacation";
+export type EmployeeStatus = "present" | "late" | "absent" | "sick" | "vacation" | "nonWorking";
 
 export interface EmployeeTodayStatus {
   id: string;

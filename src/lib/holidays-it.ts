@@ -7,18 +7,18 @@
  * dell'era cristiana nel calendario gregoriano.
  */
 
-/** Festività italiane fisse: [mese, giorno] */
-const FESTIVITA_FISSE: ReadonlyArray<readonly [number, number]> = [
-  [1, 1],   // Capodanno
-  [1, 6],   // Epifania
-  [4, 25],  // Festa della Liberazione
-  [5, 1],   // Festa del Lavoro
-  [6, 2],   // Festa della Repubblica
-  [8, 15],  // Ferragosto
-  [11, 1],  // Tutti i Santi
-  [12, 8],  // Immacolata Concezione
-  [12, 25], // Natale
-  [12, 26], // Santo Stefano
+/** Festività italiane fisse: [mese, giorno, nome] */
+const FESTIVITA_FISSE: ReadonlyArray<readonly [number, number, string]> = [
+  [1, 1, "Capodanno"],
+  [1, 6, "Epifania"],
+  [4, 25, "Festa della Liberazione"],
+  [5, 1, "Festa del Lavoro"],
+  [6, 2, "Festa della Repubblica"],
+  [8, 15, "Ferragosto"],
+  [11, 1, "Tutti i Santi"],
+  [12, 8, "Immacolata Concezione"],
+  [12, 25, "Natale"],
+  [12, 26, "Santo Stefano"],
 ];
 
 /**
@@ -64,13 +64,44 @@ export function getItalianHolidays(year: number): Set<string> {
   const easter = computeEaster(year);
   const easterDate = new Date(Date.UTC(year, easter.month - 1, easter.day));
   set.add(fmt(year, easter.month, easter.day));
-  // Lunedi' dell'Angelo (Pasquetta) = Pasqua + 1 giorno
   const monday = new Date(easterDate);
   monday.setUTCDate(monday.getUTCDate() + 1);
   set.add(
     fmt(monday.getUTCFullYear(), monday.getUTCMonth() + 1, monday.getUTCDate())
   );
   return set;
+}
+
+/** Mappa YYYY-MM-DD → nome festività (solo per le festività, non weekend). */
+export function getItalianHolidaysNamed(year: number): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [m, d, name] of FESTIVITA_FISSE) {
+    map.set(fmt(year, m, d), name);
+  }
+  const easter = computeEaster(year);
+  map.set(fmt(year, easter.month, easter.day), "Pasqua");
+  const monday = new Date(Date.UTC(year, easter.month - 1, easter.day));
+  monday.setUTCDate(monday.getUTCDate() + 1);
+  map.set(
+    fmt(monday.getUTCFullYear(), monday.getUTCMonth() + 1, monday.getUTCDate()),
+    "Lunedì dell'Angelo"
+  );
+  return map;
+}
+
+/**
+ * Restituisce una label leggibile se la data è un giorno non lavorativo.
+ * - Weekend: "Sabato" / "Domenica"
+ * - Festività: nome della festività (es. "Festa della Liberazione")
+ * - Lavorativo: null
+ */
+export function getNonWorkingDayLabel(dateStr: string): string | null {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const jsDow = new Date(y, m - 1, d).getDay();
+  const dayNames = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+  if (jsDow === 0 || jsDow === 6) return dayNames[jsDow];
+  const named = getItalianHolidaysNamed(y);
+  return named.get(dateStr) ?? null;
 }
 
 /**

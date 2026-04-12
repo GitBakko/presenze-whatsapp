@@ -9,7 +9,7 @@ import {
 import { checkAuth } from "@/lib/auth-guard";
 import { computeLeaveBalance } from "@/lib/leaves";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
-import { isNonWorkingDay } from "@/lib/holidays-it";
+import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
 import type {
   DashboardStatsResponse,
   EmployeeTodayStatus,
@@ -190,14 +190,27 @@ export async function GET(request: NextRequest) {
   const malattiaTodayCount = [...todayLeaveMap.values()].filter((t) => t === "SICK").length;
   const assentiToday = totalEmployees - presentTodayIds.size - ferieTodayCount - malattiaTodayCount;
 
-  const todaySection = {
-    totalEmployees,
-    presenti: presentTodayIds.size,
-    assenti: Math.max(0, assentiToday),
-    ferie: ferieTodayCount,
-    malattia: malattiaTodayCount,
-    anomalieAperte: anomaliesUnresolved,
-  };
+  // ── Giorno non lavorativo ────────────────────────────────────────────
+  const isNonWorkingToday = isNonWorkingDay(today);
+  const nonWorkingLabel = getNonWorkingDayLabel(today);
+
+  const todaySection = isNonWorkingToday
+    ? {
+        totalEmployees,
+        presenti: 0,
+        assenti: 0,
+        ferie: ferieTodayCount,
+        malattia: malattiaTodayCount,
+        anomalieAperte: anomaliesUnresolved,
+      }
+    : {
+        totalEmployees,
+        presenti: presentTodayIds.size,
+        assenti: Math.max(0, assentiToday),
+        ferie: ferieTodayCount,
+        malattia: malattiaTodayCount,
+        anomalieAperte: anomaliesUnresolved,
+      };
 
   // ── SEZIONE B — KPI ────────────────────────────────────────────────
   const kpi = computeKpis(
@@ -210,6 +223,19 @@ export async function GET(request: NextRequest) {
 
   // ── SEZIONE D — Dipendenti oggi ────────────────────────────────────
   const employeesToday: EmployeeTodayStatus[] = allEmployees.map((emp) => {
+    // Se oggi è non lavorativo, tutti hanno status "nonWorking"
+    if (isNonWorkingToday) {
+      return {
+        id: emp.id,
+        name: emp.displayName || emp.name,
+        avatarUrl: emp.avatarUrl,
+        status: "nonWorking" as EmployeeStatus,
+        entryTime: null,
+        delayMinutes: 0,
+        label: nonWorkingLabel,
+      };
+    }
+
     const dayStats = todayStatsArr.find((d) => d.employeeId === emp.id);
     const leaveType = todayLeaveMap.get(emp.id);
 
@@ -241,9 +267,9 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  // Ordina: presenti > in ritardo > assenti > malattia > ferie, poi per nome
+  // Ordina: presenti > in ritardo > assenti > malattia > ferie > nonWorking, poi per nome
   const statusOrder: Record<EmployeeStatus, number> = {
-    present: 0, late: 1, absent: 2, sick: 3, vacation: 4,
+    present: 0, late: 1, absent: 2, sick: 3, vacation: 4, nonWorking: 5,
   };
   employeesToday.sort((a, b) => {
     const so = statusOrder[a.status] - statusOrder[b.status];
@@ -311,6 +337,8 @@ export async function GET(request: NextRequest) {
   const response: DashboardStatsResponse = {
     period,
     generatedAt: new Date().toISOString(),
+    isNonWorkingToday,
+    nonWorkingLabel,
     today: todaySection,
     kpi,
     charts: Object.keys(charts).length > 0 ? charts : undefined,

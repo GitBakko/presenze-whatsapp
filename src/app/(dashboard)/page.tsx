@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, PartyPopper, CalendarOff } from "lucide-react";
 import { DashboardPeriodFilter } from "@/components/dashboard/DashboardPeriodFilter";
 import { TodayOverview } from "@/components/dashboard/TodayOverview";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -116,6 +116,29 @@ export default function DashboardPage() {
       {/* ── Data loaded ──────────────────────────────────────────── */}
       {data && (
         <>
+          {/* Banner giorno non lavorativo */}
+          {data.isNonWorkingToday && (
+            <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4">
+              {data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica" ? (
+                <CalendarOff className="h-8 w-8 flex-shrink-0 text-blue-500" />
+              ) : (
+                <PartyPopper className="h-8 w-8 flex-shrink-0 text-indigo-500" />
+              )}
+              <div>
+                <p className="text-sm font-bold text-blue-900">
+                  {data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica"
+                    ? `Oggi è ${data.nonWorkingLabel}`
+                    : `Oggi è festa: ${data.nonWorkingLabel}`}
+                </p>
+                <p className="text-xs text-blue-700">
+                  {data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica"
+                    ? "Giorno non lavorativo — i dati di presenza e assenza non sono rilevanti."
+                    : "Giornata festiva nazionale — l'ufficio è chiuso. Buona festa! 🎉"}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* SEZIONE A — Riepilogo Oggi */}
           <TodayOverview data={data.today} />
 

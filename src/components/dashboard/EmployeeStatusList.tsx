@@ -10,6 +10,7 @@ const STATUS_DOT: Record<EmployeeStatus, string> = {
   absent: "bg-red-500",
   sick: "bg-red-400",
   vacation: "bg-gray-400",
+  nonWorking: "bg-blue-300",
 };
 
 const AVATAR_COLORS = [

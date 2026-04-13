@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { checkAuthAny, isAuthUser } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     // Dipendenti vedono solo le proprie richieste
     if (authResult.role === "EMPLOYEE") {
-      employeeId = authResult.employeeId;
+      employeeId = await resolveEmployeeId(authResult);
     }
     const status = searchParams.get("status");
     const type = searchParams.get("type");
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     // Dipendenti possono creare solo per se stessi
     if (authResult.role === "EMPLOYEE") {
-      employeeId = authResult.employeeId ?? undefined;
+      employeeId = (await resolveEmployeeId(authResult)) ?? undefined;
     }
 
     if (!employeeId || !type || !startDate || !endDate) {

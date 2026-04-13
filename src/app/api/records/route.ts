@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { checkAuth, checkAuthAny, isAuthUser } from "@/lib/auth-guard";
+import { checkAuth, checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 
 export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   // Dipendenti vedono solo i propri record
   let employeeId = searchParams.get("employeeId");
   if (authResult.role === "EMPLOYEE") {
-    employeeId = authResult.employeeId;
+    employeeId = await resolveEmployeeId(authResult);
   }
   const date = searchParams.get("date");
   const from = searchParams.get("from");

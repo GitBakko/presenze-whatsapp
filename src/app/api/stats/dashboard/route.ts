@@ -6,7 +6,7 @@ import {
   type DailyStats,
   type EmployeeScheduleDay,
 } from "@/lib/calculator";
-import { checkAuthAny, isAuthUser } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { computeLeaveBalance } from "@/lib/leaves";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
   if (!isAuthUser(authResult)) return authResult;
   const isAdmin = authResult.role === "ADMIN";
-  const selfEmployeeId = authResult.employeeId;
+
+  // Il JWT potrebbe avere employeeId=null se è stato creato prima
+  // dell'attivazione admin. resolveEmployeeId() fa fallback al DB.
+  const selfEmployeeId = await resolveEmployeeId(authResult);
 
   const { searchParams } = new URL(request.url);
   const period = (searchParams.get("period") || "month") as "today" | "month" | "quarter";

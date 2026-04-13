@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
@@ -12,7 +12,6 @@ import {
   FileBarChart,
   Clock,
   Settings,
-  LogOut,
 } from "lucide-react";
 
 interface NavItem {
@@ -112,13 +111,6 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
             <span className="text-xs uppercase tracking-wider">Impostazioni</span>
           </Link>
         )}
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex w-full items-center gap-3 px-4 py-3 text-on-surface-variant transition-colors duration-200 hover:text-primary-container"
-        >
-          <LogOut className="h-5 w-5 text-rose-400" strokeWidth={1.75} />
-          <span className="text-xs uppercase tracking-wider">Esci</span>
-        </button>
       </div>
     </aside>
   );

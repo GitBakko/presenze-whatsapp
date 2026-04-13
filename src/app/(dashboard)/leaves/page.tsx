@@ -32,12 +32,21 @@ interface LeaveRequest {
 }
 
 interface CalendarEvent {
+  id: string;
   employeeId: string;
   employeeName: string;
   type: string;
   typeLabel: string;
   status: string;
-  hours?: number | null;
+  hours: number | null;
+  startDate: string;
+  endDate: string;
+  timeSlots: { from: string; to: string }[] | null;
+  notes: string | null;
+  source: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdAt: string;
 }
 
 interface CalendarDay {
@@ -753,7 +762,6 @@ function CalendarView({
   monthLabel,
   firstDay,
   onChangeMonth,
-  onSelectEmployee,
 }: {
   calendarDays: CalendarDay[];
   calendarMonth: string;
@@ -764,6 +772,17 @@ function CalendarView({
 }) {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
   const today = new Date().toISOString().split("T")[0];
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+
+  const SOURCE_LABELS: Record<string, string> = {
+    MANAGER: "Manager",
+    EXTERNAL_API: "API / Bot / Email",
+  };
+
+  const formatDate = (d: string) => {
+    const [, m, day] = d.split("-");
+    return `${parseInt(day)}/${parseInt(m)}`;
+  };
 
   return (
     <div className="rounded-xl border border-outline-variant/30 bg-white shadow-sm">
@@ -791,7 +810,6 @@ function CalendarView({
 
       {/* Day cells */}
       <div className="grid grid-cols-7">
-        {/* Empty cells for offset */}
         {Array.from({ length: firstDay }).map((_, i) => (
           <div key={`empty-${i}`} className="min-h-[80px] border-b border-r border-surface-container-low bg-surface-container-low" />
         ))}
@@ -818,7 +836,7 @@ function CalendarView({
                   return (
                     <button
                       key={i}
-                      onClick={() => onSelectEmployee(ev.employeeId)}
+                      onClick={() => setSelectedEvent(ev)}
                       className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-semibold leading-tight ${TYPE_COLORS[ev.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400 ring-offset-0" : ""}`}
                       title={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}`}
                     >
@@ -853,6 +871,126 @@ function CalendarView({
           <Hourglass className="h-2.5 w-2.5" /> In attesa
         </span>
       </div>
+
+      {/* ── Popup dettaglio richiesta ─────────────────────────────── */}
+      {selectedEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+          onClick={() => setSelectedEvent(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-elevated"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h3 className="font-display text-base font-bold text-on-surface">
+                  {selectedEvent.employeeName}
+                </h3>
+                <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${TYPE_COLORS[selectedEvent.type] ?? "bg-surface-container-high text-on-surface"}`}>
+                  {selectedEvent.typeLabel}
+                </span>
+                <span className={`ml-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_COLORS[selectedEvent.status] ?? ""}`}>
+                  {STATUS_LABELS[selectedEvent.status] ?? selectedEvent.status}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="rounded p-1 text-on-surface-variant hover:bg-surface-container"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              {/* Periodo */}
+              <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+                <span className="text-xs font-medium text-on-surface-variant">Periodo</span>
+                <span className="font-semibold text-on-surface">
+                  {selectedEvent.startDate === selectedEvent.endDate
+                    ? formatDate(selectedEvent.startDate)
+                    : `${formatDate(selectedEvent.startDate)} → ${formatDate(selectedEvent.endDate)}`}
+                </span>
+              </div>
+
+              {/* Ore (se applicabile) */}
+              {selectedEvent.hours && (
+                <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+                  <span className="text-xs font-medium text-on-surface-variant">Ore</span>
+                  <span className="font-semibold text-on-surface">{selectedEvent.hours}h</span>
+                </div>
+              )}
+
+              {/* Fascia oraria (timeSlots) */}
+              {selectedEvent.timeSlots && selectedEvent.timeSlots.length > 0 && (
+                <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+                  <span className="text-xs font-medium text-on-surface-variant">Fascia oraria</span>
+                  <span className="font-semibold text-on-surface">
+                    {selectedEvent.timeSlots.map((s) => `${s.from} – ${s.to}`).join(", ")}
+                  </span>
+                </div>
+              )}
+
+              {/* Fonte */}
+              <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+                <span className="text-xs font-medium text-on-surface-variant">Origine</span>
+                <span className="text-xs text-on-surface">
+                  {SOURCE_LABELS[selectedEvent.source] ?? selectedEvent.source}
+                </span>
+              </div>
+
+              {/* Approvato da */}
+              {selectedEvent.approvedBy && (
+                <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+                  <span className="text-xs font-medium text-on-surface-variant">Approvato da</span>
+                  <span className="text-xs text-on-surface">{selectedEvent.approvedBy}</span>
+                </div>
+              )}
+
+              {/* Data approvazione */}
+              {selectedEvent.approvedAt && (
+                <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+                  <span className="text-xs font-medium text-on-surface-variant">Data approvazione</span>
+                  <span className="text-xs text-on-surface">
+                    {new Date(selectedEvent.approvedAt).toLocaleDateString("it-IT", {
+                      day: "2-digit", month: "2-digit", year: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              )}
+
+              {/* Data creazione */}
+              <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+                <span className="text-xs font-medium text-on-surface-variant">Creata il</span>
+                <span className="text-xs text-on-surface">
+                  {new Date(selectedEvent.createdAt).toLocaleDateString("it-IT", {
+                    day: "2-digit", month: "2-digit", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </span>
+              </div>
+
+              {/* Note */}
+              {selectedEvent.notes && (
+                <div className="rounded-lg bg-surface-container-low px-3 py-2">
+                  <span className="text-xs font-medium text-on-surface-variant">Note</span>
+                  <p className="mt-1 text-xs text-on-surface">{selectedEvent.notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="rounded-md bg-surface-container px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high"
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

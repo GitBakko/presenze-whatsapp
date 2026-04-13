@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
-  Upload,
   AlertTriangle,
   FileBarChart,
   Clock,
@@ -21,7 +20,6 @@ const navItems = [
   { href: "/employees", label: "Dipendenti", icon: Users, color: "text-indigo-500" },
   { href: "/records", label: "Timbrature", icon: Clock, color: "text-teal-500" },
   { href: "/leaves", label: "Ferie & Permessi", icon: CalendarCheck, color: "text-emerald-500" },
-  { href: "/import", label: "Importa", icon: Upload, color: "text-cyan-500" },
   { href: "/anomalies", label: "Anomalie", icon: AlertTriangle, color: "text-amber-500" },
   { href: "/reports", label: "Report", icon: FileBarChart, color: "text-violet-500" },
 ];
@@ -50,10 +48,9 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
     >
       {/* Brand */}
       <div className="mb-10 px-6">
-        <h1 className="font-display text-xl font-extrabold tracking-tight text-primary">
-          Presenze
-        </h1>
-        <p className="mt-1 text-xs uppercase tracking-wider text-on-surface-variant">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="ePartner HR" className="h-8" />
+        <p className="mt-2 text-xs uppercase tracking-wider text-on-surface-variant">
           HR Management
         </p>
       </div>

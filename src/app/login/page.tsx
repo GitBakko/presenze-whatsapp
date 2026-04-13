@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, CircleAlert, LogIn, Lock } from "lucide-react";
+import { CircleAlert, LogIn, Lock } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -51,14 +51,15 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-6 inline-flex h-16 w-16 items-center justify-center rounded-xl bg-white/95 shadow-editorial backdrop-blur-sm">
-            <Clock className="h-8 w-8 text-primary" />
+          <div className="mx-auto mb-6 inline-flex h-16 items-center justify-center rounded-xl bg-white/95 px-4 shadow-editorial backdrop-blur-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.svg" alt="ePartner HR" className="h-8" />
           </div>
           <h1 className="mb-2 font-display text-4xl font-extrabold tracking-tight text-primary">
-            Presenze
+            ePartner HR
           </h1>
           <p className="tracking-wide text-on-surface-variant">
-            Accedi per gestire le presenze
+            Accedi per gestire presenze e risorse umane
           </p>
         </div>
 

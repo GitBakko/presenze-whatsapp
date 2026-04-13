@@ -62,9 +62,10 @@ export async function POST(request: NextRequest) {
       { command: "pausa", description: "Inizio pausa" },
       { command: "finepausa", description: "Fine pausa" },
       { command: "stato", description: "Stato corrente + ore di oggi" },
-      { command: "storico", description: "Timbrature di oggi" },
-      { command: "ferie", description: "Richiesta ferie (es. /ferie DAL 15/04 AL 18/04)" },
-      { command: "permesso", description: "Richiesta permesso" },
+      { command: "storico", description: "Timbrature (oggi, data, o periodo)" },
+      { command: "ferie", description: "Richiesta ferie (DAL gg/mm AL gg/mm)" },
+      { command: "permesso", description: "Permesso con orario (gg/mm HH:MM-HH:MM)" },
+      { command: "assenze", description: "Prossime assenze o storico annuale" },
     ]);
     return NextResponse.json({
       ok: true,

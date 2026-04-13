@@ -99,7 +99,7 @@ async function resolveEmployee(message: TelegramMessage) {
 
 // ── Comando: /start, /help ───────────────────────────────────────────
 
-const START_TEXT = `👋 Ciao! Sono <b>ep-bot</b>, il bot per le presenze HR.
+const START_TEXT = `👋 Ciao! Sono <b>ePartner HR Bot</b>.
 
 Usa i pulsanti qui sotto per timbrare entrata, uscita o pausa.
 
@@ -109,9 +109,14 @@ Usa i pulsanti qui sotto per timbrare entrata, uscita o pausa.
 /pausa (o /ip) — inizio pausa
 /finepausa (o /fp) — fine pausa
 /stato (o /s) — stato corrente + ore di oggi
-/storico — ultimi eventi del giorno
+/storico — timbrature di oggi
+/storico <code>15/04</code> — di un giorno specifico
+/storico <code>DAL 10/04 AL 15/04</code> — di un periodo
 /ferie (o /f) <code>DAL 15/04 AL 18/04</code> — richiesta ferie
-/permesso (o /p) <code>DAL 15/04 AL 18/04</code> — richiesta permesso
+/permesso (o /p) <code>15/04 09:00-13:00</code> — permesso con orario
+/permesso (o /p) <code>DAL 15/04 AL 18/04</code> — permesso multi-giorno
+/assenze (o /a) — prossime assenze programmate
+/assenze <code>storico</code> — tutte le assenze dell'anno
 /help — questo messaggio`;
 
 const handleStart: CommandHandler = async (ctx) => {
@@ -263,22 +268,57 @@ const handleStato: CommandHandler = async (ctx) => {
   await reply(ctx.chatId, lines.join("\n"));
 };
 
-const handleStorico: CommandHandler = async (ctx) => {
-  const date = todayRome();
+/**
+ * /storico [data | DAL gg/mm AL gg/mm]
+ *   - senza argomenti → oggi
+ *   - con data singola → quel giorno
+ *   - con range DAL/AL → tutti i giorni del range
+ */
+const handleStorico: CommandHandler = async (ctx, args) => {
+  let fromDate: string;
+  let toDate: string;
+  let label: string;
+
+  if (!args.trim()) {
+    fromDate = toDate = todayRome();
+    label = "oggi";
+  } else {
+    const parsed = parseLeaveDates(args);
+    if (parsed) {
+      fromDate = parsed.startDate;
+      toDate = parsed.endDate;
+      label = fromDate === toDate
+        ? formatItDate(fromDate)
+        : `dal ${formatItDate(fromDate)} al ${formatItDate(toDate)}`;
+    } else {
+      await reply(ctx.chatId, `❌ Formato non riconosciuto.\n\nUsa:\n<code>/storico</code> (oggi)\n<code>/storico 15/04</code>\n<code>/storico DAL 10/04 AL 15/04</code>`);
+      return;
+    }
+  }
+
   const records = await prisma.attendanceRecord.findMany({
-    where: { employeeId: ctx.employee.id, date },
-    orderBy: { declaredTime: "asc" },
-    take: 20,
+    where: {
+      employeeId: ctx.employee.id,
+      date: { gte: fromDate, lte: toDate },
+    },
+    orderBy: [{ date: "asc" }, { declaredTime: "asc" }],
+    take: 50,
   });
 
   if (records.length === 0) {
-    await reply(ctx.chatId, `Nessuna timbratura per oggi.`);
+    await reply(ctx.chatId, `Nessuna timbratura per ${label}.`);
     return;
   }
 
-  const lines = [`<b>Timbrature di oggi</b>`, ""];
+  const lines = [`<b>Timbrature — ${label}</b>`, ""];
+  let lastDate = "";
   for (const r of records) {
-    lines.push(`${r.declaredTime} — ${labelForType(r.type)}`);
+    if (r.date !== lastDate) {
+      if (lastDate) lines.push("");
+      lines.push(`📅 <b>${formatItDate(r.date)}</b>`);
+      lastDate = r.date;
+    }
+    lines.push(`  ${r.declaredTime} — ${labelForType(r.type)}`);
   }
   await reply(ctx.chatId, lines.join("\n"));
 };
@@ -317,7 +357,7 @@ const handleFerie: CommandHandler = async (ctx, args) => {
   }
 
   try {
-    const leave = await prisma.leaveRequest.create({
+    await prisma.leaveRequest.create({
       data: {
         employeeId: ctx.employee.id,
         type: "VACATION",
@@ -330,13 +370,202 @@ const handleFerie: CommandHandler = async (ctx, args) => {
     });
     await reply(
       ctx.chatId,
-      `✅ Richiesta inviata.\n\nDal <b>${formatItDate(startDate)}</b> al <b>${formatItDate(endDate)}</b>\nStato: <b>In attesa di approvazione</b>\n\nRiceverai un messaggio quando sarà approvata o rifiutata.`
+      `✅ Richiesta ferie inviata.\n\nDal <b>${formatItDate(startDate)}</b> al <b>${formatItDate(endDate)}</b>\nStato: <b>In attesa di approvazione</b>\n\nRiceverai un messaggio quando sarà approvata o rifiutata.`
     );
-    void leave;
   } catch (err) {
     console.error("[telegram] leave create failed:", err);
     await reply(ctx.chatId, `❌ Errore nella creazione della richiesta. Riprova piu' tardi.`);
   }
+};
+
+// ── /permesso — con fascia oraria opzionale ──────────────────────────
+
+const PERMESSO_HELP = `<b>Formato richiesta permesso:</b>
+<code>/permesso 15/04 09:00-13:00</code> (con fascia oraria)
+<code>/permesso DAL 15/04 AL 18/04</code> (multi-giorno)
+<code>/permesso 15/04</code> (giornata intera)`;
+
+/**
+ * /permesso gg/mm HH:MM-HH:MM    → ROL con timeSlots, ore auto-calcolate
+ * /permesso DAL gg/mm AL gg/mm    → ROL multi-giorno (come /ferie ma tipo ROL)
+ * /permesso gg/mm                 → ROL giornata intera (8h)
+ */
+const handlePermesso: CommandHandler = async (ctx, args) => {
+  // Pattern 1: "15/04 09:00-13:00" (data + fascia oraria)
+  const timeSlotRegex = /^(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s+(\d{2}:\d{2})\s*[-–]\s*(\d{2}:\d{2})$/i;
+  const tsMatch = args.trim().match(timeSlotRegex);
+
+  if (tsMatch) {
+    const datePart = tsMatch[1];
+    const timeFrom = tsMatch[2];
+    const timeTo = tsMatch[3];
+
+    // Parse la data
+    const parsed = parseLeaveDates(datePart);
+    if (!parsed) {
+      await reply(ctx.chatId, `❌ Data non valida.\n\n${PERMESSO_HELP}`);
+      return;
+    }
+
+    const fromMin = hmToMinutes(timeFrom);
+    const toMin = hmToMinutes(timeTo);
+    if (toMin <= fromMin) {
+      await reply(ctx.chatId, `❌ L'orario di fine deve essere successivo a quello di inizio.`);
+      return;
+    }
+    const hours = Math.round(((toMin - fromMin) / 60) * 10) / 10;
+
+    try {
+      await prisma.leaveRequest.create({
+        data: {
+          employeeId: ctx.employee.id,
+          type: "ROL",
+          startDate: parsed.startDate,
+          endDate: parsed.startDate,
+          hours,
+          timeSlots: JSON.stringify([{ from: timeFrom, to: timeTo }]),
+          status: "PENDING",
+          source: "EXTERNAL_API",
+          notes: `Permesso via Telegram (chat ${ctx.chatId})`,
+        },
+      });
+      await reply(
+        ctx.chatId,
+        `✅ Richiesta permesso inviata.\n\n📅 <b>${formatItDate(parsed.startDate)}</b>\n🕐 <b>${timeFrom} – ${timeTo}</b> (${hours}h)\nStato: <b>In attesa di approvazione</b>`
+      );
+    } catch (err) {
+      console.error("[telegram] permesso create failed:", err);
+      await reply(ctx.chatId, `❌ Errore nella creazione. Riprova piu' tardi.`);
+    }
+    return;
+  }
+
+  // Pattern 2: "DAL gg/mm AL gg/mm" o "gg/mm" (senza fascia oraria → ROL giornata)
+  const parsed = parseLeaveDates(args);
+  if (!parsed) {
+    await reply(ctx.chatId, `❌ Formato non riconosciuto.\n\n${PERMESSO_HELP}`);
+    return;
+  }
+  if (parsed.startDate > parsed.endDate) {
+    await reply(ctx.chatId, `❌ La data di fine deve essere >= quella di inizio.`);
+    return;
+  }
+
+  try {
+    await prisma.leaveRequest.create({
+      data: {
+        employeeId: ctx.employee.id,
+        type: "ROL",
+        startDate: parsed.startDate,
+        endDate: parsed.endDate,
+        hours: 8,
+        status: "PENDING",
+        source: "EXTERNAL_API",
+        notes: `Permesso via Telegram (chat ${ctx.chatId})`,
+      },
+    });
+    const period = parsed.startDate === parsed.endDate
+      ? formatItDate(parsed.startDate)
+      : `dal ${formatItDate(parsed.startDate)} al ${formatItDate(parsed.endDate)}`;
+    await reply(
+      ctx.chatId,
+      `✅ Richiesta permesso inviata.\n\n📅 <b>${period}</b>\nStato: <b>In attesa di approvazione</b>`
+    );
+  } catch (err) {
+    console.error("[telegram] permesso create failed:", err);
+    await reply(ctx.chatId, `❌ Errore nella creazione. Riprova piu' tardi.`);
+  }
+};
+
+function hmToMinutes(hm: string): number {
+  const [h, m] = hm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// ── /assenze — storico e future ──────────────────────────────────────
+
+const LEAVE_TYPE_LABELS: Record<string, string> = {
+  VACATION: "🏖 Ferie",
+  VACATION_HALF_AM: "🏖 Ferie (mattina)",
+  VACATION_HALF_PM: "🏖 Ferie (pomeriggio)",
+  ROL: "⏰ Permesso (ROL)",
+  SICK: "🤒 Malattia",
+  BEREAVEMENT: "🖤 Lutto",
+  MARRIAGE: "💍 Matrimonio",
+  LAW_104: "📋 L. 104",
+  MEDICAL_VISIT: "🏥 Visita medica",
+};
+
+const STATUS_EMOJI: Record<string, string> = {
+  APPROVED: "✅",
+  PENDING: "⏳",
+  REJECTED: "❌",
+};
+
+/**
+ * /assenze            → prossime assenze future (approvate + pending)
+ * /assenze storico    → tutte le assenze dell'anno corrente
+ */
+const handleAssenze: CommandHandler = async (ctx, args) => {
+  const isStorico = args.trim().toLowerCase() === "storico";
+  const year = new Date().getFullYear();
+  const today = todayRome();
+
+  let where;
+  let title: string;
+  if (isStorico) {
+    where = {
+      employeeId: ctx.employee.id,
+      startDate: { gte: `${year}-01-01`, lte: `${year}-12-31` },
+    };
+    title = `Assenze ${year}`;
+  } else {
+    where = {
+      employeeId: ctx.employee.id,
+      endDate: { gte: today },
+      status: { in: ["APPROVED", "PENDING"] },
+    };
+    title = "Prossime assenze";
+  }
+
+  const leaves = await prisma.leaveRequest.findMany({
+    where,
+    orderBy: { startDate: "asc" },
+    take: 30,
+  });
+
+  if (leaves.length === 0) {
+    await reply(ctx.chatId, isStorico
+      ? `Nessuna assenza registrata per il ${year}.`
+      : `Nessuna assenza programmata.`);
+    return;
+  }
+
+  const lines = [`<b>${title}</b>`, ""];
+  for (const l of leaves) {
+    const typeLabel = LEAVE_TYPE_LABELS[l.type] ?? l.type;
+    const statusIcon = STATUS_EMOJI[l.status] ?? "";
+    const period = l.startDate === l.endDate
+      ? formatItDate(l.startDate)
+      : `${formatItDate(l.startDate)} → ${formatItDate(l.endDate)}`;
+    const hoursInfo = l.hours ? ` (${l.hours}h)` : "";
+
+    let slots = "";
+    if (l.timeSlots) {
+      try {
+        const ts = JSON.parse(l.timeSlots) as { from: string; to: string }[];
+        if (ts.length > 0) slots = ` 🕐 ${ts.map((s) => `${s.from}–${s.to}`).join(", ")}`;
+      } catch { /* ignore */ }
+    }
+
+    lines.push(`${statusIcon} ${typeLabel} — ${period}${hoursInfo}${slots}`);
+  }
+
+  if (isStorico) {
+    lines.push("", `Totale: <b>${leaves.length}</b> richieste`);
+  }
+
+  await reply(ctx.chatId, lines.join("\n"));
 };
 
 // parseLeaveDates / formatItDate sono in src/lib/leave-date-parser.ts
@@ -399,8 +628,10 @@ const COMMAND_MAP: Record<string, CommandHandler> = {
   "/storico": handleStorico,
   "/ferie": handleFerie,
   "/f": handleFerie,
-  "/permesso": handleFerie,
-  "/p": handleFerie,
+  "/permesso": handlePermesso,
+  "/p": handlePermesso,
+  "/assenze": handleAssenze,
+  "/a": handleAssenze,
 };
 
 const BUTTON_TO_HANDLER: Record<string, CommandHandler> = {

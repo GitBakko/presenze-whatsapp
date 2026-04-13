@@ -17,8 +17,12 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Presenze - Dashboard",
-  description: "Gestione presenze dipendenti da WhatsApp",
+  title: "ePartner HR",
+  description: "Gestione presenze e risorse umane — ePartner",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

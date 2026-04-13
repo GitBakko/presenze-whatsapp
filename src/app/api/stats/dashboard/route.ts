@@ -374,17 +374,28 @@ export async function GET(request: NextRequest) {
     );
 
     const ownBalance = leaveBalances.filter((b) => b.employeeId === selfEmployeeId);
+    const ownTodayStatus = employeesToday.find((e) => e.id === selfEmployeeId);
+
+    // Sezione A per employee: dati personali, non globali
+    const ownTodaySection = {
+      totalEmployees: 1,
+      presenti: ownTodayStatus?.status === "present" || ownTodayStatus?.status === "late" ? 1 : 0,
+      assenti: ownTodayStatus?.status === "absent" ? 1 : 0,
+      ferie: ownTodayStatus?.status === "vacation" ? 1 : 0,
+      malattia: ownTodayStatus?.status === "sick" ? 1 : 0,
+      anomalieAperte: 0,
+    };
 
     const response: DashboardStatsResponse = {
       period,
       generatedAt: new Date().toISOString(),
       isNonWorkingToday,
       nonWorkingLabel,
-      today: todaySection, // la sezione today resta uguale (presenti/assenti globali sono info utili anche per employee)
+      today: ownTodaySection,
       kpi: ownKpi,
       charts: Object.keys(charts).length > 0 ? charts : undefined,
-      employeesToday: employeesToday.filter((e) => e.id === selfEmployeeId),
-      anomalieRecenti: [], // employee non vede anomalie
+      employeesToday: ownTodayStatus ? [ownTodayStatus] : [],
+      anomalieRecenti: [],
       leaveBalances: ownBalance,
     };
     return NextResponse.json(response);

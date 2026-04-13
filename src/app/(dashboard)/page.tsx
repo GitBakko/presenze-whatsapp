@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { RefreshCw, PartyPopper, CalendarOff } from "lucide-react";
 import { DashboardPeriodFilter } from "@/components/dashboard/DashboardPeriodFilter";
 import { TodayOverview } from "@/components/dashboard/TodayOverview";
@@ -14,6 +15,8 @@ import { useNotificationsContext } from "@/components/NotificationsProvider";
 import type { DashboardPeriod, DashboardStatsResponse } from "@/types/dashboard";
 
 export default function DashboardPage() {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
   const [period, setPeriod] = useState<DashboardPeriod>("month");
   const [data, setData] = useState<DashboardStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,10 +142,10 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* SEZIONE A — Riepilogo Oggi */}
-          <TodayOverview data={data.today} />
+          {/* SEZIONE A — Riepilogo Oggi (solo admin) */}
+          {isAdmin && <TodayOverview data={data.today} />}
 
-          {/* SEZIONE B — KPI Mensili */}
+          {/* SEZIONE B — KPI */}
           <KpiGrid kpi={data.kpi} />
 
           {/* SEZIONE C — Grafici */}
@@ -155,11 +158,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* SEZIONE D — Dipendenti + Anomalie */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <EmployeeStatusList employees={data.employeesToday} />
-            <AnomalyList anomalies={data.anomalieRecenti} />
-          </div>
+          {/* SEZIONE D — Dipendenti + Anomalie (solo admin) */}
+          {isAdmin && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <EmployeeStatusList employees={data.employeesToday} />
+              <AnomalyList anomalies={data.anomalieRecenti} />
+            </div>
+          )}
 
           {/* SEZIONE E — Saldi ferie */}
           <LeaveBalanceTable rows={data.leaveBalances} />

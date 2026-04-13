@@ -386,6 +386,18 @@ export async function GET(request: NextRequest) {
       anomalieAperte: 0,
     };
 
+    // Grafici filtrati per il dipendente
+    const ownCharts: DashboardStatsResponse["charts"] = {};
+    if (chart === "ore_mensili" || chart === "all") {
+      const ownEmployee = allEmployees.filter((e) => e.id === selfEmployeeId);
+      ownCharts.oreMensili = await computeOreChart(
+        chartMonths, scheduleMap, ownEmployee, dismissedSet, selfEmployeeId
+      );
+    }
+    if (chart === "assenze_tipologia" || chart === "all") {
+      ownCharts.assenzeTipologia = computeAssenzeChart(ownLeaves, from, to);
+    }
+
     const response: DashboardStatsResponse = {
       period,
       generatedAt: new Date().toISOString(),
@@ -393,7 +405,7 @@ export async function GET(request: NextRequest) {
       nonWorkingLabel,
       today: ownTodaySection,
       kpi: ownKpi,
-      charts: Object.keys(charts).length > 0 ? charts : undefined,
+      charts: Object.keys(ownCharts).length > 0 ? ownCharts : undefined,
       employeesToday: ownTodayStatus ? [ownTodayStatus] : [],
       anomalieRecenti: [],
       leaveBalances: ownBalance,
@@ -561,6 +573,7 @@ async function computeOreChart(
   scheduleMap: Map<string, Map<number, EmployeeScheduleDay>>,
   allEmployees: { id: string; contractType: string }[],
   dismissedSet: Set<string>,
+  filterEmployeeId?: string | null,
 ): Promise<OreChartPoint[]> {
   const now = new Date();
   const points: OreChartPoint[] = [];
@@ -601,8 +614,10 @@ async function computeOreChart(
     }
 
     // Ore lavorate
+    const recordsWhere: Record<string, unknown> = { date: { gte: mFrom, lte: mTo } };
+    if (filterEmployeeId) recordsWhere.employeeId = filterEmployeeId;
     const records = await prisma.attendanceRecord.findMany({
-      where: { date: { gte: mFrom, lte: mTo } },
+      where: recordsWhere,
       include: { employee: true },
       orderBy: [{ date: "asc" }, { declaredTime: "asc" }],
     });

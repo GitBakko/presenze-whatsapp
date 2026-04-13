@@ -42,6 +42,8 @@ export async function GET(request: NextRequest) {
   // dell'attivazione admin. resolveEmployeeId() fa fallback al DB.
   const selfEmployeeId = await resolveEmployeeId(authResult);
 
+  console.log(`[dashboard] user=${authResult.id} role=${authResult.role} isAdmin=${isAdmin} employeeId=${selfEmployeeId}`);
+
   const { searchParams } = new URL(request.url);
   const period = (searchParams.get("period") || "month") as "today" | "month" | "quarter";
   const chart = searchParams.get("chart") || "all";
@@ -339,7 +341,26 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Filtro employee: i dipendenti vedono solo i propri dati ─────────
-  if (!isAdmin && selfEmployeeId) {
+  // Se l'utente e' EMPLOYEE, SEMPRE filtra — anche se selfEmployeeId
+  // e' null (account non ancora associato a un dipendente).
+  if (!isAdmin) {
+    if (!selfEmployeeId) {
+      // Employee senza associazione: dashboard vuota
+      console.log(`[dashboard] EMPLOYEE senza employeeId associato, dashboard vuota`);
+      const emptyResponse: DashboardStatsResponse = {
+        period, generatedAt: new Date().toISOString(),
+        isNonWorkingToday, nonWorkingLabel,
+        today: { totalEmployees: 0, presenti: 0, assenti: 0, ferie: 0, malattia: 0, anomalieAperte: 0 },
+        kpi: {
+          tassoPresenza: { value: 0, delta: 0 }, tassoPuntualita: { value: 0, delta: 0 },
+          ritardoMedioMin: { value: 0, delta: 0 }, tassoAssenteismo: { value: 0, delta: 0 },
+          oreStraordTotali: { value: 0, delta: 0 }, oreLavorateMediaDip: { value: 0, delta: 0 },
+          giorniMalattia: { value: 0, delta: 0 }, percAnomalieRisolte: { value: 0, delta: 0 },
+        },
+        employeesToday: [], anomalieRecenti: [], leaveBalances: [],
+      };
+      return NextResponse.json(emptyResponse);
+    }
     // KPI: ricalcola solo per il proprio ID
     const ownCurrent = currentStats.filter((d) => d.employeeId === selfEmployeeId);
     const ownPrev = prevStats.filter((d) => d.employeeId === selfEmployeeId);

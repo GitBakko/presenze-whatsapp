@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser } from "@/lib/auth-guard";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 
 export async function GET(request: NextRequest) {
-  const denied = await checkAuth();
-  if (denied) return denied;
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
 
   try {
     const { searchParams } = new URL(request.url);

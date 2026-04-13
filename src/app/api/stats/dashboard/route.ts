@@ -6,7 +6,7 @@ import {
   type DailyStats,
   type EmployeeScheduleDay,
 } from "@/lib/calculator";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser } from "@/lib/auth-guard";
 import { computeLeaveBalance } from "@/lib/leaves";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
@@ -34,8 +34,10 @@ import type {
  */
 
 export async function GET(request: NextRequest) {
-  const denied = await checkAuth();
-  if (denied) return denied;
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
+  const isAdmin = authResult.role === "ADMIN";
+  const selfEmployeeId = authResult.employeeId;
 
   const { searchParams } = new URL(request.url);
   const period = (searchParams.get("period") || "month") as "today" | "month" | "quarter";
@@ -333,7 +335,38 @@ export async function GET(request: NextRequest) {
     charts.assenzeTipologia = computeAssenzeChart(periodLeaves, from, to);
   }
 
-  // ── Response ───────────────────────────────────────────────────────
+  // ── Filtro employee: i dipendenti vedono solo i propri dati ─────────
+  if (!isAdmin && selfEmployeeId) {
+    // KPI: ricalcola solo per il proprio ID
+    const ownCurrent = currentStats.filter((d) => d.employeeId === selfEmployeeId);
+    const ownPrev = prevStats.filter((d) => d.employeeId === selfEmployeeId);
+    const ownLeaves = periodLeaves.filter((l) => l.employeeId === selfEmployeeId);
+    const ownPrevLeaves = prevPeriodLeaves.filter((l) => l.employeeId === selfEmployeeId);
+    const ownKpi = computeKpis(
+      ownCurrent, ownPrev, ownLeaves, ownPrevLeaves,
+      1, from, to, prevFrom, prevTo,
+      anomaliesResolvedPeriod, anomaliesTotalPeriod,
+      anomaliesResolvedPrev, anomaliesTotalPrev
+    );
+
+    const ownBalance = leaveBalances.filter((b) => b.employeeId === selfEmployeeId);
+
+    const response: DashboardStatsResponse = {
+      period,
+      generatedAt: new Date().toISOString(),
+      isNonWorkingToday,
+      nonWorkingLabel,
+      today: todaySection, // la sezione today resta uguale (presenti/assenti globali sono info utili anche per employee)
+      kpi: ownKpi,
+      charts: Object.keys(charts).length > 0 ? charts : undefined,
+      employeesToday: employeesToday.filter((e) => e.id === selfEmployeeId),
+      anomalieRecenti: [], // employee non vede anomalie
+      leaveBalances: ownBalance,
+    };
+    return NextResponse.json(response);
+  }
+
+  // ── Response admin (completa) ──────────────────────────────────────
   const response: DashboardStatsResponse = {
     period,
     generatedAt: new Date().toISOString(),

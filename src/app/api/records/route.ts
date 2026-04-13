@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuth, checkAuthAny, isAuthUser } from "@/lib/auth-guard";
 
 export async function GET(request: NextRequest) {
-  const denied = await checkAuth();
-  if (denied) return denied;
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
   const { searchParams } = new URL(request.url);
-  const employeeId = searchParams.get("employeeId");
+
+  // Dipendenti vedono solo i propri record
+  let employeeId = searchParams.get("employeeId");
+  if (authResult.role === "EMPLOYEE") {
+    employeeId = authResult.employeeId;
+  }
   const date = searchParams.get("date");
   const from = searchParams.get("from");
   const to = searchParams.get("to");

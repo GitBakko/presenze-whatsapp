@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 
 export async function GET(request: NextRequest) {
-  const denied = await checkAuth();
-  if (denied) return denied;
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
 
   try {
     const { searchParams } = new URL(request.url);
-    const employeeId = searchParams.get("employeeId");
+    let employeeId = searchParams.get("employeeId");
+
+    // Dipendenti vedono solo le proprie richieste
+    if (authResult.role === "EMPLOYEE") {
+      employeeId = authResult.employeeId;
+    }
     const status = searchParams.get("status");
     const type = searchParams.get("type");
     const from = searchParams.get("from");
@@ -62,15 +67,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await checkAuth();
-  if (denied) return denied;
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
 
   try {
     const session = await auth();
     const body = await request.json();
 
-    const { employeeId, type, startDate, endDate, hours, timeSlots, sickProtocol, notes } = body as {
-      employeeId: string;
+    let { employeeId } = body as { employeeId?: string };
+    const { type, startDate, endDate, hours, timeSlots, sickProtocol, notes } = body as {
       type: string;
       startDate: string;
       endDate: string;
@@ -79,6 +84,11 @@ export async function POST(request: NextRequest) {
       sickProtocol?: string;
       notes?: string;
     };
+
+    // Dipendenti possono creare solo per se stessi
+    if (authResult.role === "EMPLOYEE") {
+      employeeId = authResult.employeeId ?? undefined;
+    }
 
     if (!employeeId || !type || !startDate || !endDate) {
       return NextResponse.json(
@@ -106,7 +116,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
     }
 
-    // Manager-created → auto-approved
+    // Admin-created → auto-approved; employee-created → PENDING
+    const isAdmin = authResult.role === "ADMIN";
     const leave = await prisma.leaveRequest.create({
       data: {
         employeeId,
@@ -117,10 +128,10 @@ export async function POST(request: NextRequest) {
         timeSlots: timeSlots ? JSON.stringify(timeSlots) : null,
         sickProtocol: sickProtocol ?? null,
         notes: notes ?? null,
-        status: "APPROVED",
-        source: "MANAGER",
-        approvedById: session?.user?.id ?? null,
-        approvedAt: new Date(),
+        status: isAdmin ? "APPROVED" : "PENDING",
+        source: isAdmin ? "MANAGER" : "EXTERNAL_API",
+        approvedById: isAdmin ? (session?.user?.id ?? null) : null,
+        approvedAt: isAdmin ? new Date() : null,
       },
       include: { employee: true },
     });

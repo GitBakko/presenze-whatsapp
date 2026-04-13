@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Ban, Calendar, KeyRound, Mail, MessageCircle, Nfc, Upload } from "lucide-react";
+import { Ban, Calendar, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -9,6 +9,15 @@ export default function SettingsPage() {
       <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Impostazioni</h1>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/settings/users"
+          className="rounded-lg bg-surface-container-lowest shadow-card p-6 transition-shadow hover:shadow-elevated"
+        >
+          <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2"><Users className="h-4 w-4 text-indigo-500" /> Utenti dipendenti</h2>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Attiva gli account dei dipendenti registrati e associali al loro profilo.
+          </p>
+        </Link>
         <Link
           href="/settings/excluded-names"
           className="rounded-lg bg-surface-container-lowest shadow-card p-6 transition-shadow hover:shadow-elevated"

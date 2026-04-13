@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 
 export async function GET(request: NextRequest) {
-  const denied = await checkAuth();
-  if (denied) return denied;
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const employeeId = searchParams.get("employeeId");
+  let employeeId = searchParams.get("employeeId");
+
+  // Employee vede solo i propri dati
+  if (authResult.role === "EMPLOYEE") {
+    employeeId = await resolveEmployeeId(authResult);
+  }
 
   let whereDate: object;
 

@@ -136,7 +136,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   <div className="p-1">
                     {userEmployeeId && (
                       <Link
-                        href={`/employees/${userEmployeeId}`}
+                        href={`/employees/${userEmployeeId}/edit`}
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-on-surface hover:bg-surface-container-low"
                       >

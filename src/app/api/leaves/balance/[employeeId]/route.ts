@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { computeLeaveBalance } from "@/lib/leaves";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ employeeId: string }> }
 ) {
-  const denied = await checkAuth();
-  if (denied) return denied;
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
 
   const { employeeId } = await params;
+
+  // Employee può vedere solo il proprio saldo
+  if (authResult.role === "EMPLOYEE") {
+    const ownEmpId = await resolveEmployeeId(authResult);
+    if (ownEmpId !== employeeId) {
+      return NextResponse.json({ error: "Accesso non autorizzato" }, { status: 403 });
+    }
+  }
   const year = new Date().getFullYear();
 
   try {

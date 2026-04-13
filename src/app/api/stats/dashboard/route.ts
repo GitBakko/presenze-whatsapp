@@ -591,11 +591,11 @@ function computeAssenzeChart(
     Altro: 0,
   };
   const colors: Record<string, string> = {
-    Ferie: "#1e40af",     // blue-800 — coerente con /leaves TYPE_COLORS
-    Malattia: "#991b1b",  // red-800
-    ROL: "#92400e",        // amber-800
-    Permessi: "#155e75",   // cyan-800 (MEDICAL_VISIT)
-    Altro: "#6b21a8",      // purple-800 (BEREAVEMENT, MARRIAGE, LAW_104)
+    Ferie: "#DAEAFE",
+    Malattia: "#FFE2E2",
+    ROL: "#FEF3C7",
+    Permessi: "#FEF3C7",   // stesso tono dei ROL
+    Altro: "#F2E8FF",
   };
 
   for (const l of leaves) {

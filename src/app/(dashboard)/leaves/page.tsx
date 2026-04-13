@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   Hourglass, Plus, Calendar, List, X, Users,
@@ -145,6 +146,9 @@ function hmToMin(hm: string): number {
 export default function LeavesPage() {
   const confirm = useConfirm();
   const confirmWithPrompt = useConfirmWithPrompt();
+  const { data: leavesSession } = useSession();
+  const leavesRole = (leavesSession?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
+  const isLeavesAdmin = leavesRole === "ADMIN";
   const [tab, setTab] = useState<"calendar" | "requests" | "byEmployee">("calendar");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -400,6 +404,7 @@ export default function LeavesPage() {
             </span>
           )}
         </button>
+        {isLeavesAdmin && (
         <button
           onClick={() => setTab("byEmployee")}
           className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "byEmployee" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
@@ -407,6 +412,7 @@ export default function LeavesPage() {
           <Users className="mr-1 inline h-4 w-4 align-middle text-emerald-500" />
           Per dipendente
         </button>
+        )}
       </div>
 
       {/* Tab content */}
@@ -430,6 +436,7 @@ export default function LeavesPage() {
           onReject={handleReject}
           onDelete={handleDelete}
           onSelectEmployee={setSelectedEmployee}
+          isAdmin={isLeavesAdmin}
         />
       )}
 
@@ -1005,6 +1012,7 @@ function RequestsList({
   onReject,
   onDelete,
   onSelectEmployee,
+  isAdmin = true,
 }: {
   requests: LeaveRequest[];
   statusFilter: string;
@@ -1013,6 +1021,7 @@ function RequestsList({
   onReject: (id: string) => void;
   onDelete: (r: LeaveRequest) => void;
   onSelectEmployee: (id: string) => void;
+  isAdmin?: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -1076,6 +1085,7 @@ function RequestsList({
                   <td className="px-4 py-3 text-xs text-outline-variant">
                     {r.source === "EXTERNAL_API" ? "API" : "Manager"}
                   </td>
+                  {isAdmin && (
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       {r.status === "PENDING" && (
@@ -1093,6 +1103,7 @@ function RequestsList({
                       </button>
                     </div>
                   </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -1118,6 +1129,12 @@ function CreateLeaveModal({
   loading: boolean;
   setLoading: (v: boolean) => void;
 }) {
+  const { data: modalSession } = useSession();
+  const modalRole = (modalSession?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
+  const modalEmployeeId = (modalSession?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
+  const isModalAdmin = modalRole === "ADMIN";
+
+  // Per i dipendenti il campo employeeId è pre-impostato e non modificabile
   const [employeeId, setEmployeeId] = useState("");
   const [type, setType] = useState("VACATION");
   const [startDate, setStartDate] = useState("");
@@ -1137,8 +1154,9 @@ function CreateLeaveModal({
     e.preventDefault();
     setError("");
 
-    if (!employeeId || !startDate) {
-      setError("Seleziona dipendente e data");
+    const resolvedEmpId = isModalAdmin ? employeeId : (modalEmployeeId ?? "");
+    if (!resolvedEmpId || !startDate) {
+      setError(isModalAdmin ? "Seleziona dipendente e data" : "Seleziona la data");
       return;
     }
 
@@ -1148,7 +1166,7 @@ function CreateLeaveModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId,
+          employeeId: resolvedEmpId,
           type,
           startDate,
           endDate: isHalfDay ? startDate : (endDate || startDate),
@@ -1193,7 +1211,8 @@ function CreateLeaveModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Employee */}
+          {/* Employee (solo per admin) */}
+          {isModalAdmin ? (
           <div>
             <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-on-surface-variant">Dipendente</label>
             <select
@@ -1207,6 +1226,7 @@ function CreateLeaveModal({
               ))}
             </select>
           </div>
+          ) : null}
 
           {/* Type */}
           <div>

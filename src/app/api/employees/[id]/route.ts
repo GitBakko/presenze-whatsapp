@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { randomBytes } from "crypto";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuth, checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 
 /** Normalizza un UID NFC: hex uppercase, niente separatori. Stringa vuota se input non valido. */
 function normalizeNfcUid(raw: string): string {
@@ -15,10 +15,16 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = await checkAuth();
-  if (denied) return denied;
-
+  // Employee può vedere il proprio profilo, admin vede tutti
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
   const { id } = await params;
+  if (authResult.role === "EMPLOYEE") {
+    const ownEmpId = await resolveEmployeeId(authResult);
+    if (ownEmpId !== id) {
+      return NextResponse.json({ error: "Accesso non autorizzato" }, { status: 403 });
+    }
+  }
   const employee = await prisma.employee.findUnique({ where: { id } });
   if (!employee) {
     return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });

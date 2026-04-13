@@ -29,6 +29,15 @@ export default function LoginPage() {
     if (result?.error) {
       setError("Le credenziali inserite non sono valide.");
     } else {
+      // Verifica se l'account è attivo leggendo la sessione
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+      if (session?.user && !(session.user as { active?: boolean }).active) {
+        setError("Il tuo account è in attesa di attivazione da parte dell'amministratore.");
+        // Logout silenzioso per non lasciare una sessione inattiva
+        await signIn("credentials", { redirect: false }); // no-op, ma non importa
+        return;
+      }
       router.push("/");
       router.refresh();
     }

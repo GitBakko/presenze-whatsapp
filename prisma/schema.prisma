@@ -12,9 +12,13 @@ model User {
   email          String         @unique
   name           String
   passwordHash   String
+  role           String         @default("EMPLOYEE") // ADMIN | EMPLOYEE
+  active         Boolean        @default(false)      // true dopo attivazione admin
+  employeeId     String?        @unique              // link al dipendente associato (null per admin puri)
   createdAt      DateTime       @default(now())
   anomalies      Anomaly[]      @relation("ResolvedBy")
   approvedLeaves LeaveRequest[] @relation("ApprovedLeaves")
+  employee       Employee?      @relation("UserEmployee", fields: [employeeId], references: [id])
 }
 
 model Employee {
@@ -32,6 +36,7 @@ model Employee {
   createdAt    DateTime           @default(now())
   records      AttendanceRecord[]
   employeeApiKey EmployeeApiKey?
+  userAccount  User?              @relation("UserEmployee")
   anomalies    Anomaly[]
   schedule     EmployeeSchedule[]
   leaves       LeaveRequest[]

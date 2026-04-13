@@ -9,10 +9,11 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [systemPassword, setSystemPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  void router;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +23,7 @@ export default function RegisterPage() {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, systemPassword }),
+      body: JSON.stringify({ name, email, password }),
     });
 
     const data = await res.json();
@@ -33,7 +34,7 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/login");
+    setSuccess(true);
   };
 
   return (
@@ -59,7 +60,29 @@ export default function RegisterPage() {
           </p>
         </div>
 
+        {/* Success state */}
+        {success && (
+          <div className="rounded-xl bg-white/80 p-8 text-center shadow-editorial backdrop-blur-xl lg:p-10">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <ArrowRight className="h-8 w-8 text-green-600" />
+            </div>
+            <h2 className="font-display text-xl font-bold text-on-surface">Registrazione completata!</h2>
+            <p className="mt-3 text-sm text-on-surface-variant">
+              Il tuo account è stato creato ma è in <b>attesa di attivazione</b>.<br />
+              L&apos;amministratore HR lo attiverà e lo assocerà al tuo profilo dipendente.<br />
+              Riceverai una notifica via email e/o Telegram quando sarà attivo.
+            </p>
+            <Link
+              href="/login"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-on-primary"
+            >
+              Vai al login
+            </Link>
+          </div>
+        )}
+
         {/* Registration card */}
+        {!success && (
         <div className="rounded-xl bg-white/80 p-8 shadow-editorial backdrop-blur-xl lg:p-10">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Error */}
@@ -130,28 +153,10 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* Password di sistema */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="system-password"
-                className="ml-1 block text-[10px] font-semibold uppercase tracking-[0.05em] text-outline"
-              >
-                Password di Sistema
-              </label>
-              <input
-                id="system-password"
-                type="password"
-                value={systemPassword}
-                onChange={(e) => setSystemPassword(e.target.value)}
-                required
-                placeholder="Codice aziendale"
-                className="w-full rounded-t-sm border-0 border-b-2 border-transparent bg-surface-container-highest px-4 py-3 transition-all duration-200 placeholder:text-outline/40 focus:border-primary focus:ring-0"
-              />
-              <p className="ml-1 flex items-center gap-1 text-[11px] font-medium text-outline-variant">
-                <Info className="h-3.5 w-3.5" />
-                Richiedi questa password al tuo amministratore
-              </p>
-            </div>
+            <p className="ml-1 flex items-center gap-1 text-[11px] font-medium text-outline-variant">
+              <Info className="h-3.5 w-3.5" />
+              Usa il tuo indirizzo email aziendale @epartner.it
+            </p>
 
             {/* Submit */}
             <div className="pt-4">
@@ -168,6 +173,7 @@ export default function RegisterPage() {
             </div>
           </form>
         </div>
+        )}
 
         {/* Footer link */}
         <div className="mx-auto mt-6 inline-block rounded-full bg-white/40 p-2 text-center backdrop-blur-md">

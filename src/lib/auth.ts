@@ -4,11 +4,6 @@ import { compare } from "bcryptjs";
 import { prisma } from "./db";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // Fidati dell'host della richiesta (Host, X-Forwarded-Host). Necessario
-  // dietro reverse proxy (IIS + ARR) altrimenti Auth.js v5 rifiuta con
-  // "UntrustedHost: Host must be trusted". In alternativa si puo'
-  // impostare la env var AUTH_TRUST_HOST=true, ma hardcoded nel config
-  // e' piu' robusto a deploy successivi.
   trustHost: true,
   providers: [
     Credentials({
@@ -32,7 +27,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!isValid) return null;
 
-        return { id: user.id, email: user.email, name: user.name };
+        // Includiamo role, active, employeeId nel token JWT
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          active: user.active,
+          employeeId: user.employeeId,
+        };
       },
     }),
   ],
@@ -44,12 +47,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const u = user as any;
+        token.role = (u.role as string) ?? "EMPLOYEE";
+        token.active = (u.active as boolean) ?? false;
+        token.employeeId = (u.employeeId as string | null) ?? null;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const su = session.user as any;
+        su.id = token.id;
+        su.role = token.role;
+        su.active = token.active;
+        su.employeeId = token.employeeId;
       }
       return session;
     },

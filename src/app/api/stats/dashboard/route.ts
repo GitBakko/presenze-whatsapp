@@ -613,6 +613,9 @@ async function computeOreChart(
       }
     }
 
+    const withSched = allEmployees.filter((e) => scheduleMap.has(e.id) && scheduleMap.get(e.id)!.size > 0).length;
+    console.log(`[ore-chart] ${MESI_ABBR[m]} ${y}: contratto=${Math.round(contratto)}h (${allEmployees.length} dip, ${withSched} con schedule, ${allEmployees.length - withSched} fallback 8h)`);
+
     // Ore lavorate
     const recordsWhere: Record<string, unknown> = { date: { gte: mFrom, lte: mTo } };
     if (filterEmployeeId) recordsWhere.employeeId = filterEmployeeId;

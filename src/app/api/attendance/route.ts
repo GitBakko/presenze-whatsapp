@@ -1,3 +1,4 @@
+import { getDayOfWeek } from "@/lib/date-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
@@ -100,9 +101,3 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(stats);
 }
 
-function getDayOfWeek(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const day = new Date(y, m - 1, d).getDay();
-  // Convert: 0=Sun → 7, 1=Mon → 1, ..., 6=Sat → 6
-  return day === 0 ? 7 : day;
-}

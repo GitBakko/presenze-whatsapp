@@ -1,8 +1,9 @@
+import { getDayOfWeek } from "@/lib/date-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
 import { hoursToHHMM, minutesToHHMM } from "@/lib/formatTime";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { checkAuth } from "@/lib/auth-guard";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 
@@ -140,10 +141,13 @@ export async function GET(request: NextRequest) {
   });
 
   if (format === "xlsx") {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, "Presenze");
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Presenze");
+    if (rows.length > 0) {
+      ws.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
+      for (const row of rows) ws.addRow(row);
+    }
+    const buf = await wb.xlsx.writeBuffer();
 
     return new NextResponse(buf, {
       headers: {
@@ -182,8 +186,3 @@ export async function GET(request: NextRequest) {
   });
 }
 
-function getDayOfWeek(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const day = new Date(y, m - 1, d).getDay();
-  return day === 0 ? 7 : day;
-}

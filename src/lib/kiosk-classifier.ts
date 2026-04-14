@@ -1,3 +1,4 @@
+import { hmToMinutes } from "@/lib/date-utils";
 /**
  * Classificatore lato server per i tap del kiosk NFC e del bot Telegram.
  *
@@ -58,10 +59,6 @@ const EXIT_TOLERANCE_MINUTES = 30;
 
 // ── Helpers HH:MM ────────────────────────────────────────────────────
 
-function hmToMinutes(hm: string): number {
-  const [h, m] = hm.split(":").map(Number);
-  return h * 60 + m;
-}
 
 function hmLt(a: string, b: string): boolean {
   return a < b;

@@ -1,3 +1,4 @@
+import { getDayOfWeek } from "@/lib/date-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { validateEmployeeApiKey } from "@/lib/employee-api-key-auth";
@@ -147,8 +148,3 @@ export async function GET(request: NextRequest) {
   });
 }
 
-function getDayOfWeek(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const day = new Date(y, m - 1, d).getDay();
-  return day === 0 ? 7 : day;
-}

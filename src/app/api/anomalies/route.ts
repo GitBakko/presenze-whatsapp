@@ -1,13 +1,9 @@
+import { getDayOfWeek } from "@/lib/date-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
 
-function getDayOfWeek(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const day = new Date(y, m - 1, d).getDay();
-  return day === 0 ? 7 : day;
-}
 
 // Anomaly types that are computed at runtime (not stored by import/sync)
 const COMPUTED_TYPES = new Set(["TIME_BLOCK_MISMATCH", "TIME_OVERLAP"]);

@@ -8,8 +8,14 @@ import {
 } from "@/lib/calculator";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { computeLeaveBalance } from "@/lib/leaves";
-import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
+import { getDayOfWeek, hmToMinutes } from "@/lib/date-utils";
+import {
+  computeRanges,
+  computeKpis,
+  computeAssenzeChart,
+  MESI_ABBR,
+} from "@/lib/dashboard-helpers";
 import type {
   DashboardStatsResponse,
   EmployeeTodayStatus,
@@ -17,8 +23,6 @@ import type {
   AnomalyRecent,
   LeaveBalanceRow,
   OreChartPoint,
-  AssenzaChartPoint,
-  KpiValue,
 } from "@/types/dashboard";
 
 /**
@@ -42,7 +46,6 @@ export async function GET(request: NextRequest) {
   // dell'attivazione admin. resolveEmployeeId() fa fallback al DB.
   const selfEmployeeId = await resolveEmployeeId(authResult);
 
-  console.log(`[dashboard] user=${authResult.id} role=${authResult.role} isAdmin=${isAdmin} employeeId=${selfEmployeeId}`);
 
   const { searchParams } = new URL(request.url);
   const period = (searchParams.get("period") || "month") as "today" | "month" | "quarter";
@@ -346,7 +349,6 @@ export async function GET(request: NextRequest) {
   if (!isAdmin) {
     if (!selfEmployeeId) {
       // Employee senza associazione: dashboard vuota
-      console.log(`[dashboard] EMPLOYEE senza employeeId associato, dashboard vuota`);
       const emptyResponse: DashboardStatsResponse = {
         period, generatedAt: new Date().toISOString(),
         isNonWorkingToday, nonWorkingLabel,
@@ -430,143 +432,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(response);
 }
 
-// ── KPI computation ──────────────────────────────────────────────────
-
-type LeaveForKpi = { type: string; startDate: string; endDate: string; hours: number | null; timeSlots: string | null; employeeId: string };
-
-function computeKpis(
-  current: DailyStats[],
-  prev: DailyStats[],
-  currentLeaves: LeaveForKpi[],
-  prevLeaves: LeaveForKpi[],
-  totalEmployees: number,
-  from: string, to: string,
-  prevFrom: string, prevTo: string,
-  resolvedCurrent: number, totalCurrent: number,
-  resolvedPrev: number, totalPrev: number,
-): DashboardStatsResponse["kpi"] {
-
-  function calcPeriodKpis(stats: DailyStats[], leaves: LeaveForKpi[], rangeFrom: string, rangeTo: string) {
-    const workDays = countWorkDays(rangeFrom, rangeTo);
-    const possibleDays = totalEmployees * workDays;
-
-    // Presenze: giorni unici con almeno un entry per dipendente
-    const presenceDays = new Set(stats.filter((d) => d.entries.length > 0).map((d) => `${d.employeeId}|${d.date}`)).size;
-    const tassoPresenza = possibleDays > 0 ? (presenceDays / possibleDays) * 100 : 0;
-
-    // Costruisci mappa ROL mattutini per sottrarre i minuti coperti dal
-    // ritardo: se un dipendente ha un ROL con timeSlots che copre la
-    // mattina (es. 09:00-10:00), il ritardo effettivo si riduce di quei
-    // minuti. Chiave: "employeeId|date".
-    const morningRolMinutes = new Map<string, number>();
-    for (const l of leaves) {
-      if (!l.timeSlots) continue;
-      try {
-        const slots = JSON.parse(l.timeSlots) as { from: string; to: string }[];
-        for (const slot of slots) {
-          // Consideriamo "mattutino" un slot che inizia prima delle 12:00
-          if (hmToMin(slot.from) < 720) {
-            const mins = hmToMin(slot.to) - hmToMin(slot.from);
-            if (mins > 0) {
-              // Il leave può coprire più giorni; distribuiamo su ogni giorno del range
-              const s = l.startDate < rangeFrom ? rangeFrom : l.startDate;
-              const e = l.endDate > rangeTo ? rangeTo : l.endDate;
-              const cur = new Date(s);
-              const end = new Date(e);
-              while (cur <= end) {
-                const dateStr = cur.toISOString().split("T")[0];
-                const key = `${l.employeeId}|${dateStr}`;
-                morningRolMinutes.set(key, (morningRolMinutes.get(key) ?? 0) + mins);
-                cur.setDate(cur.getDate() + 1);
-              }
-            }
-          }
-        }
-      } catch {
-        // timeSlots malformato, ignora
-      }
-    }
-
-    // Puntualità e ritardo: sottraiamo i minuti ROL mattutini dal delay
-    let latePunches = 0;
-    let totalDelayMinutes = 0;
-    let delayCount = 0;
-    for (const d of stats) {
-      let morningDelay = d.morningDelay;
-      const rolKey = `${d.employeeId}|${d.date}`;
-      const rolCover = morningRolMinutes.get(rolKey) ?? 0;
-      if (rolCover > 0 && morningDelay > 0) {
-        morningDelay = Math.max(0, morningDelay - rolCover);
-      }
-      const totalDelay = morningDelay + d.afternoonDelay;
-      if (totalDelay > 0) {
-        latePunches++;
-        totalDelayMinutes += totalDelay;
-        delayCount++;
-      }
-    }
-    const totalPunches = stats.length;
-    const tassoPuntualita = totalPunches > 0 ? ((totalPunches - latePunches) / totalPunches) * 100 : 100;
-    const ritardoMedioMin = delayCount > 0 ? totalDelayMinutes / delayCount : 0;
-
-    // Assenteismo: giorni senza presenza / giorni possibili
-    const absenceDays = possibleDays - presenceDays;
-    const tassoAssenteismo = possibleDays > 0 ? (absenceDays / possibleDays) * 100 : 0;
-
-    // Straordinario
-    const oreStraordTotali = stats.reduce((s, d) => s + d.overtime, 0);
-
-    // Ore lavorate medie per dipendente
-    const empIds = new Set(stats.map((d) => d.employeeId));
-    const totalHours = stats.reduce((s, d) => s + d.hoursWorked, 0);
-    const oreLavorateMediaDip = empIds.size > 0 ? totalHours / empIds.size : 0;
-
-    // Giorni malattia
-    const giorniMalattia = leaves
-      .filter((l) => l.type === "SICK")
-      .reduce((sum, l) => {
-        const s = l.startDate < rangeFrom ? rangeFrom : l.startDate;
-        const e = l.endDate > rangeTo ? rangeTo : l.endDate;
-        const diff = (new Date(e).getTime() - new Date(s).getTime()) / (1000 * 60 * 60 * 24) + 1;
-        return sum + Math.max(0, diff);
-      }, 0);
-
-    // % anomalie risolte (passate come param)
-    return {
-      tassoPresenza, tassoPuntualita, ritardoMedioMin,
-      tassoAssenteismo, oreStraordTotali, oreLavorateMediaDip,
-      giorniMalattia,
-    };
-  }
-
-  const cur = calcPeriodKpis(current, currentLeaves, from, to);
-  const prv = calcPeriodKpis(prev, prevLeaves, prevFrom, prevTo);
-
-  const percResCur = totalCurrent > 0 ? (resolvedCurrent / totalCurrent) * 100 : 100;
-  const percResPrev = totalPrev > 0 ? (resolvedPrev / totalPrev) * 100 : 100;
-
-  function kv(curVal: number, prevVal: number): KpiValue {
-    return {
-      value: Math.round(curVal * 10) / 10,
-      delta: Math.round((curVal - prevVal) * 10) / 10,
-    };
-  }
-
-  return {
-    tassoPresenza: kv(cur.tassoPresenza, prv.tassoPresenza),
-    tassoPuntualita: kv(cur.tassoPuntualita, prv.tassoPuntualita),
-    ritardoMedioMin: kv(cur.ritardoMedioMin, prv.ritardoMedioMin),
-    tassoAssenteismo: kv(cur.tassoAssenteismo, prv.tassoAssenteismo),
-    oreStraordTotali: kv(cur.oreStraordTotali, prv.oreStraordTotali),
-    oreLavorateMediaDip: kv(cur.oreLavorateMediaDip, prv.oreLavorateMediaDip),
-    giorniMalattia: kv(cur.giorniMalattia, prv.giorniMalattia),
-    percAnomalieRisolte: kv(percResCur, percResPrev),
-  };
-}
-
 // ── Chart: ore mensili ───────────────────────────────────────────────
-
-const MESI_ABBR = ["", "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
 async function computeOreChart(
   months: number,
@@ -598,9 +464,9 @@ async function computeOreChart(
         if (sched) {
           let mins = 0;
           if (sched.block1Start && sched.block1End)
-            mins += hmToMin(sched.block1End) - hmToMin(sched.block1Start);
+            mins += hmToMinutes(sched.block1End) - hmToMinutes(sched.block1Start);
           if (sched.block2Start && sched.block2End)
-            mins += hmToMin(sched.block2End) - hmToMin(sched.block2Start);
+            mins += hmToMinutes(sched.block2End) - hmToMinutes(sched.block2Start);
           contratto += mins / 60;
         } else if (!empSched || empSched.size === 0) {
           // Nessuno schedule configurato: fallback a 8h per giorno lavorativo
@@ -612,9 +478,6 @@ async function computeOreChart(
         // settimana → non lavora quel giorno → 0 ore (non 8h fallback)
       }
     }
-
-    const withSched = allEmployees.filter((e) => scheduleMap.has(e.id) && scheduleMap.get(e.id)!.size > 0).length;
-    console.log(`[ore-chart] ${MESI_ABBR[m]} ${y}: contratto=${Math.round(contratto)}h (${allEmployees.length} dip, ${withSched} con schedule, ${allEmployees.length - withSched} fallback 8h)`);
 
     // Ore lavorate
     const recordsWhere: Record<string, unknown> = { date: { gte: mFrom, lte: mTo } };
@@ -663,120 +526,3 @@ async function computeOreChart(
   return points;
 }
 
-// ── Chart: assenze tipologia ─────────────────────────────────────────
-
-function computeAssenzeChart(
-  leaves: { type: string; startDate: string; endDate: string }[],
-  from: string, to: string,
-): AssenzaChartPoint[] {
-  const buckets: Record<string, number> = {
-    Ferie: 0,
-    Malattia: 0,
-    ROL: 0,
-    Permessi: 0,
-    Altro: 0,
-  };
-  const colors: Record<string, string> = {
-    Ferie: "#DAEAFE",
-    Malattia: "#FFE2E2",
-    ROL: "#FEF3C7",
-    Permessi: "#FEF3C7",   // stesso tono dei ROL
-    Altro: "#F2E8FF",
-  };
-
-  for (const l of leaves) {
-    const s = l.startDate < from ? from : l.startDate;
-    const e = l.endDate > to ? to : l.endDate;
-    const days = Math.max(0, (new Date(e).getTime() - new Date(s).getTime()) / (1000 * 60 * 60 * 24) + 1);
-
-    const label = LEAVE_TYPES[l.type as LeaveType]?.label ?? l.type;
-    if (["VACATION", "VACATION_HALF_AM", "VACATION_HALF_PM"].includes(l.type)) {
-      buckets["Ferie"] += days;
-    } else if (l.type === "SICK") {
-      buckets["Malattia"] += days;
-    } else if (l.type === "ROL") {
-      buckets["ROL"] += days;
-    } else if (["MEDICAL_VISIT"].includes(l.type)) {
-      buckets["Permessi"] += days;
-    } else {
-      buckets["Altro"] += days;
-    }
-    void label;
-  }
-
-  return Object.entries(buckets)
-    .filter(([, giorni]) => giorni > 0)
-    .map(([tipo, giorni]) => ({
-      tipo,
-      giorni: Math.round(giorni),
-      colore: colors[tipo] || "#B4B2A9",
-    }));
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function getDayOfWeek(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const day = new Date(y, m - 1, d).getDay();
-  return day === 0 ? 7 : day;
-}
-
-function hmToMin(hm: string): number {
-  const [h, m] = hm.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function countWorkDays(from: string, to: string): number {
-  let count = 0;
-  const cur = new Date(from);
-  const end = new Date(to);
-  while (cur <= end) {
-    const dateStr = cur.toISOString().split("T")[0];
-    if (!isNonWorkingDay(dateStr)) count++;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return count;
-}
-
-function computeRanges(period: "today" | "month" | "quarter", now: Date) {
-  const y = now.getFullYear();
-  const m = now.getMonth(); // 0-based
-  const today = now.toISOString().split("T")[0];
-
-  if (period === "today") {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    return {
-      from: today,
-      to: today,
-      prevFrom: yesterday.toISOString().split("T")[0],
-      prevTo: yesterday.toISOString().split("T")[0],
-    };
-  }
-
-  if (period === "month") {
-    const from = `${y}-${String(m + 1).padStart(2, "0")}-01`;
-    const lastDay = new Date(y, m + 1, 0).getDate();
-    const to = `${y}-${String(m + 1).padStart(2, "0")}-${lastDay}`;
-    // Mese precedente
-    const prevD = new Date(y, m - 1, 1);
-    const prevY = prevD.getFullYear();
-    const prevM = prevD.getMonth();
-    const prevFrom = `${prevY}-${String(prevM + 1).padStart(2, "0")}-01`;
-    const prevLastDay = new Date(prevY, prevM + 1, 0).getDate();
-    const prevTo = `${prevY}-${String(prevM + 1).padStart(2, "0")}-${prevLastDay}`;
-    return { from, to, prevFrom, prevTo };
-  }
-
-  // quarter: ultimi 3 mesi interi (incluso il corrente)
-  const qStart = new Date(y, m - 2, 1);
-  const from = `${qStart.getFullYear()}-${String(qStart.getMonth() + 1).padStart(2, "0")}-01`;
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  const to = `${y}-${String(m + 1).padStart(2, "0")}-${lastDay}`;
-  // Trimestre precedente
-  const pqStart = new Date(qStart.getFullYear(), qStart.getMonth() - 3, 1);
-  const pqEnd = new Date(qStart.getFullYear(), qStart.getMonth(), 0);
-  const prevFrom = `${pqStart.getFullYear()}-${String(pqStart.getMonth() + 1).padStart(2, "0")}-01`;
-  const prevTo = `${pqEnd.getFullYear()}-${String(pqEnd.getMonth() + 1).padStart(2, "0")}-${pqEnd.getDate()}`;
-  return { from, to, prevFrom, prevTo };
-}

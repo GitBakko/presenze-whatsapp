@@ -1,3 +1,4 @@
+import { hmToMinutes } from "@/lib/date-utils";
 /**
  * Dispatcher e handler dei comandi del bot Telegram ep-bot.
  *
@@ -477,10 +478,6 @@ const handlePermesso: CommandHandler = async (ctx, args) => {
   }
 };
 
-function hmToMinutes(hm: string): number {
-  const [h, m] = hm.split(":").map(Number);
-  return h * 60 + m;
-}
 
 // ── /assenze — storico e future ──────────────────────────────────────
 

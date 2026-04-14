@@ -11,6 +11,7 @@ import {
   LabelList,
 } from "recharts";
 import type { EmployeeMetricPoint } from "@/types/dashboard";
+import { getShortName } from "@/lib/avatar-utils";
 
 function formatMinutes(min: number): string {
   if (min === 0) return "0m";
@@ -43,8 +44,9 @@ export function EmployeeMetricChart({
     );
   }
 
+  const allNames = data.map((d) => d.employeeName);
   const chartData = data.map((d) => ({
-    name: d.employeeName.split(" ")[0],
+    name: getShortName(d.employeeName, allNames),
     fullName: d.employeeName,
     total: d.totalMinutes,
     avg: d.avgMinutes,

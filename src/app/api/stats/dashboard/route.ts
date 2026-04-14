@@ -231,6 +231,33 @@ export async function GET(request: NextRequest) {
     anomaliesResolvedPrev, anomaliesTotalPrev
   );
 
+  // ── Mappa ROL/permessi mattutini di oggi per compensazione ritardo ──
+  const todayMorningCoverMap = new Map<string, number>();
+  for (const l of todayLeaves) {
+    // VACATION_HALF_AM copre tutta la mattina → il dipendente non è in ritardo
+    if (l.type === "VACATION_HALF_AM") {
+      todayMorningCoverMap.set(l.employeeId, 999);
+      continue;
+    }
+    // ROL/permessi con timeSlots mattutini
+    if (l.timeSlots) {
+      try {
+        const slots = (typeof l.timeSlots === "string" ? JSON.parse(l.timeSlots) : l.timeSlots) as { from: string; to: string }[];
+        for (const slot of slots) {
+          if (hmToMinutes(slot.from) < 720) { // inizia prima di mezzogiorno
+            const mins = hmToMinutes(slot.to) - hmToMinutes(slot.from);
+            if (mins > 0) {
+              todayMorningCoverMap.set(
+                l.employeeId,
+                (todayMorningCoverMap.get(l.employeeId) ?? 0) + mins
+              );
+            }
+          }
+        }
+      } catch { /* timeSlots malformato */ }
+    }
+  }
+
   // ── SEZIONE D — Dipendenti oggi ────────────────────────────────────
   const employeesToday: EmployeeTodayStatus[] = allEmployees.map((emp) => {
     // Se oggi è non lavorativo, tutti hanno status "nonWorking"
@@ -262,7 +289,13 @@ export async function GET(request: NextRequest) {
       label = "Ferie";
     } else if (dayStats && dayStats.entries.length > 0) {
       entryTime = dayStats.entries[0];
-      delayMinutes = dayStats.morningDelay;
+      // Compensazione ritardo: sottrai i minuti coperti da ROL/permessi mattutini
+      let rawDelay = dayStats.morningDelay;
+      const morningCover = todayMorningCoverMap.get(emp.id) ?? 0;
+      if (morningCover > 0 && rawDelay > 0) {
+        rawDelay = Math.max(0, rawDelay - morningCover);
+      }
+      delayMinutes = rawDelay;
       status = delayMinutes > 15 ? "late" : "present";
     }
 
@@ -341,6 +374,92 @@ export async function GET(request: NextRequest) {
 
   if (chart === "assenze_tipologia" || chart === "all") {
     charts.assenzeTipologia = computeAssenzeChart(periodLeaves, from, to);
+  }
+
+  // Grafici ritardo e straordinario per dipendente (solo admin, chart=all)
+  if (chart === "all") {
+    // Ritardo per dipendente: aggrega currentStats per employeeId
+    // Applica la stessa compensazione ROL usata nei KPI
+    const delayMap = new Map<string, { name: string; totalMin: number; days: number }>();
+    const overtimeMap = new Map<string, { name: string; totalMin: number; days: number }>();
+
+    // Mappa ROL mattutini del periodo per compensazione ritardo
+    const periodMorningRol = new Map<string, number>();
+    for (const l of periodLeaves) {
+      if (l.type === "VACATION_HALF_AM") {
+        const s = l.startDate < from ? from : l.startDate;
+        const e = l.endDate > to ? to : l.endDate;
+        const cur = new Date(s);
+        const end = new Date(e);
+        while (cur <= end) {
+          periodMorningRol.set(`${l.employeeId}|${cur.toISOString().split("T")[0]}`, 999);
+          cur.setDate(cur.getDate() + 1);
+        }
+        continue;
+      }
+      if (!l.timeSlots) continue;
+      try {
+        const slots = (typeof l.timeSlots === "string" ? JSON.parse(l.timeSlots) : l.timeSlots) as { from: string; to: string }[];
+        for (const slot of slots) {
+          if (hmToMinutes(slot.from) < 720) {
+            const mins = hmToMinutes(slot.to) - hmToMinutes(slot.from);
+            if (mins > 0) {
+              const s = l.startDate < from ? from : l.startDate;
+              const e = l.endDate > to ? to : l.endDate;
+              const cur = new Date(s);
+              const end = new Date(e);
+              while (cur <= end) {
+                const key = `${l.employeeId}|${cur.toISOString().split("T")[0]}`;
+                periodMorningRol.set(key, (periodMorningRol.get(key) ?? 0) + mins);
+                cur.setDate(cur.getDate() + 1);
+              }
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    for (const d of currentStats) {
+      const empName = d.employeeName;
+
+      // Ritardo compensato
+      let morningDelay = d.morningDelay;
+      const rolCover = periodMorningRol.get(`${d.employeeId}|${d.date}`) ?? 0;
+      if (rolCover > 0 && morningDelay > 0) morningDelay = Math.max(0, morningDelay - rolCover);
+      const totalDelay = morningDelay + d.afternoonDelay;
+      if (totalDelay > 0) {
+        const cur = delayMap.get(d.employeeId) ?? { name: empName, totalMin: 0, days: 0 };
+        cur.totalMin += totalDelay;
+        cur.days += 1;
+        delayMap.set(d.employeeId, cur);
+      }
+
+      // Straordinario
+      if (d.overtime > 0) {
+        const cur = overtimeMap.get(d.employeeId) ?? { name: empName, totalMin: 0, days: 0 };
+        cur.totalMin += Math.round(d.overtime * 60);
+        cur.days += 1;
+        overtimeMap.set(d.employeeId, cur);
+      }
+    }
+
+    charts.ritardoPerDipendente = Array.from(delayMap.values())
+      .map((v) => ({
+        employeeName: v.name,
+        totalMinutes: v.totalMin,
+        avgMinutes: v.days > 0 ? Math.round(v.totalMin / v.days) : 0,
+        days: v.days,
+      }))
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+    charts.straordinarioPerDipendente = Array.from(overtimeMap.values())
+      .map((v) => ({
+        employeeName: v.name,
+        totalMinutes: v.totalMin,
+        avgMinutes: v.days > 0 ? Math.round(v.totalMin / v.days) : 0,
+        days: v.days,
+      }))
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
   }
 
   // ── Filtro employee: i dipendenti vedono solo i propri dati ─────────

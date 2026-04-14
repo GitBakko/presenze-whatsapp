@@ -11,6 +11,7 @@ import { AssenzeChart } from "@/components/dashboard/AssenzeChart";
 import { EmployeeStatusList } from "@/components/dashboard/EmployeeStatusList";
 import { AnomalyList } from "@/components/dashboard/AnomalyList";
 import { LeaveBalanceTable } from "@/components/dashboard/LeaveBalanceTable";
+import { EmployeeMetricChart } from "@/components/dashboard/EmployeeMetricChart";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
 import type { DashboardPeriod, DashboardStatsResponse } from "@/types/dashboard";
 
@@ -155,7 +156,25 @@ export default function DashboardPage() {
           {/* SEZIONE B — KPI */}
           <KpiGrid kpi={data.kpi} />
 
-          {/* SEZIONE C — Grafici */}
+          {/* SEZIONE C1 — Grafici ritardo/straordinario per dipendente (solo admin) */}
+          {isAdmin && (data.charts?.ritardoPerDipendente || data.charts?.straordinarioPerDipendente) && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <EmployeeMetricChart
+                title="Ritardo per dipendente"
+                data={data.charts?.ritardoPerDipendente ?? []}
+                color="#f59e0b"
+                emptyMessage="Nessun ritardo nel periodo"
+              />
+              <EmployeeMetricChart
+                title="Straordinario per dipendente"
+                data={data.charts?.straordinarioPerDipendente ?? []}
+                color="#3b82f6"
+                emptyMessage="Nessuno straordinario nel periodo"
+              />
+            </div>
+          )}
+
+          {/* SEZIONE C2 — Grafici ore e assenze */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <OreChart data={data.charts?.oreMensili ?? []} />

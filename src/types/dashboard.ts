@@ -43,6 +43,8 @@ export interface DashboardStatsResponse {
   charts?: {
     oreMensili?: OreChartPoint[];
     assenzeTipologia?: AssenzaChartPoint[];
+    ritardoPerDipendente?: EmployeeMetricPoint[];
+    straordinarioPerDipendente?: EmployeeMetricPoint[];
   };
 
   // Sezione D — Dipendenti oggi
@@ -67,6 +69,13 @@ export interface AssenzaChartPoint {
   tipo: string;       // "Ferie", "Malattia", "ROL", "Permessi", "Altro"
   giorni: number;
   colore: string;     // hex
+}
+
+export interface EmployeeMetricPoint {
+  employeeName: string;
+  totalMinutes: number;   // totale nel periodo (minuti)
+  avgMinutes: number;     // media per giorno lavorato (minuti)
+  days: number;           // giorni con il dato (ritardi o straordinari)
 }
 
 // ── Sezione D: stato dipendenti oggi ─────────────────────────────────

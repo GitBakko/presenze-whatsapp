@@ -13,6 +13,7 @@ import { BalanceCard } from "./_components/BalanceCard";
 import { CalendarView } from "./_components/CalendarView";
 import { RequestsList } from "./_components/RequestsList";
 import { ByEmployeeView } from "./_components/ByEmployeeView";
+import { GanttCalendar } from "./_components/GanttCalendar";
 import { CreateLeaveModal } from "./_components/CreateLeaveModal";
 
 export default function LeavesPage() {
@@ -22,6 +23,7 @@ export default function LeavesPage() {
   const leavesRole = (leavesSession?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
   const isLeavesAdmin = leavesRole === "ADMIN";
   const [tab, setTab] = useState<"calendar" | "requests" | "byEmployee">("calendar");
+  const [ganttMode, setGanttMode] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -283,7 +285,7 @@ export default function LeavesPage() {
       </div>
 
       {/* Tab content */}
-      {tab === "calendar" && (
+      {tab === "calendar" && !ganttMode && (
         <CalendarView
           calendarDays={calendarDays}
           calendarMonth={calendarMonth}
@@ -291,6 +293,16 @@ export default function LeavesPage() {
           firstDay={firstDay}
           onChangeMonth={changeMonth}
           onSelectEmployee={setSelectedEmployee}
+          onGanttMode={() => setGanttMode(true)}
+        />
+      )}
+
+      {tab === "calendar" && ganttMode && (
+        <GanttCalendar
+          calendarDays={calendarDays}
+          monthLabel={monthLabel}
+          onChangeMonth={changeMonth}
+          onClose={() => setGanttMode(false)}
         />
       )}
 

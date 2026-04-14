@@ -124,9 +124,8 @@ export default function DashboardPage() {
 
       {/* ── Data loaded ──────────────────────────────────────────── */}
       {data && (
-        <div className={loading ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}>
+        <div className={`space-y-6 ${loading ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}`}>
 
-        <>
           {/* Banner giorno non lavorativo */}
           {data.isNonWorkingToday && (
             <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4">
@@ -176,7 +175,6 @@ export default function DashboardPage() {
 
           {/* SEZIONE E — Saldi ferie */}
           <LeaveBalanceTable rows={data.leaveBalances} />
-        </>
         </div>
       )}
     </div>

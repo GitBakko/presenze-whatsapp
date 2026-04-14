@@ -33,3 +33,20 @@ export function getInitials(name: string): string {
 export function getAvatarColor(name: string): string {
   return AVATAR_COLORS[hashName(name) % AVATAR_COLORS.length];
 }
+
+/**
+ * Returns a short display name, disambiguating homonyms.
+ *
+ * If the first name is unique among `allNames`, returns just the first name.
+ * Otherwise returns "FirstName Surname" (full name).
+ *
+ * Example: ["Mattia Bianchi", "Mattia Rossi", "Luca Verdi"]
+ *   getShortName("Mattia Bianchi", allNames) → "Mattia Bianchi"
+ *   getShortName("Luca Verdi", allNames)     → "Luca"
+ */
+export function getShortName(fullName: string, allNames: string[]): string {
+  const firstName = fullName.split(" ")[0];
+  const sameFirst = allNames.filter((n) => n.split(" ")[0] === firstName);
+  if (sameFirst.length > 1) return fullName;
+  return firstName;
+}

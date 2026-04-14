@@ -17,16 +17,16 @@ export function LeaveBalanceTable({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200/60 bg-white p-5 text-center text-sm text-gray-400">
+      <div className="rounded-xl border border-outline-variant/30 bg-white p-5 text-center text-sm text-on-surface-variant">
         Nessun dato disponibile sui saldi ferie
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-gray-200/60 bg-white p-5">
+    <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-sm font-semibold text-on-surface">
           Saldi ferie & ROL
         </h3>
         <Link
@@ -39,7 +39,7 @@ export function LeaveBalanceTable({
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-gray-100 text-xs text-gray-500">
+            <tr className="border-b border-surface-container text-xs text-on-surface-variant">
               <th className="pb-2 pr-4 font-medium">Dipendente</th>
               <th className="pb-2 pr-4 font-medium">Ferie</th>
               <th className="hidden pb-2 pr-4 font-medium sm:table-cell" style={{ minWidth: 120 }}>
@@ -53,19 +53,19 @@ export function LeaveBalanceTable({
             {rows.map((r) => (
               <tr
                 key={r.employeeId}
-                className="border-b border-gray-50 last:border-0"
+                className="border-b border-surface-container-low last:border-0"
               >
                 <td className="py-2.5 pr-4">
-                  <span className="font-medium text-gray-800">
+                  <span className="font-medium text-on-surface">
                     {r.employeeName}
                   </span>
                 </td>
-                <td className="py-2.5 pr-4 tabular-nums text-xs text-gray-600">
+                <td className="py-2.5 pr-4 tabular-nums text-xs text-on-surface-variant">
                   {r.vacationUsed}/{r.vacationTotal} gg
                 </td>
                 <td className="hidden py-2.5 pr-4 sm:table-cell">
                   <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 rounded-full bg-gray-100">
+                    <div className="h-2 flex-1 rounded-full bg-surface-container">
                       <div
                         className={`h-full rounded-full transition-all ${barColor(r.vacationPercent)}`}
                         style={{
@@ -73,12 +73,12 @@ export function LeaveBalanceTable({
                         }}
                       />
                     </div>
-                    <span className="w-9 text-right text-[11px] tabular-nums text-gray-400">
+                    <span className="w-9 text-right text-[11px] tabular-nums text-on-surface-variant">
                       {Math.round(r.vacationPercent)}%
                     </span>
                   </div>
                 </td>
-                <td className="py-2.5 pr-4 text-right tabular-nums text-xs text-gray-600">
+                <td className="py-2.5 pr-4 text-right tabular-nums text-xs text-on-surface-variant">
                   {r.rolRemaining} h
                 </td>
                 <td className="py-2.5">

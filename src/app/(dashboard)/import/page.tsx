@@ -47,7 +47,7 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Importa Dati</h1>
+      <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Importa Dati</h1>
 
       <div className="max-w-xl">
         <p className="mb-4 text-sm text-on-surface-variant">

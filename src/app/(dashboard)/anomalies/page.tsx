@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import {
@@ -9,6 +9,7 @@ import {
   Timer, PlusCircle, MinusCircle, Check, ExternalLink, Pencil,
 } from "lucide-react";
 import Link from "next/link";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 interface Anomaly {
   id: string;
@@ -313,7 +314,7 @@ export default function AnomaliesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Anomalie</h1>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Anomalie</h1>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-on-surface-variant">
             <input
@@ -386,7 +387,7 @@ export default function AnomaliesPage() {
                         <button
                           onClick={() => openResolvePanel(a)}
                           disabled={submitting}
-                          className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-primary to-primary-container px-3 py-1.5 text-xs font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-primary to-primary-container px-3 py-1.5 text-xs font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Wrench className="h-3.5 w-3.5" />
                           Risolvi
@@ -396,7 +397,7 @@ export default function AnomaliesPage() {
                             <button
                               onClick={() => handleDismiss(a)}
                               disabled={submitting}
-                              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-shadow hover:bg-emerald-700 hover:shadow-elevated disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-shadow hover:bg-emerald-700 hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               Corretto
@@ -426,11 +427,7 @@ export default function AnomaliesPage() {
 
       {/* ── Resolution Panel (modal overlay) ── */}
       {resolvingAnomaly && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]" onClick={closePanel}>
-          <div
-            className="mx-4 w-full max-w-lg rounded-lg bg-surface-container-lowest p-6 shadow-editorial"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <ResolutionPanelOverlay onClose={closePanel}>
             <div className="mb-5 flex items-start justify-between">
               <div>
                 <h2 className="font-display text-lg font-bold text-primary">Risolvi anomalia</h2>
@@ -635,15 +632,37 @@ export default function AnomaliesPage() {
               <button
                 onClick={() => handleResolve(resolvingAnomaly)}
                 disabled={submitting || (!addTime && deleteIds.size === 0 && Object.keys(edits).length === 0 && !resolution)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="h-3.5 w-3.5" />
                 {submitting ? "Salvataggio..." : "Conferma e risolvi"}
               </button>
             </div>
-          </div>
-        </div>
+        </ResolutionPanelOverlay>
       )}
+    </div>
+  );
+}
+
+function ResolutionPanelOverlay({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalContentRef, onClose);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]" onClick={onClose}>
+      <div
+        ref={modalContentRef}
+        className="mx-4 w-full max-w-lg rounded-lg bg-surface-container-lowest p-6 shadow-editorial"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
     </div>
   );
 }

@@ -14,15 +14,15 @@ export function AssenzeChart({ data }: { data: AssenzaChartPoint[] }) {
 
   if (data.length === 0 || totalGiorni === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-gray-400">
+      <div className="flex h-full items-center justify-center text-sm text-on-surface-variant">
         Nessuna assenza nel periodo
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-gray-200/60 bg-white p-5">
-      <h3 className="mb-4 text-sm font-semibold text-gray-700">
+    <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
+      <h3 className="mb-4 text-sm font-semibold text-on-surface">
         Assenze per tipologia
       </h3>
       <div aria-label="Grafico assenze per tipologia" className="relative">
@@ -46,7 +46,7 @@ export function AssenzeChart({ data }: { data: AssenzaChartPoint[] }) {
             <Tooltip
               contentStyle={{
                 borderRadius: 8,
-                border: "1px solid #e5e5e5",
+                border: "1px solid var(--color-outline-variant)",
                 fontSize: 12,
               }}
               formatter={(value, name) => [
@@ -56,18 +56,16 @@ export function AssenzeChart({ data }: { data: AssenzaChartPoint[] }) {
             />
           </PieChart>
         </ResponsiveContainer>
-        {/* Centro donut */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-2xl font-bold text-gray-800">{totalGiorni}</p>
-            <p className="text-[10px] text-gray-400">giorni</p>
+            <p className="text-2xl font-bold text-on-surface">{totalGiorni}</p>
+            <p className="text-[10px] text-on-surface-variant">giorni</p>
           </div>
         </div>
       </div>
-      {/* Legenda inline */}
       <div className="mt-3 flex flex-wrap justify-center gap-3">
         {data.map((d) => (
-          <div key={d.tipo} className="flex items-center gap-1.5 text-[11px] text-gray-600">
+          <div key={d.tipo} className="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
               style={{ backgroundColor: d.colore }}

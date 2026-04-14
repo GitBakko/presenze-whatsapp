@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { X } from "lucide-react";
 import { hmToMinutes } from "@/lib/date-utils";
 import type { Employee } from "./types";
@@ -20,6 +21,9 @@ export function CreateLeaveModal({
   loading: boolean;
   setLoading: (v: boolean) => void;
 }) {
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalContentRef, onClose);
+
   const { data: modalSession } = useSession();
   const modalRole = (modalSession?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
   const modalEmployeeId = (modalSession?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
@@ -91,7 +95,7 @@ export function CreateLeaveModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div ref={modalContentRef} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-primary">Nuova Richiesta</h2>
           <button onClick={onClose} className="text-outline-variant hover:text-on-surface">
@@ -255,7 +259,7 @@ export function CreateLeaveModal({
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-primary px-5 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-50"
+              className="rounded-lg bg-primary px-5 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Salvataggio..." : "Crea richiesta"}
             </button>

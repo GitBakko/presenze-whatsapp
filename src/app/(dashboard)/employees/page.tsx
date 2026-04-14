@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/formatTime";
 import { Pencil, UserPlus, X } from "lucide-react";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 interface Employee {
   id: string;
@@ -119,7 +120,7 @@ export default function EmployeesPage() {
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-primary">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">
             Dipendenti
           </h1>
           <p className="mt-1 text-secondary">Elenco completo del personale.</p>
@@ -208,14 +209,65 @@ export default function EmployeesPage() {
 
       {/* ── Modal Nuovo dipendente ─────────────────────────────────── */}
       {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
-          onClick={closeModal}
-        >
-          <div
-            className="mx-4 w-full max-w-md rounded-lg bg-surface-container-lowest p-6 shadow-editorial"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <NewEmployeeModal
+          closeModal={closeModal}
+          handleSubmit={handleSubmit}
+          formName={formName}
+          setFormName={setFormName}
+          formDisplayName={formDisplayName}
+          setFormDisplayName={setFormDisplayName}
+          formHireDate={formHireDate}
+          setFormHireDate={setFormHireDate}
+          formContractType={formContractType}
+          setFormContractType={setFormContractType}
+          formError={formError}
+          submitting={submitting}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewEmployeeModal({
+  closeModal,
+  handleSubmit,
+  formName,
+  setFormName,
+  formDisplayName,
+  setFormDisplayName,
+  formHireDate,
+  setFormHireDate,
+  formContractType,
+  setFormContractType,
+  formError,
+  submitting,
+}: {
+  closeModal: () => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  formName: string;
+  setFormName: (v: string) => void;
+  formDisplayName: string;
+  setFormDisplayName: (v: string) => void;
+  formHireDate: string;
+  setFormHireDate: (v: string) => void;
+  formContractType: string;
+  setFormContractType: (v: string) => void;
+  formError: string | null;
+  submitting: boolean;
+}) {
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalContentRef, closeModal);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+      onClick={closeModal}
+    >
+      <div
+        ref={modalContentRef}
+        className="mx-4 w-full max-w-md rounded-lg bg-surface-container-lowest p-6 shadow-editorial"
+        onClick={(e) => e.stopPropagation()}
+      >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-lg font-bold text-on-surface flex items-center gap-2">
                 <UserPlus className="h-5 w-5 text-primary" />
@@ -301,14 +353,14 @@ export default function EmployeesPage() {
                   type="button"
                   onClick={closeModal}
                   disabled={submitting}
-                  className="rounded-md bg-surface-container px-4 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+                  className="rounded-md bg-surface-container px-4 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary hover:shadow-elevated disabled:opacity-50"
+                  className="rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? "Creazione..." : "Crea"}
                 </button>
@@ -316,7 +368,5 @@ export default function EmployeesPage() {
             </form>
           </div>
         </div>
-      )}
-    </div>
   );
 }

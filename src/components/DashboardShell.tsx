@@ -10,23 +10,7 @@ import { NotificationsProvider } from "./NotificationsProvider";
 import { NotificationBell } from "./NotificationBell";
 import { NotificationToast } from "./NotificationToast";
 import { ConfirmProvider } from "./ConfirmProvider";
-
-const AVATAR_COLORS = [
-  "from-blue-500 to-blue-600",
-  "from-emerald-500 to-emerald-600",
-  "from-violet-500 to-violet-600",
-  "from-amber-500 to-amber-600",
-  "from-rose-500 to-rose-600",
-  "from-indigo-500 to-indigo-600",
-];
-
-function hashName(name: string): number {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) {
-    h = (h * 31 + name.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
+import { getInitials, getAvatarColor } from "@/lib/avatar-utils";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -36,13 +20,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const userEmail = session?.user?.email ?? "";
   const userRole = (session?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
   const userEmployeeId = (session?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
-  const initials = userName
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-  const colorIdx = hashName(userName) % AVATAR_COLORS.length;
+  const initials = getInitials(userName);
+  const avatarColor = getAvatarColor(userName);
 
   // User dropdown
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -110,7 +89,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 className="flex items-center gap-2 rounded-full px-2 py-1.5 transition-colors hover:bg-surface-container-low"
               >
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${AVATAR_COLORS[colorIdx]} text-xs font-bold text-white`}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${avatarColor} text-xs font-bold text-white`}
                 >
                   {initials}
                 </div>

@@ -123,7 +123,7 @@ export default function SchedulePage() {
         <Link href="/settings" className="text-primary hover:text-primary-container text-sm">
           ← Impostazioni
         </Link>
-        <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Orari Dipendenti</h1>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Orari Dipendenti</h1>
       </div>
 
       <p className="text-sm text-on-surface-variant">
@@ -221,7 +221,7 @@ export default function SchedulePage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-6 py-2 text-sm font-medium text-on-primary hover:shadow-elevated disabled:opacity-50"
+            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-6 py-2 text-sm font-medium text-on-primary hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Salvataggio..." : "Salva Orari"}
           </button>

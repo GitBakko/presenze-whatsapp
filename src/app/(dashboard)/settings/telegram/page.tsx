@@ -198,7 +198,7 @@ export default function TelegramSettingsPage() {
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Impostazioni
           </Link>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+          <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-primary flex items-center gap-2">
             <MessageCircle className="h-7 w-7 text-sky-500" /> Bot Telegram
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">

@@ -80,7 +80,7 @@ export function FileUpload({ onUpload, isLoading }: FileUploadProps) {
           <button
             onClick={handleUpload}
             disabled={isLoading}
-            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:cursor-not-allowed"
           >
             {isLoading ? "Importando..." : "Importa"}
           </button>

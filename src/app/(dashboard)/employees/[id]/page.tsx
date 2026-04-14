@@ -12,6 +12,7 @@ import {
   DoorOpen, Home, Timer, X, Hourglass, CheckCircle2,
   Pencil, Save, Trash2, Plus,
 } from "lucide-react";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import type { ReactNode } from "react";
 
 interface DailyStat {
@@ -169,10 +170,11 @@ export default function EmployeeDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header with avatar */}
-      <div className="flex items-center gap-4">
-        <Link href="/employees" className="text-sm text-primary hover:text-primary-container">
-          ← Dipendenti
-        </Link>
+      <div className="space-y-2">
+        <Breadcrumb items={[
+          { label: "Dipendenti", href: "/employees" },
+          { label: employeeName || "Dipendente" },
+        ]} />
         <div className="flex items-center gap-3">
           {profile?.avatarUrl ? (
             <Image src={profile.avatarUrl} alt={employeeName} width={40} height={40} className="h-10 w-10 rounded-full object-cover ring-2 ring-surface-container-lowest shadow" />
@@ -181,7 +183,7 @@ export default function EmployeeDetailPage() {
               {initials}
             </div>
           )}
-          <h1 className="font-display text-3xl font-bold tracking-tight text-primary">{employeeName || "Dipendente"}</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">{employeeName || "Dipendente"}</h1>
         </div>
       </div>
 
@@ -582,7 +584,7 @@ export default function EmployeeDetailPage() {
                       </div>
                       <div className="mt-3 flex items-center gap-2">
                         <button
-                          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={savingRecords}
                           onClick={async () => {
                             setSavingRecords(true);

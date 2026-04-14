@@ -69,10 +69,10 @@ export default function DashboardPage() {
       {/* ── TOPBAR ─────────────────────────────────────────────── */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-primary">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">
             Dashboard
           </h1>
-          <p className="mt-0.5 text-sm capitalize text-gray-500">
+          <p className="mt-0.5 text-sm capitalize text-on-surface-variant">
             {todayFormatted}
           </p>
         </div>
@@ -81,7 +81,7 @@ export default function DashboardPage() {
           <button
             onClick={load}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-highest disabled:opacity-50 disabled:cursor-not-allowed"
             title="Aggiorna dati"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -91,8 +91,14 @@ export default function DashboardPage() {
 
       {/* ── Error banner ────────────────────────────────────────── */}
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          {error}
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <span>{error}</span>
+          <button
+            onClick={load}
+            className="ml-4 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-800 hover:bg-red-200"
+          >
+            Riprova
+          </button>
         </div>
       )}
 
@@ -101,23 +107,25 @@ export default function DashboardPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-28 animate-pulse rounded-xl bg-gray-100" />
+              <div key={i} className="h-28 animate-pulse rounded-xl bg-surface-container" />
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="h-24 animate-pulse rounded-xl bg-gray-100" />
+              <div key={i} className="h-24 animate-pulse rounded-xl bg-surface-container" />
             ))}
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="h-80 animate-pulse rounded-xl bg-gray-100 lg:col-span-2" />
-            <div className="h-80 animate-pulse rounded-xl bg-gray-100" />
+            <div className="h-80 animate-pulse rounded-xl bg-surface-container lg:col-span-2" />
+            <div className="h-80 animate-pulse rounded-xl bg-surface-container" />
           </div>
         </div>
       )}
 
       {/* ── Data loaded ──────────────────────────────────────────── */}
       {data && (
+        <div className={loading ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}>
+
         <>
           {/* Banner giorno non lavorativo */}
           {data.isNonWorkingToday && (
@@ -169,6 +177,7 @@ export default function DashboardPage() {
           {/* SEZIONE E — Saldi ferie */}
           <LeaveBalanceTable rows={data.leaveBalances} />
         </>
+        </div>
       )}
     </div>
   );

@@ -42,11 +42,11 @@ export function TodayOverview({ data }: { data: DashboardStatsResponse["today"] 
           className={`rounded-xl border ${c.color} p-5`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-gray-600">{c.label}</p>
+            <p className="text-xs font-medium text-on-surface-variant">{c.label}</p>
             <c.icon className={`h-5 w-5 ${c.iconColor}`} />
           </div>
           <p className={`mt-2 text-3xl font-bold ${c.textColor}`}>{c.value}</p>
-          <p className="mt-1 text-xs text-gray-500">{c.sub}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">{c.sub}</p>
         </div>
       ))}
     </div>

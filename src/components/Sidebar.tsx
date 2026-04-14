@@ -61,7 +61,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.svg" alt="ePartner HR" className="h-8" />
         <p className="mt-2 text-xs uppercase tracking-wider text-on-surface-variant">
-          HR Management
+          Gestione Presenze
         </p>
       </div>
 
@@ -76,6 +76,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={`flex items-center gap-3 px-4 py-3 transition-colors duration-200 ${
                 isActive
                   ? "border-r-4 border-primary-container bg-surface-container-low font-bold text-primary"
@@ -101,6 +102,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
         {isAdmin && (
           <Link
             href="/settings"
+            aria-current={pathname.startsWith("/settings") ? "page" : undefined}
             className={`flex items-center gap-3 px-4 py-3 transition-colors duration-200 ${
               pathname.startsWith("/settings")
                 ? "border-r-4 border-primary-container bg-surface-container-low font-bold text-primary"

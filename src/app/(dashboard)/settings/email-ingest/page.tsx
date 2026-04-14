@@ -166,7 +166,7 @@ export default function EmailIngestPage() {
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Impostazioni
           </Link>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+          <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-primary flex items-center gap-2">
             <Mail className="h-7 w-7 text-violet-500" /> Richieste ferie via email
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
@@ -178,7 +178,7 @@ export default function EmailIngestPage() {
             type="button"
             onClick={runNow}
             disabled={running}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-primary-container px-3 py-2 text-sm font-medium text-on-primary disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-primary-container px-3 py-2 text-sm font-medium text-on-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PlayCircle className="h-4 w-4" /> {running ? "Elaboro…" : "Esegui ora"}
           </button>

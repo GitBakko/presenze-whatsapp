@@ -35,7 +35,7 @@ export default function LoginPage() {
       if (session?.user && !(session.user as { active?: boolean }).active) {
         setError("Il tuo account è in attesa di attivazione da parte dell'amministratore.");
         // Logout silenzioso per non lasciare una sessione inattiva
-        await signIn("credentials", { redirect: false }); // no-op, ma non importa
+        await fetch("/api/auth/signout", { method: "POST" }); // invalida la sessione
         return;
       }
       router.push("/");
@@ -90,7 +90,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="mario.rossi@azienda.it"
-                className="w-full rounded-lg border-none bg-surface-container-highest px-4 py-3 text-on-surface transition-all placeholder:text-outline-variant focus:border-b-2 focus:border-primary focus:ring-0"
+                className="w-full rounded-lg border-none bg-surface-container-highest px-4 py-3 text-on-surface transition-all placeholder:text-outline-variant focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
@@ -109,7 +109,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full rounded-lg border-none bg-surface-container-highest px-4 py-3 text-on-surface transition-all placeholder:text-outline-variant focus:border-b-2 focus:border-primary focus:ring-0"
+                className="w-full rounded-lg border-none bg-surface-container-highest px-4 py-3 text-on-surface transition-all placeholder:text-outline-variant focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
@@ -127,7 +127,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-primary to-primary-container px-6 py-4 font-bold text-on-primary shadow-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-primary to-primary-container px-6 py-4 font-bold text-on-primary shadow-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>{loading ? "Accesso in corso..." : "Accedi"}</span>
               {!loading && (

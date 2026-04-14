@@ -6,7 +6,7 @@ import { Ban, Calendar, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Impostazioni</h1>
+      <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Impostazioni</h1>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Link

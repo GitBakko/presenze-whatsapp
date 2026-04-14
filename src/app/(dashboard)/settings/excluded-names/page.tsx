@@ -52,7 +52,7 @@ export default function ExcludedNamesPage() {
         <Link href="/settings" className="text-primary hover:text-primary-container text-sm">
           ← Impostazioni
         </Link>
-        <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Nomi Esclusi</h1>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Nomi Esclusi</h1>
       </div>
 
       <p className="text-sm text-on-surface-variant">

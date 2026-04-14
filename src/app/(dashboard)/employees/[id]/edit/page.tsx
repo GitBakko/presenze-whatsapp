@@ -7,6 +7,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { KeyRound, Copy, Check } from "lucide-react";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 interface EmployeeProfile {
   id: string;
@@ -227,14 +228,13 @@ export default function EmployeeEditPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/employees"
-          className="text-sm text-primary hover:text-primary-container"
-        >
-          ← Dipendenti
-        </Link>
-        <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Modifica Profilo</h1>
+      <div className="space-y-2">
+        <Breadcrumb items={[
+          { label: "Dipendenti", href: "/employees" },
+          { label: profile?.displayName || profile?.name || "..." },
+          { label: "Modifica Profilo" },
+        ]} />
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Modifica Profilo</h1>
       </div>
 
       <div className="mx-auto max-w-lg rounded-lg bg-surface-container-lowest shadow-card p-6">
@@ -493,7 +493,7 @@ export default function EmployeeEditPage() {
                 type="button"
                 onClick={handleGenerateKey}
                 disabled={keyBusy}
-                className="rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary shadow-card hover:shadow-elevated disabled:opacity-50"
+                className="rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary shadow-card hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Genera API Key
               </button>
@@ -536,7 +536,7 @@ export default function EmployeeEditPage() {
                     type="button"
                     onClick={handleGenerateKey}
                     disabled={keyBusy}
-                    className="rounded-md bg-surface-container-high px-3 py-1.5 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50"
+                    className="rounded-md bg-surface-container-high px-3 py-1.5 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Rigenera
                   </button>
@@ -544,7 +544,7 @@ export default function EmployeeEditPage() {
                     type="button"
                     onClick={handleToggleActive}
                     disabled={keyBusy}
-                    className="rounded-md bg-surface-container-high px-3 py-1.5 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50"
+                    className="rounded-md bg-surface-container-high px-3 py-1.5 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {apiKeyState.active ? "Disattiva" : "Riattiva"}
                   </button>
@@ -552,7 +552,7 @@ export default function EmployeeEditPage() {
                     type="button"
                     onClick={handleDeleteKey}
                     disabled={keyBusy}
-                    className="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                    className="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Elimina
                   </button>
@@ -580,7 +580,7 @@ export default function EmployeeEditPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary shadow-card transition-all hover:opacity-90 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary shadow-card transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? "Salvataggio..." : "Salva"}
             </button>

@@ -28,9 +28,9 @@ function typeIcon(type: string) {
 
 export function AnomalyList({ anomalies }: { anomalies: AnomalyRecent[] }) {
   return (
-    <div className="rounded-xl border border-gray-200/60 bg-white p-5">
+    <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-sm font-semibold text-on-surface">
           Anomalie recenti
         </h3>
         <Link
@@ -41,7 +41,7 @@ export function AnomalyList({ anomalies }: { anomalies: AnomalyRecent[] }) {
         </Link>
       </div>
       {anomalies.length === 0 ? (
-        <div className="py-8 text-center text-xs text-gray-400">
+        <div className="py-8 text-center text-xs text-on-surface-variant">
           Nessuna anomalia aperta
         </div>
       ) : (
@@ -52,7 +52,7 @@ export function AnomalyList({ anomalies }: { anomalies: AnomalyRecent[] }) {
             return (
               <div
                 key={a.id}
-                className="flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-gray-50"
+                className="flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-surface-container-low"
               >
                 <span
                   className={`mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ${sev.bg}`}
@@ -60,14 +60,14 @@ export function AnomalyList({ anomalies }: { anomalies: AnomalyRecent[] }) {
                   <Icon className={`h-3.5 w-3.5 ${sev.text}`} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-800">
+                  <p className="text-sm font-medium text-on-surface">
                     {a.employeeName}
                   </p>
-                  <p className="truncate text-xs text-gray-500">
+                  <p className="truncate text-xs text-on-surface-variant">
                     {a.description}
                   </p>
                 </div>
-                <span className="flex-shrink-0 text-[11px] text-gray-400">
+                <span className="flex-shrink-0 text-[11px] text-on-surface-variant">
                   {relativeDate(a.date)}
                 </span>
               </div>

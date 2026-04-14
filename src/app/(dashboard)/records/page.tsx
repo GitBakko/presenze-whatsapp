@@ -196,7 +196,7 @@ export default function RecordsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary flex items-center gap-2">
             <Clock className="h-7 w-7" />
             Timbrature
           </h1>
@@ -391,7 +391,7 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={() => saveEdit(r)}
                                 disabled={busy}
-                                className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-on-primary hover:bg-primary/90 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-on-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Save className="h-3 w-3" /> Salva
                               </button>
@@ -399,7 +399,7 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={cancelEdit}
                                 disabled={busy}
-                                className="rounded-md bg-surface-container px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+                                className="rounded-md bg-surface-container px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <X className="h-3 w-3" />
                               </button>
@@ -410,7 +410,7 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={() => startEdit(r)}
                                 disabled={busy}
-                                className="inline-flex items-center gap-1 rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Modifica"
                               >
                                 <Pencil className="h-3 w-3" />
@@ -419,7 +419,7 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={() => handleDelete(r)}
                                 disabled={busy}
-                                className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Elimina"
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -438,24 +438,45 @@ export default function RecordsPage() {
           {/* ── Paginazione ─────────────────────────────────────── */}
           <div className="flex items-center justify-between text-sm text-on-surface-variant">
             <div>
-              {total} risultat{total === 1 ? "o" : "i"} — pagina {page + 1} di {totalPages}
+              {total} risultat{total === 1 ? "o" : "i"}
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="rounded-md bg-surface-container px-3 py-1.5 text-sm font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-40"
+                className="rounded-md bg-surface-container px-2.5 py-1.5 text-sm font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ← Precedente
+                ←
               </button>
+              {Array.from({ length: totalPages }, (_, i) => {
+                // Show: first, last, current ±1, ellipsis
+                const show = i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1;
+                const showEllipsis = !show && (i === 1 || i === totalPages - 2);
+                if (!show && !showEllipsis) return null;
+                if (showEllipsis) return <span key={i} className="px-1 text-outline-variant">…</span>;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setPage(i)}
+                    className={`min-w-[32px] rounded-md px-2.5 py-1.5 text-sm font-medium transition-all ${
+                      i === page
+                        ? "bg-primary text-white shadow-sm"
+                        : "bg-surface-container text-on-surface hover:bg-surface-container-high"
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
               <button
                 type="button"
                 onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
                 disabled={page + 1 >= totalPages}
-                className="rounded-md bg-surface-container px-3 py-1.5 text-sm font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-40"
+                className="rounded-md bg-surface-container px-2.5 py-1.5 text-sm font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Successiva →
+                →
               </button>
             </div>
           </div>

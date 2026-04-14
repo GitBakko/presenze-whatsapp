@@ -54,7 +54,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <h1 className="font-display text-3xl font-bold tracking-tight text-primary">Report Mensile</h1>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Report Mensile</h1>
         <div className="flex items-center gap-3">
           <input
             type="month"

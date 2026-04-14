@@ -47,11 +47,9 @@ export default function RegisterPage() {
     >
       <main className="flex w-full max-w-md flex-col items-center">
         {/* Brand header */}
-        <div className="mb-8 rounded-2xl bg-white/40 p-6 text-center backdrop-blur-md">
-          <div className="mb-4 inline-flex h-14 items-center justify-center rounded-xl bg-white/80 px-4 shadow-[0_10px_20px_rgba(0,66,83,0.15)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="ePartner HR" className="h-8" />
-          </div>
+        <div className="mb-8 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="ePartner HR" className="mx-auto mb-6 h-10" />
           <h1 className="font-display text-4xl font-extrabold tracking-tighter text-primary">
             ePartner HR
           </h1>
@@ -110,7 +108,7 @@ export default function RegisterPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="Mario Rossi"
-                className="w-full rounded-t-sm border-0 border-b-2 border-transparent bg-surface-container-highest px-4 py-3 transition-all duration-200 placeholder:text-outline/40 focus:border-primary focus:ring-0"
+                className="w-full rounded-lg border-none bg-surface-container-highest px-4 py-3 text-on-surface transition-all placeholder:text-outline-variant focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
@@ -129,7 +127,7 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="mario@enterprise.it"
-                className="w-full rounded-t-sm border-0 border-b-2 border-transparent bg-surface-container-highest px-4 py-3 transition-all duration-200 placeholder:text-outline/40 focus:border-primary focus:ring-0"
+                className="w-full rounded-lg border-none bg-surface-container-highest px-4 py-3 text-on-surface transition-all placeholder:text-outline-variant focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
@@ -149,7 +147,7 @@ export default function RegisterPage() {
                 required
                 minLength={6}
                 placeholder="••••••••"
-                className="w-full rounded-t-sm border-0 border-b-2 border-transparent bg-surface-container-highest px-4 py-3 transition-all duration-200 placeholder:text-outline/40 focus:border-primary focus:ring-0"
+                className="w-full rounded-lg border-none bg-surface-container-highest px-4 py-3 text-on-surface transition-all placeholder:text-outline-variant focus:ring-2 focus:ring-primary/30"
               />
             </div>
 

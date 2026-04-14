@@ -195,3 +195,31 @@ export async function DELETE(request: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+
+/** PATCH — aggiorna il ruolo di un utente attivo. */
+export async function PATCH(request: NextRequest) {
+  const denied = await checkAuth();
+  if (denied) return denied;
+
+  const body = await request.json();
+  const { userId, role } = body as { userId: string; role: string };
+
+  if (!userId || !["ADMIN", "EMPLOYEE"].includes(role)) {
+    return NextResponse.json(
+      { error: "userId e role (ADMIN|EMPLOYEE) obbligatori" },
+      { status: 400 }
+    );
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.active) {
+    return NextResponse.json({ error: "Utente non trovato o non attivo" }, { status: 404 });
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role },
+  });
+
+  return NextResponse.json({ ok: true });
+}

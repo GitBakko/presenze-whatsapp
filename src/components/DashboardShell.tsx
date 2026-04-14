@@ -13,7 +13,10 @@ import { ConfirmProvider } from "./ConfirmProvider";
 import { getInitials, getAvatarColor } from "@/lib/avatar-utils";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Desktop: sidebar aperta di default. Mobile: chiusa.
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
   const { data: session } = useSession();
 
   const userName = session?.user?.name ?? "Utente";

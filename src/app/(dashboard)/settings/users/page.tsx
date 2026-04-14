@@ -108,6 +108,25 @@ export default function UsersSettingsPage() {
     }
   };
 
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    try {
+      const res = await fetch("/api/settings/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+      if (res.ok) {
+        toast.success(`Ruolo aggiornato a ${newRole === "ADMIN" ? "Amministratore" : "Dipendente"}`);
+        loadAll();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Errore nell'aggiornamento del ruolo");
+      }
+    } catch {
+      toast.error("Errore di rete");
+    }
+  };
+
   // Dipendenti già associati a un utente attivo (non mostrarli nel dropdown)
   const linkedEmployeeIds = new Set(
     active.filter((u) => u.employeeId).map((u) => u.employeeId!)
@@ -249,28 +268,31 @@ export default function UsersSettingsPage() {
                         <td className="px-4 py-3 font-mono text-xs">{u.email}</td>
                         <td className="px-4 py-3 font-medium">{u.name}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                            u.role === "ADMIN"
-                              ? "bg-violet-100 text-violet-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}>
-                            {u.role === "ADMIN" ? "Admin" : "Dipendente"}
-                          </span>
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                            className={`rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-primary/20 ${
+                              u.role === "ADMIN"
+                                ? "bg-violet-100 text-violet-800"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            <option value="EMPLOYEE">Dipendente</option>
+                            <option value="ADMIN">Amministratore</option>
+                          </select>
                         </td>
                         <td className="px-4 py-3 text-xs">
                           {u.employeeName ?? <span className="text-on-surface-variant">—</span>}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
-                            {u.role !== "ADMIN" && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeactivate(u.id)}
-                                className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-                              >
-                                <UserX className="h-3 w-3" /> Disattiva
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeactivate(u.id)}
+                              className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                            >
+                              <UserX className="h-3 w-3" /> Disattiva
+                            </button>
                           </div>
                         </td>
                       </tr>

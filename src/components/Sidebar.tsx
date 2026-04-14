@@ -58,11 +58,18 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
     >
       {/* Brand */}
       <div className="mb-10 px-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="ePartner HR" className="h-8" />
-        <p className="mt-2 text-xs uppercase tracking-wider text-on-surface-variant">
-          Gestione Presenze
-        </p>
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="ePartner HR" className="h-8" />
+          <div>
+            <span className="font-display text-base font-extrabold tracking-tight text-primary">
+              ePartner <span className="text-primary-container">HR</span>
+            </span>
+            <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">
+              Gestione Presenze
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}

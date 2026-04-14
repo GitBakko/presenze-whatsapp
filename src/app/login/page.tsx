@@ -60,10 +60,8 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-6 inline-flex h-16 items-center justify-center rounded-xl bg-white/95 px-4 shadow-editorial backdrop-blur-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="ePartner HR" className="h-8" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="ePartner HR" className="mx-auto mb-6 h-10" />
           <h1 className="mb-2 font-display text-4xl font-extrabold tracking-tight text-primary">
             ePartner HR
           </h1>

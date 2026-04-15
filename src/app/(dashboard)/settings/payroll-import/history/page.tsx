@@ -1,5 +1,8 @@
 "use client";
+
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { FileSpreadsheet, History } from "lucide-react";
 
 interface Item {
   id: string;
@@ -29,53 +32,102 @@ export default function PayrollImportHistoryPage() {
   }, []);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Storico import paghe</h1>
-        <a href="/settings/payroll-import" className="text-sm text-blue-600 hover:underline">
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Link
+          href="/settings/payroll-import"
+          className="text-sm text-primary hover:text-primary-container"
+        >
           ← Nuovo import
-        </a>
+        </Link>
       </div>
-      {loading && <p>Caricamento…</p>}
-      {!loading && items.length === 0 && (
-        <p className="text-gray-500">Nessun import ancora.</p>
+
+      <div className="flex items-center gap-3">
+        <FileSpreadsheet className="h-7 w-7 text-primary" strokeWidth={1.5} />
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">
+          Storico import paghe
+        </h1>
+      </div>
+      <p className="text-sm text-on-surface-variant">
+        Archivio di tutti gli import del tabulato ferie/permessi. Apri un
+        dettaglio per confrontare i saldi prima e dopo l&apos;import per
+        ciascun dipendente.
+      </p>
+
+      {loading && (
+        <p className="text-sm text-on-surface-variant">Caricamento…</p>
       )}
+
+      {!loading && items.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-white py-12 text-center">
+          <History className="mb-3 h-12 w-12 text-outline-variant" strokeWidth={1.5} />
+          <p className="text-sm text-on-surface-variant">
+            Nessun import ancora eseguito
+          </p>
+        </div>
+      )}
+
       {items.length > 0 && (
-        <table className="w-full text-sm bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              <th className="px-3 py-2">Data</th>
-              <th className="px-3 py-2">Utente</th>
-              <th className="px-3 py-2">Tabulato</th>
-              <th className="px-3 py-2">File</th>
-              <th className="px-3 py-2 text-right">Aggiornati</th>
-              <th className="px-3 py-2 text-right">Orfani</th>
-              <th className="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((i) => (
-              <tr key={i.id} className="border-t">
-                <td className="px-3 py-2">{new Date(i.createdAt).toLocaleString("it-IT")}</td>
-                <td className="px-3 py-2">{i.userName}</td>
-                <td className="px-3 py-2">{i.sourceMonth}</td>
-                <td className="px-3 py-2 text-xs font-mono">{i.fileName}</td>
-                <td className="px-3 py-2 text-right">
-                  {i.matchedEmployees}/{i.totalEmployees}
-                </td>
-                <td className="px-3 py-2 text-right">{i.orphanEmployees}</td>
-                <td className="px-3 py-2">
-                  <a
-                    href={`/settings/payroll-import/history/${i.id}`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    Dettagli
-                  </a>
-                </td>
+        <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-surface-container bg-surface-container-low/50">
+                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">
+                  Data
+                </th>
+                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">
+                  Utente
+                </th>
+                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">
+                  Tabulato
+                </th>
+                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">
+                  File
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-outline-variant">
+                  Aggiornati
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-outline-variant">
+                  Orfani
+                </th>
+                <th className="px-4 py-3"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-surface-container-low">
+              {items.map((i) => (
+                <tr
+                  key={i.id}
+                  className="transition-colors hover:bg-surface-container-low/50"
+                >
+                  <td className="px-4 py-3 text-on-surface">
+                    {new Date(i.createdAt).toLocaleString("it-IT")}
+                  </td>
+                  <td className="px-4 py-3 text-on-surface">{i.userName}</td>
+                  <td className="px-4 py-3 font-semibold text-on-surface">
+                    {i.sourceMonth}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-on-surface-variant">
+                    <span className="font-mono">{i.fileName}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-on-surface">
+                    {i.matchedEmployees}/{i.totalEmployees}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-on-surface-variant">
+                    {i.orphanEmployees}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/settings/payroll-import/history/${i.id}`}
+                      className="text-sm font-semibold text-primary hover:text-primary-container"
+                    >
+                      Dettagli →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

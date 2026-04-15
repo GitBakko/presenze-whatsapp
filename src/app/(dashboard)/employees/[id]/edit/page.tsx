@@ -19,6 +19,7 @@ interface EmployeeProfile {
   contractType: string;
   email: string | null;
   nfcUid: string | null;
+  payrollId: string | null;
   telegramChatId: string | null;
   telegramUsername: string | null;
   vacationCarryOver: number;
@@ -37,6 +38,7 @@ export default function EmployeeEditPage() {
   const [contractType, setContractType] = useState("FULL_TIME");
   const [email, setEmail] = useState("");
   const [nfcUid, setNfcUid] = useState("");
+  const [payrollId, setPayrollId] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramUsername, setTelegramUsername] = useState("");
   const [vacationCarryOver, setVacationCarryOver] = useState("0");
@@ -151,6 +153,7 @@ export default function EmployeeEditPage() {
         setContractType(data.contractType ?? "FULL_TIME");
         setEmail(data.email ?? "");
         setNfcUid(data.nfcUid ?? "");
+        setPayrollId(data.payrollId ?? "");
         setTelegramChatId(data.telegramChatId ?? "");
         setTelegramUsername(data.telegramUsername ?? "");
         setVacationCarryOver(String(data.vacationCarryOver ?? 0));
@@ -181,6 +184,7 @@ export default function EmployeeEditPage() {
     form.append("contractType", contractType);
     form.append("email", email);
     form.append("nfcUid", nfcUid);
+    form.append("payrollId", payrollId);
     form.append("telegramChatId", telegramChatId);
     form.append("telegramUsername", telegramUsername);
     form.append("vacationCarryOver", vacationCarryOver);
@@ -372,6 +376,23 @@ export default function EmployeeEditPage() {
                     Postazione NFC
                   </Link>
                   .
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="payrollId" className="mb-1 block text-sm font-medium text-on-surface-variant">
+                  Matricola paghe
+                </label>
+                <input
+                  id="payrollId"
+                  type="text"
+                  value={payrollId}
+                  onChange={(e) => setPayrollId(e.target.value)}
+                  placeholder="es. 5"
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
+                />
+                <p className="mt-1 text-xs text-outline-variant">
+                  Numero matricola del consulente paghe — usato per l&apos;import del tabulato.
                 </p>
               </div>
 

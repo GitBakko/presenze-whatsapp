@@ -48,17 +48,17 @@ export function CalendarView({
   };
 
   return (
-    <div className="rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-sm">
       {/* Month nav */}
       <div className="flex items-center justify-between border-b border-surface-container px-5 py-3">
         <div className="flex items-center gap-1">
-          <button onClick={() => onChangeMonth(-1)} className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high">
+          <button onClick={() => onChangeMonth(-1)} aria-label="Mese precedente" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-high">
             <ChevronLeft className="h-5 w-5" />
           </button>
           <h3 className="font-display text-sm font-bold uppercase tracking-wider text-primary capitalize">
             {monthLabel}
           </h3>
-          <button onClick={() => onChangeMonth(1)} className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high">
+          <button onClick={() => onChangeMonth(1)} aria-label="Mese successivo" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-high">
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
@@ -110,6 +110,7 @@ export function CalendarView({
                     <button
                       key={i}
                       onClick={() => setSelectedEvent(ev)}
+                      aria-label={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}`}
                       className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-semibold leading-tight ${TYPE_COLORS[ev.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400 ring-offset-0" : ""}`}
                       title={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}`}
                     >
@@ -179,7 +180,7 @@ function EventDetailPopup({
     >
       <div
         ref={modalContentRef}
-        className="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-elevated"
+        className="mx-4 w-full max-w-md rounded-xl bg-surface-container-lowest p-6 shadow-elevated"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">

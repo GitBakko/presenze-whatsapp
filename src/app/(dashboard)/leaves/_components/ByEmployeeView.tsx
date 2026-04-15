@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { ByEmployeeCard, ByEmployeeRequest } from "./types";
 import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS } from "./types";
 import { BalanceMini } from "./BalanceCard";
+import { StatusBadge } from "@/components/StatusBadge";
 
 export function ByEmployeeView({
   loading,
@@ -17,9 +18,12 @@ export function ByEmployeeView({
 }) {
   const [query, setQuery] = useState("");
 
-  const filtered = cards.filter((c) =>
-    !query.trim() ||
-    c.displayName.toLowerCase().includes(query.toLowerCase().trim())
+  const filtered = useMemo(
+    () => cards.filter((c) =>
+      !query.trim() ||
+      c.displayName.toLowerCase().includes(query.toLowerCase().trim())
+    ),
+    [cards, query]
   );
 
   if (loading) {
@@ -82,7 +86,7 @@ function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
     r.startDate === r.endDate ? r.startDate : `${r.startDate} → ${r.endDate}`;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-card">
       {/* Header card */}
       <div className="flex items-center justify-between border-b border-surface-container px-5 py-4">
         <div className="flex items-center gap-3">
@@ -94,7 +98,7 @@ function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
               className="h-10 w-10 rounded-full object-cover ring-2 ring-surface-container-lowest"
             />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-container text-sm font-bold text-on-primary ring-2 ring-surface-container-lowest">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-container text-sm font-bold text-on-primary-container ring-2 ring-surface-container-lowest">
               {initials}
             </div>
           )}
@@ -116,19 +120,13 @@ function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
 
         <div className="flex items-center gap-2 text-xs">
           {counts.APPROVED > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-800">
-              {counts.APPROVED} approvate
-            </span>
+            <StatusBadge kind="success">{counts.APPROVED} approvate</StatusBadge>
           )}
           {counts.PENDING > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 font-semibold text-yellow-800">
-              {counts.PENDING} in attesa
-            </span>
+            <StatusBadge kind="warning">{counts.PENDING} in attesa</StatusBadge>
           )}
           {counts.REJECTED > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-800">
-              {counts.REJECTED} rifiutate
-            </span>
+            <StatusBadge kind="error">{counts.REJECTED} rifiutate</StatusBadge>
           )}
         </div>
       </div>
@@ -180,12 +178,12 @@ function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-surface-container bg-surface-container-low/20">
-              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tipo</th>
-              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Periodo</th>
-              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Ore</th>
-              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Stato</th>
-              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Origine</th>
-              <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Note</th>
+              <th scope="col" className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tipo</th>
+              <th scope="col" className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Periodo</th>
+              <th scope="col" className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Ore</th>
+              <th scope="col" className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Stato</th>
+              <th scope="col" className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Origine</th>
+              <th scope="col" className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Note</th>
             </tr>
           </thead>
           <tbody>

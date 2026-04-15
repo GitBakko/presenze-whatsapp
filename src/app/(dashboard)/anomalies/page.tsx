@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { DateRangePicker } from "@/components/DateRangePicker";
+import { StatusBadge } from "@/components/StatusBadge";
 import {
   CheckCircle, CheckCircle2, HelpCircle, RefreshCw, AlertTriangle,
   Wrench, X, Clock, LogIn, LogOut, Pause, Play,
@@ -126,6 +127,11 @@ export default function AnomaliesPage() {
   const [deleteIds, setDeleteIds] = useState<Set<string>>(new Set());
   const [edits, setEdits] = useState<Record<string, RecordEdit>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const filtered = useMemo(
+    () => (showResolved ? anomalies : anomalies.filter((a) => !a.resolved)),
+    [anomalies, showResolved]
+  );
 
   const load = useCallback(() => {
     setLoading(true);
@@ -331,7 +337,7 @@ export default function AnomaliesPage() {
 
       {loading ? (
         <div className="flex h-64 items-center justify-center text-on-surface-variant">Caricamento...</div>
-      ) : anomalies.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="flex items-center justify-center gap-2 rounded-lg bg-success-container p-8 text-on-success-container">
           <CheckCircle className="h-6 w-6 text-emerald-500" />
           Nessuna anomalia trovata nel periodo selezionato.
@@ -341,30 +347,35 @@ export default function AnomaliesPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-surface-container bg-surface-container-low">
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Dipendente</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Data</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Problema</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Stato</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Azione</th>
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Dipendente</th>
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Data</th>
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Problema</th>
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Stato</th>
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Azione</th>
               </tr>
             </thead>
             <tbody>
-              {anomalies.map((a) => {
+              {filtered.map((a) => {
                 const isComputed = !!a.computed;
                 return (
                 <tr
                   key={a.id}
-                  className={`border-b border-surface-container transition-colors ${a.resolved ? "bg-surface-container-low/30" : isComputed ? "hover:bg-amber-50/40 dark:hover:bg-amber-950/20" : "hover:bg-error-container/20"}`}
+                  className={`border-b border-surface-container transition-colors ${a.resolved ? "bg-surface-container-low/30" : isComputed ? "hover:bg-warning-container/30" : "hover:bg-error-container/20"}`}
                 >
                   <td className="px-4 py-3 font-medium">{a.employee}</td>
                   <td className="px-4 py-3 tabular-nums text-on-surface-variant">{formatDate(a.date)}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${a.resolved ? "bg-surface-container text-on-surface-variant" : isComputed ? "border border-amber-300 bg-amber-200 text-amber-950 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-50" : "bg-error-container text-error"}`}>
-                      {isComputed
-                        ? <AlertTriangle className="h-3.5 w-3.5" />
-                        : a.type.includes("MISSING") ? <HelpCircle className="h-3.5 w-3.5" /> : a.type.includes("MISMATCH") ? <RefreshCw className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-                      {a.description}
-                    </span>
+                    {isComputed ? (
+                      <StatusBadge kind="warning">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {a.description}
+                      </StatusBadge>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${a.resolved ? "bg-surface-container text-on-surface-variant" : "bg-error-container text-error"}`}>
+                        {a.type.includes("MISSING") ? <HelpCircle className="h-3.5 w-3.5" /> : a.type.includes("MISMATCH") ? <RefreshCw className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                        {a.description}
+                      </span>
+                    )}
                     {isComputed && (
                       <span className="ml-2 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-800 dark:text-amber-50">Possibile</span>
                     )}
@@ -387,7 +398,7 @@ export default function AnomaliesPage() {
                         <button
                           onClick={() => openResolvePanel(a)}
                           disabled={submitting}
-                          className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-primary to-primary-container px-3 py-1.5 text-xs font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="min-h-[44px] inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-on-primary transition-shadow hover:bg-primary-container hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Wrench className="h-3.5 w-3.5" />
                           Risolvi
@@ -397,7 +408,7 @@ export default function AnomaliesPage() {
                             <button
                               onClick={() => handleDismiss(a)}
                               disabled={submitting}
-                              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-shadow hover:bg-emerald-700 hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="min-h-[44px] inline-flex items-center gap-1 rounded-md bg-success px-3 py-1.5 text-xs font-medium text-on-primary transition-shadow hover:bg-success/90 hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               Corretto
@@ -430,12 +441,12 @@ export default function AnomaliesPage() {
         <ResolutionPanelOverlay onClose={closePanel}>
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <h2 className="font-display text-lg font-bold text-primary">Risolvi anomalia</h2>
+                <h2 id="resolution-panel-title" className="font-display text-lg font-bold text-primary">Risolvi anomalia</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
                   {resolvingAnomaly.employee} — {formatDate(resolvingAnomaly.date)}
                 </p>
               </div>
-              <button onClick={closePanel} className="rounded-full p-1 text-on-surface-variant hover:bg-surface-container">
+              <button onClick={closePanel} aria-label="Chiudi" className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -632,7 +643,7 @@ export default function AnomaliesPage() {
               <button
                 onClick={() => handleResolve(resolvingAnomaly)}
                 disabled={submitting || (!addTime && deleteIds.size === 0 && Object.keys(edits).length === 0 && !resolution)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary transition-shadow hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-shadow hover:bg-primary-container hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="h-3.5 w-3.5" />
                 {submitting ? "Salvataggio..." : "Conferma e risolvi"}
@@ -658,6 +669,9 @@ function ResolutionPanelOverlay({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]" onClick={onClose}>
       <div
         ref={modalContentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resolution-panel-title"
         className="mx-4 w-full max-w-lg rounded-lg bg-surface-container-lowest p-6 shadow-editorial"
         onClick={(e) => e.stopPropagation()}
       >

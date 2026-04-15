@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { hoursToHHMM, minutesToHHMM } from "@/lib/formatTime";
 import { Download } from "lucide-react";
 
@@ -24,13 +24,13 @@ export default function ReportsPage() {
   const [data, setData] = useState<EmployeeReport[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const range = (() => {
+  const range = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
     const from = `${y}-${String(m).padStart(2, "0")}-01`;
     const lastDay = new Date(y, m, 0).getDate();
     const to = `${y}-${String(m).padStart(2, "0")}-${lastDay}`;
     return { from, to };
-  })();
+  }, [month]);
 
   useEffect(() => {
     setLoading(true);
@@ -56,10 +56,13 @@ export default function ReportsPage() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-primary">Report Mensile</h1>
         <div className="flex items-center gap-3">
+          <label htmlFor="report-month" className="sr-only">Mese di riferimento</label>
           <input
+            id="report-month"
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
+            aria-label="Mese di riferimento"
             className="rounded-lg border-0 bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary/20"
           />
           <button
@@ -76,7 +79,7 @@ export default function ReportsPage() {
           </button>
           <button
             onClick={handleExportPresenze}
-            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-3 py-2 text-sm font-medium text-on-primary shadow-card transition-shadow hover:shadow-elevated"
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary shadow-card transition-shadow hover:bg-primary-container hover:shadow-elevated"
             title="Report mensile nel formato 'foglio presenze' (griglia dipendenti × giorni)"
           >
             <Download className="mr-1 inline h-4 w-4" /> Foglio Presenze
@@ -97,28 +100,28 @@ export default function ReportsPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-surface-container bg-surface-container-low">
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Dipendente
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Giorni
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Ore Totali
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Pausa Tot.
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Media Ore/Giorno
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Ritardi
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Straordinario
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Anomalie
                 </th>
               </tr>

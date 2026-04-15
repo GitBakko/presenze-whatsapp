@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   Hourglass, Plus, Calendar, List, Users,
 } from "lucide-react";
+import { StatusBadge } from "@/components/StatusBadge";
 import { useConfirm, useConfirmWithPrompt } from "@/components/ConfirmProvider";
 
 import type { LeaveRequest, CalendarDay, Employee, LeaveBalance, ByEmployeeCard } from "./_components/types";
@@ -216,7 +217,10 @@ export default function LeavesPage() {
     return d === 0 ? 6 : d - 1;
   })();
 
-  const pendingCount = requests.filter((r) => r.status === "PENDING").length;
+  const pendingCount = useMemo(
+    () => requests.filter((r) => r.status === "PENDING").length,
+    [requests]
+  );
 
   return (
     <div className="space-y-6">
@@ -232,14 +236,14 @@ export default function LeavesPage() {
         </div>
         <div className="flex items-center gap-3">
           {pendingCount > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800">
-              <Hourglass className="h-3.5 w-3.5 text-amber-500" />
+            <StatusBadge kind="warning">
+              <Hourglass className="h-3.5 w-3.5" />
               {pendingCount} da approvare
-            </span>
+            </StatusBadge>
           )}
           <button
             onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-primary/90"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary shadow-sm transition-all hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
             Nuova richiesta
@@ -253,32 +257,36 @@ export default function LeavesPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg bg-surface-container-high p-1">
+      <div role="tablist" className="flex gap-1 rounded-lg bg-surface-container-high p-1">
         <button
+          role="tab"
+          aria-selected={tab === "calendar"}
           onClick={() => setTab("calendar")}
-          className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "calendar" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
+          className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "calendar" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
         >
-          <Calendar className="mr-1 inline h-4 w-4 align-middle text-blue-500" />
+          <Calendar className="mr-1 inline h-4 w-4 align-middle text-primary" />
           Calendario
         </button>
         <button
+          role="tab"
+          aria-selected={tab === "requests"}
           onClick={() => setTab("requests")}
-          className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "requests" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
+          className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "requests" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
         >
-          <List className="mr-1 inline h-4 w-4 align-middle text-violet-500" />
+          <List className="mr-1 inline h-4 w-4 align-middle text-tertiary" />
           Richieste
           {pendingCount > 0 && (
-            <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-white">
-              {pendingCount}
-            </span>
+            <StatusBadge kind="warning">{pendingCount}</StatusBadge>
           )}
         </button>
         {isLeavesAdmin && (
         <button
+          role="tab"
+          aria-selected={tab === "byEmployee"}
           onClick={() => setTab("byEmployee")}
-          className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "byEmployee" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
+          className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-all ${tab === "byEmployee" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
         >
-          <Users className="mr-1 inline h-4 w-4 align-middle text-emerald-500" />
+          <Users className="mr-1 inline h-4 w-4 align-middle text-success" />
           Per dipendente
         </button>
         )}

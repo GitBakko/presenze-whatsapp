@@ -95,10 +95,10 @@ export function CreateLeaveModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
-      <div ref={modalContentRef} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div ref={modalContentRef} className="w-full max-w-lg rounded-2xl bg-surface-container-lowest p-6 shadow-editorial" onClick={(e) => e.stopPropagation()}>
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-primary">Nuova Richiesta</h2>
-          <button onClick={onClose} className="text-outline-variant hover:text-on-surface">
+          <button onClick={onClose} aria-label="Chiudi" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-outline-variant hover:text-on-surface">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -209,7 +209,7 @@ export function CreateLeaveModal({
                   value={hours}
                   onChange={(e) => setHours(e.target.value)}
                   readOnly={!!(timeFrom && timeTo)}
-                  className={`w-full rounded-lg border border-outline-variant/30 px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${timeFrom && timeTo ? "bg-gray-50 text-gray-500" : ""}`}
+                  className={`w-full rounded-lg border border-outline-variant/30 px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${timeFrom && timeTo ? "bg-surface-container text-on-surface-variant" : ""}`}
                   placeholder="Es: 2"
                 />
                 <p className="mt-1 text-[11px] text-outline-variant">

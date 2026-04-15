@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { KeyRound, Copy, Check } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { StatusBadge } from "@/components/StatusBadge";
+import { InfoBanner } from "@/components/InfoBanner";
 
 interface EmployeeProfile {
   id: string;
@@ -67,7 +69,7 @@ export default function EmployeeEditPage() {
       const res = await fetch(`/api/employees/${id}/api-key`);
       if (res.ok) setApiKeyState(await res.json());
     } catch {
-      // ignore
+      console.error("Impossibile caricare stato chiave API");
     }
   }, [id]);
 
@@ -193,18 +195,23 @@ export default function EmployeeEditPage() {
     form.append("rolAccrualAdjust", rolAccrualAdjust);
     if (selectedFile) form.append("avatar", selectedFile);
 
-    const res = await fetch(`/api/employees/${id}`, { method: "PUT", body: form });
-    if (res.ok) {
-      const updated: EmployeeProfile = await res.json();
-      setProfile(updated);
-      setSelectedFile(null);
-      if (updated.avatarUrl) setPreview(updated.avatarUrl);
-      setMessage({ type: "ok", text: "Profilo aggiornato!" });
-    } else {
-      const err = await res.json();
-      setMessage({ type: "err", text: err.error || "Errore nel salvataggio" });
+    try {
+      const res = await fetch(`/api/employees/${id}`, { method: "PUT", body: form });
+      if (res.ok) {
+        const updated: EmployeeProfile = await res.json();
+        setProfile(updated);
+        setSelectedFile(null);
+        if (updated.avatarUrl) setPreview(updated.avatarUrl);
+        setMessage({ type: "ok", text: "Profilo aggiornato!" });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMessage({ type: "err", text: err.error || "Errore nel salvataggio" });
+      }
+    } catch {
+      setMessage({ type: "err", text: "Errore di rete" });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   if (loading) {
@@ -258,7 +265,7 @@ export default function EmployeeEditPage() {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-primary-container text-2xl font-bold text-on-primary">
+              <div className="flex h-full w-full items-center justify-center bg-primary-container text-2xl font-bold text-on-primary-container">
                 {initials}
               </div>
             )}
@@ -368,7 +375,7 @@ export default function EmployeeEditPage() {
                   value={nfcUid}
                   onChange={(e) => setNfcUid(e.target.value)}
                   placeholder="es. 04A1B2C3"
-                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 font-mono text-sm text-on-surface focus:border-primary focus:ring-0"
+                  className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
                 />
                 <p className="mt-1 text-xs text-outline-variant">
                   Usa caratteri esadecimali. Puoi anche associare un UID dal pannello{" "}
@@ -406,7 +413,7 @@ export default function EmployeeEditPage() {
                     value={telegramChatId}
                     onChange={(e) => setTelegramChatId(e.target.value)}
                     placeholder="es. 123456789"
-                    className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 font-mono text-sm text-on-surface focus:border-primary focus:ring-0"
+                    className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
                   />
                 </div>
                 <div>
@@ -514,42 +521,38 @@ export default function EmployeeEditPage() {
                 type="button"
                 onClick={handleGenerateKey}
                 disabled={keyBusy}
-                className="rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary shadow-card hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-card hover:bg-primary-container hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Genera API Key
               </button>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-xs">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-semibold ${
-                    apiKeyState.active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                  }`}>
+                  <StatusBadge kind={apiKeyState.active ? "success" : "error"}>
                     {apiKeyState.active ? "Attiva" : "Disattivata"}
-                  </span>
+                  </StatusBadge>
                   <span className="text-outline-variant">
                     Creata il {apiKeyState.createdAt ? new Date(apiKeyState.createdAt).toLocaleDateString("it-IT") : "—"}
                   </span>
                 </div>
 
                 {newKeyPlaintext && (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3">
-                    <p className="mb-1 text-xs font-semibold text-amber-900">
-                      Copia questa chiave — non verrà più mostrata!
-                    </p>
+                  <InfoBanner kind="warning" title="Nuova chiave generata">
+                    <p className="mb-2 text-xs">Copia questa chiave — non verrà più mostrata!</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 break-all rounded bg-white px-2 py-1 font-mono text-xs text-on-surface">
+                      <code className="flex-1 break-all rounded bg-surface-container-low px-2 py-1 font-mono text-xs text-on-surface">
                         {newKeyPlaintext}
                       </code>
                       <button
                         type="button"
                         onClick={copyKey}
-                        className="inline-flex items-center gap-1 rounded-md bg-amber-200 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300"
+                        className="inline-flex items-center gap-1 rounded-md bg-warning-container px-2.5 py-1 text-xs font-medium text-warning hover:bg-warning-container/80"
                       >
                         {keyCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                         {keyCopied ? "Copiata" : "Copia"}
                       </button>
                     </div>
-                  </div>
+                  </InfoBanner>
                 )}
 
                 <div className="flex gap-2">
@@ -573,7 +576,7 @@ export default function EmployeeEditPage() {
                     type="button"
                     onClick={handleDeleteKey}
                     disabled={keyBusy}
-                    className="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="rounded-md bg-error-container px-3 py-1.5 text-xs font-medium text-error hover:bg-error-container/80 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Elimina
                   </button>
@@ -593,15 +596,17 @@ export default function EmployeeEditPage() {
           )}
           <div className="ml-auto flex gap-3">
             <button
+              type="button"
               onClick={() => router.push(`/employees/${id}`)}
               className="rounded-lg px-4 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
             >
               Calendario
             </button>
             <button
+              type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary shadow-card transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-card transition-all hover:bg-primary-container hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? "Salvataggio..." : "Salva"}
             </button>

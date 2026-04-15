@@ -119,17 +119,17 @@ export function GanttCalendar({
   const TIMELINE_HEIGHT = SLOT_COUNT * SLOT_HEIGHT;
 
   return (
-    <div className="rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-surface-container px-5 py-3">
         <div className="flex items-center gap-3">
-          <button onClick={() => onChangeMonth(-1)} className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high">
+          <button onClick={() => onChangeMonth(-1)} aria-label="Mese precedente" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-high">
             <ChevronLeft className="h-5 w-5" />
           </button>
           <h3 className="font-display text-sm font-bold uppercase tracking-wider text-primary capitalize">
             {monthLabel}
           </h3>
-          <button onClick={() => onChangeMonth(1)} className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high">
+          <button onClick={() => onChangeMonth(1)} aria-label="Mese successivo" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-high">
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
@@ -145,7 +145,7 @@ export function GanttCalendar({
       <div className="overflow-x-auto">
         <div className="inline-flex min-w-full">
           {/* Time axis (left column) */}
-          <div className="sticky left-0 z-10 w-14 flex-shrink-0 border-r border-surface-container bg-white">
+          <div className="sticky left-0 z-10 w-14 flex-shrink-0 border-r border-surface-container bg-surface-container-lowest">
             {/* Empty header cell */}
             <div className="h-8 border-b border-surface-container" />
             {/* Time labels */}
@@ -218,6 +218,7 @@ export function GanttCalendar({
                     return (
                       <div
                         key={bi}
+                        aria-label={`${block.employeeName} — ${block.typeLabel}`}
                         className={`absolute overflow-hidden rounded px-1 py-0.5 text-[9px] font-semibold leading-tight ${TYPE_COLORS[block.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400" : ""}`}
                         style={{
                           top: topPx,

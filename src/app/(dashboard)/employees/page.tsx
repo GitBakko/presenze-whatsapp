@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/formatTime";
 import { Pencil, UserPlus, X } from "lucide-react";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { InfoBanner } from "@/components/InfoBanner";
 
 interface Employee {
   id: string;
@@ -36,7 +37,7 @@ function Avatar({ emp, size = "md" }: { emp: Employee; size?: "sm" | "md" }) {
   }
   return (
     <div
-      className={`${dim} flex items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-container font-bold text-on-primary ring-2 ring-surface-container-lowest`}
+      className={`${dim} flex items-center justify-center rounded-full bg-primary-container font-bold text-on-primary-container ring-2 ring-surface-container-lowest`}
     >
       {initials}
     </div>
@@ -128,7 +129,7 @@ export default function EmployeesPage() {
         <button
           type="button"
           onClick={openModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary shadow-card transition-shadow hover:shadow-elevated"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-card transition-shadow hover:bg-primary-container hover:shadow-elevated"
         >
           <UserPlus className="h-4 w-4" />
           Nuovo dipendente
@@ -148,14 +149,14 @@ export default function EmployeesPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-surface-container bg-surface-container-low">
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Dipendente</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Dipendente</th>
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Giorni Registrati
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Ultima Presenza
                 </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
                   Azioni
                 </th>
               </tr>
@@ -265,6 +266,8 @@ function NewEmployeeModal({
     >
       <div
         ref={modalContentRef}
+        role="dialog"
+        aria-modal="true"
         className="mx-4 w-full max-w-md rounded-lg bg-surface-container-lowest p-6 shadow-editorial"
         onClick={(e) => e.stopPropagation()}
       >
@@ -276,8 +279,8 @@ function NewEmployeeModal({
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded p-1 text-on-surface-variant hover:bg-surface-container"
                 aria-label="Chiudi"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -285,17 +288,18 @@ function NewEmployeeModal({
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-on-surface-variant">
+                <label htmlFor="emp-name" className="block text-xs font-medium text-on-surface-variant">
                   Nome <span className="text-error">*</span>
                 </label>
                 <input
+                  id="emp-name"
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   required
                   autoFocus
                   placeholder="es. Mario Rossi"
-                  className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus:ring-1 focus:ring-primary/40"
+                  className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
                 <p className="mt-1 text-[11px] text-on-surface-variant">
                   Nome &quot;tecnico&quot;, deve corrispondere al nome usato nei messaggi WhatsApp per il match automatico.
@@ -303,38 +307,41 @@ function NewEmployeeModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-on-surface-variant">
+                <label htmlFor="emp-display-name" className="block text-xs font-medium text-on-surface-variant">
                   Nome visualizzato
                 </label>
                 <input
+                  id="emp-display-name"
                   type="text"
                   value={formDisplayName}
                   onChange={(e) => setFormDisplayName(e.target.value)}
                   placeholder="(opzionale)"
-                  className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus:ring-1 focus:ring-primary/40"
+                  className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-on-surface-variant">
+                  <label htmlFor="emp-hire-date" className="block text-xs font-medium text-on-surface-variant">
                     Data assunzione
                   </label>
                   <input
+                    id="emp-hire-date"
                     type="date"
                     value={formHireDate}
                     onChange={(e) => setFormHireDate(e.target.value)}
-                    className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus:ring-1 focus:ring-primary/40"
+                    className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-on-surface-variant">
+                  <label htmlFor="emp-contract-type" className="block text-xs font-medium text-on-surface-variant">
                     Tipo contratto
                   </label>
                   <select
+                    id="emp-contract-type"
                     value={formContractType}
                     onChange={(e) => setFormContractType(e.target.value)}
-                    className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus:ring-1 focus:ring-primary/40"
+                    className="mt-1 w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
                     <option value="FULL_TIME">Full-time</option>
                     <option value="PART_TIME">Part-time</option>
@@ -343,9 +350,7 @@ function NewEmployeeModal({
               </div>
 
               {formError && (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                  {formError}
-                </div>
+                <InfoBanner kind="error">{formError}</InfoBanner>
               )}
 
               <div className="flex justify-end gap-2 pt-2">
@@ -360,7 +365,7 @@ function NewEmployeeModal({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-md bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-container hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? "Creazione..." : "Crea"}
                 </button>

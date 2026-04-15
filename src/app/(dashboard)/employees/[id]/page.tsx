@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -105,10 +105,10 @@ export default function EmployeeDetailPage() {
     setLoading(true);
     const monthStr = `${y}-${String(m).padStart(2, "0")}`;
     Promise.all([
-      fetch(`/api/attendance?from=${from}&to=${to}&employeeId=${id}`).then((r) => r.json()),
-      fetch(`/api/employees/${id}`).then((r) => r.json()),
-      fetch(`/api/leaves/balance/${id}`).then((r) => r.ok ? r.json() : null),
-      fetch(`/api/leaves/calendar?month=${monthStr}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/attendance?from=${from}&to=${to}&employeeId=${id}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/employees/${id}`).then((r) => r.json()).catch(() => null),
+      fetch(`/api/leaves/balance/${id}`).then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/leaves/calendar?month=${monthStr}`).then((r) => r.ok ? r.json() : null).catch(() => null),
     ])
       .then(([stats, emp, bal, cal]: [DailyStat[], EmployeeProfile & { name: string }, typeof leaveBalance, { calendar: { date: string; events: { employeeId: string; type: string; typeLabel: string; status: string; hours?: number | null }[] }[] } | null]) => {
         setData(stats);
@@ -136,25 +136,31 @@ export default function EmployeeDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   // Month summary
-  const totalHours = data.reduce((s, d) => s + d.hoursWorked, 0);
-  const totalPause = data.reduce((s, d) => s + d.pauseMinutes, 0);
-  const totalOvertime = data.reduce((s, d) => s + d.overtime, 0);
-  const totalDelayDays = data.filter((d) => d.morningDelay + d.afternoonDelay > 0).length;
-  const totalAnomalies = data.filter((d) => d.hasAnomaly).length;
+  const totalHours = useMemo(() => data.reduce((s, d) => s + d.hoursWorked, 0), [data]);
+  const totalPause = useMemo(() => data.reduce((s, d) => s + d.pauseMinutes, 0), [data]);
+  const totalOvertime = useMemo(() => data.reduce((s, d) => s + d.overtime, 0), [data]);
+  const totalDelayDays = useMemo(() => data.filter((d) => d.morningDelay + d.afternoonDelay > 0).length, [data]);
+  const totalAnomalies = useMemo(() => data.filter((d) => d.hasAnomaly).length, [data]);
 
   // Build date map
-  const dateMap = new Map<string, DailyStat>();
-  for (const d of data) dateMap.set(d.date, d);
+  const dateMap = useMemo(() => {
+    const m = new Map<string, DailyStat>();
+    for (const d of data) m.set(d.date, d);
+    return m;
+  }, [data]);
 
   const firstWeekday = getFirstDayOfWeek(y, m);
   const totalDays = getDaysInMonth(y, m);
   const today = new Date().toISOString().split("T")[0];
 
   // Build calendar grid
-  const calendarCells: (number | null)[] = [];
-  for (let i = 1; i < firstWeekday; i++) calendarCells.push(null);
-  for (let d = 1; d <= totalDays; d++) calendarCells.push(d);
-  while (calendarCells.length % 7 !== 0) calendarCells.push(null);
+  const calendarCells = useMemo<(number | null)[]>(() => {
+    const cells: (number | null)[] = [];
+    for (let i = 1; i < firstWeekday; i++) cells.push(null);
+    for (let d = 1; d <= totalDays; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [firstWeekday, totalDays]);
 
   const navigateMonth = (dir: -1 | 1) => {
     let nm = m + dir;
@@ -179,7 +185,7 @@ export default function EmployeeDetailPage() {
           {profile?.avatarUrl ? (
             <Image src={profile.avatarUrl} alt={employeeName} width={40} height={40} className="h-10 w-10 rounded-full object-cover ring-2 ring-surface-container-lowest shadow" />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-container text-sm font-bold text-on-primary ring-2 ring-surface-container-lowest shadow">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-container text-sm font-bold text-on-primary-container ring-2 ring-surface-container-lowest shadow">
               {initials}
             </div>
           )}
@@ -191,6 +197,7 @@ export default function EmployeeDetailPage() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigateMonth(-1)}
+          aria-label="Mese precedente"
           className="rounded-lg border border-surface-container bg-surface-container-lowest px-3 py-2 text-sm font-medium text-on-surface-variant shadow-card hover:bg-surface-container-low"
         >
           ←
@@ -200,6 +207,7 @@ export default function EmployeeDetailPage() {
         </div>
         <button
           onClick={() => navigateMonth(1)}
+          aria-label="Mese successivo"
           className="rounded-lg border border-surface-container bg-surface-container-lowest px-3 py-2 text-sm font-medium text-on-surface-variant shadow-card hover:bg-surface-container-low"
         >
           →

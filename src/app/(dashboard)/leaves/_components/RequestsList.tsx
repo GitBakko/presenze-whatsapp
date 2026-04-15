@@ -40,22 +40,22 @@ export function RequestsList({
 
       {/* Table */}
       {requests.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-white py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-16 text-center">
           <CalendarX2 className="mb-3 h-12 w-12 text-outline-variant" />
           <p className="text-sm text-on-surface-variant">Nessuna richiesta trovata</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-card">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-surface-container bg-surface-container-low/50">
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Dipendente</th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Tipo</th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Periodo</th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Ore</th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Stato</th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Fonte</th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Azioni</th>
+                <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Dipendente</th>
+                <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Tipo</th>
+                <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Periodo</th>
+                <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Ore</th>
+                <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Stato</th>
+                <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Fonte</th>
+                <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-outline-variant">Azioni</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-container-low">
@@ -90,15 +90,15 @@ export function RequestsList({
                     <div className="flex items-center gap-1">
                       {r.status === "PENDING" && (
                         <>
-                          <button onClick={() => onApprove(r.id)} className="rounded-lg p-1 text-green-600 hover:bg-green-50" title="Approva">
+                          <button onClick={() => onApprove(r.id)} aria-label="Approva" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-success hover:bg-success-container" title="Approva">
                             <CheckCircle className="h-5 w-5" />
                           </button>
-                          <button onClick={() => onReject(r.id)} className="rounded-lg p-1 text-red-500 hover:bg-red-50" title="Rifiuta">
+                          <button onClick={() => onReject(r.id)} aria-label="Rifiuta" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-error hover:bg-error-container" title="Rifiuta">
                             <XCircle className="h-5 w-5" />
                           </button>
                         </>
                       )}
-                      <button onClick={() => onDelete(r)} className="rounded-lg p-1 text-outline-variant hover:bg-surface-container-high hover:text-red-500" title="Elimina">
+                      <button onClick={() => onDelete(r)} aria-label="Elimina" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-outline-variant hover:bg-surface-container-high hover:text-error" title="Elimina">
                         <Trash2 className="h-5 w-5" />
                       </button>
                     </div>

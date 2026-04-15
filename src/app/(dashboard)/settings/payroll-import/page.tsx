@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { FileText, Upload } from "lucide-react";
 
 interface DiffPair {
   currentRemaining: number;
@@ -139,6 +140,23 @@ export default function PayrollImportPage() {
   const matchedCount = preview?.rows.filter((r) => r.matched).length ?? 0;
   const canConfirm = preview !== null && unmatchedCount === 0 && !busy;
 
+  const [dragOver, setDragOver] = useState(false);
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const f = e.dataTransfer.files[0];
+      if (!f) return;
+      if (!f.name.toLowerCase().endsWith(".pdf")) {
+        toast.error("Il file deve essere un PDF");
+        return;
+      }
+      handleFile(f);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -151,19 +169,65 @@ export default function PayrollImportPage() {
         </a>
       </div>
 
-      <section className="bg-white rounded-lg border border-gray-200 p-4">
-        <label className="block text-sm font-medium mb-2">
-          File PDF tabulato (max 5MB)
-        </label>
-        <input
-          type="file"
-          accept="application/pdf"
-          onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
-          disabled={busy}
-        />
-      </section>
+      <section className="space-y-3">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!busy) setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+            busy
+              ? "border-outline-variant bg-surface-container-low opacity-60"
+              : dragOver
+              ? "border-primary bg-primary-fixed/10"
+              : "border-outline-variant bg-surface-container-low hover:border-outline hover:bg-surface-container"
+          }`}
+        >
+          <Upload className="mb-3 h-12 w-12 text-primary" strokeWidth={1.5} />
+          <p className="text-base font-medium text-on-surface">
+            Trascina qui il tabulato PDF del consulente paghe
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            oppure
+          </p>
+          <label className="mt-3 cursor-pointer rounded-lg bg-surface-container-lowest px-4 py-2 text-sm font-medium text-primary shadow-card transition-shadow hover:shadow-elevated focus-within:ring-2 focus-within:ring-primary/30">
+            Sfoglia file
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              aria-label="Seleziona tabulato PDF"
+              onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              disabled={busy}
+              className="hidden"
+            />
+          </label>
+          <p className="mt-4 text-xs text-on-surface-variant">
+            Formato PDF · dimensione massima 5&nbsp;MB
+          </p>
+        </div>
 
-      {busy && <p className="text-gray-500">Elaborazione in corso…</p>}
+        {file && (
+          <div className="flex items-center gap-3 rounded-lg bg-surface-container-lowest px-4 py-3 shadow-card">
+            <FileText className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.5} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-on-surface">
+                {file.name}
+              </p>
+              <p className="text-xs text-on-surface-variant">
+                {(file.size / 1024).toFixed(1)} KB
+                {preview && ` · ${preview.sourceMonthLabel}`}
+              </p>
+            </div>
+            {busy && (
+              <span className="text-xs font-medium text-on-surface-variant">
+                Elaborazione…
+              </span>
+            )}
+          </div>
+        )}
+      </section>
 
       {preview && (
         <>

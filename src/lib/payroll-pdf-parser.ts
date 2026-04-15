@@ -1,5 +1,50 @@
 import pdfParse from "pdf-parse";
 
+function parseItalianNumber(raw: string): number {
+  const t = raw.trim();
+  if (!t) return 0;
+  const negative = t.endsWith("-");
+  const stripped = (negative ? t.slice(0, -1) : t).replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(stripped);
+  if (!Number.isFinite(n)) return 0;
+  return negative ? -n : n;
+}
+
+function parseRowCells(line: string): string[] {
+  return line.split("!").slice(1, -1).map((s) => s.trim());
+}
+
+const CATEGORY_CODES = new Set(["FER", "FES", "PER", "B.O"]);
+
+interface ParsedLine {
+  col1: string;
+  col2: string;
+  code: string;
+  values: string[]; // 16 raw cells: 12 months + resAP + maturato + goduto + residuo
+}
+
+function parseLine(line: string): ParsedLine | null {
+  const cells = parseRowCells(line);
+  if (cells.length < 19) return null;
+  const code = cells[2];
+  if (!CATEGORY_CODES.has(code)) return null;
+  return {
+    col1: cells[0],
+    col2: cells[1],
+    code,
+    values: cells.slice(3, 19), // indices 3..18 → 16 values
+  };
+}
+
+function readCategory(values: string[]): PayrollCategoryValues {
+  return {
+    resAP: parseItalianNumber(values[12]),
+    maturato: parseItalianNumber(values[13]),
+    goduto: parseItalianNumber(values[14]),
+    residuo: parseItalianNumber(values[15]),
+  };
+}
+
 export interface PayrollCategoryValues {
   resAP: number;
   maturato: number;
@@ -68,5 +113,44 @@ export async function parsePayrollPdf(buffer: Buffer): Promise<PayrollPdfParseRe
     );
   }
 
-  return { year, month, sourceMonthLabel, ditta, rows: [] };
+  const lines = text.split(/\r?\n/);
+  const parsedLines: ParsedLine[] = [];
+  for (const line of lines) {
+    const parsed = parseLine(line);
+    if (parsed) parsedLines.push(parsed);
+  }
+
+  // Group into 4-row blocks (FER, FES, PER, B.O) per employee.
+  const rows: PayrollPdfRow[] = [];
+  for (let i = 0; i + 3 < parsedLines.length; i += 4) {
+    const fer = parsedLines[i];
+    const fes = parsedLines[i + 1];
+    const per = parsedLines[i + 2];
+    const bo = parsedLines[i + 3];
+    if (fer.code !== "FER" || fes.code !== "FES" || per.code !== "PER" || bo.code !== "B.O") {
+      continue;
+    }
+    const matricola = fer.col1;
+    if (!/^\d+$/.test(matricola)) continue;
+    const cognome = fes.col1;
+    const nome = per.col1;
+
+    const ferValues = readCategory(fer.values);
+    const fesValues = readCategory(fes.values);
+    const perValues = readCategory(per.values);
+
+    const warnings: string[] = [];
+    for (const [code, c] of [["FER", ferValues], ["FES", fesValues], ["PER", perValues]] as const) {
+      const expected = c.resAP + c.maturato - c.goduto;
+      if (Math.abs(expected - c.residuo) > 0.05) {
+        warnings.push(
+          `${code}: residuo nel PDF (${c.residuo}) non quadra con resAP+maturato-goduto (${expected.toFixed(2)})`
+        );
+      }
+    }
+
+    rows.push({ matricola, cognome, nome, fer: ferValues, fes: fesValues, per: perValues, warnings });
+  }
+
+  return { year, month, sourceMonthLabel, ditta, rows };
 }

@@ -59,12 +59,12 @@ export default function ImportPage() {
 
         {result && (
           <div className="mt-4 rounded-lg bg-success-container/30 shadow-card p-4">
-            <h3 className="font-semibold text-success">
+            <h2 className="font-semibold text-success">
               Importazione completata
-            </h3>
+            </h2>
             <div className="mt-2 space-y-1 text-sm text-success">
-              <p className="flex items-center gap-1.5"><Inbox className="h-4 w-4 text-blue-500" /> Totale messaggi presenze trovati: {result.total}</p>
-              <p className="flex items-center gap-1.5"><CheckCircle className="h-4 w-4 text-emerald-500" /> Record importati: {result.imported}</p>
+              <p className="flex items-center gap-1.5"><Inbox className="h-4 w-4 text-on-primary-container" /> Totale messaggi presenze trovati: {result.total}</p>
+              <p className="flex items-center gap-1.5"><CheckCircle className="h-4 w-4 text-success" /> Record importati: {result.imported}</p>
               <p className="flex items-center gap-1.5"><SkipForward className="h-4 w-4 text-outline-variant" /> Record già esistenti (saltati): {result.skipped}</p>
               {result.errors.length > 0 && (
                 <div className="mt-2">
@@ -72,8 +72,9 @@ export default function ImportPage() {
                     <AlertTriangle className="h-4 w-4 text-amber-500" /> Errori ({result.errors.length}):
                   </p>
                   <ul className="mt-1 list-inside list-disc text-xs text-warning">
+                    {/* key uses index as fallback since error strings may not be unique */}
                     {result.errors.map((err, i) => (
-                      <li key={i}>{err}</li>
+                      <li key={`err-${i}`}>{err}</li>
                     ))}
                   </ul>
                 </div>

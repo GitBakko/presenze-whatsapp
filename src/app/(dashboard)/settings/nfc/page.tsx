@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Nfc, Trash2, Link2, Link2Off, RefreshCw, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Nfc, Trash2, Link2, Link2Off, RefreshCw } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { InfoBanner } from "@/components/InfoBanner";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface Employee {
   id: string;
@@ -170,7 +172,7 @@ export default function NfcSettingsPage() {
             <ArrowLeft className="h-3.5 w-3.5" /> Impostazioni
           </Link>
           <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-primary flex items-center gap-2">
-            <Nfc className="h-7 w-7 text-emerald-500" /> Postazione NFC
+            <Nfc className="h-7 w-7 text-primary" /> Postazione NFC
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
             Associa i badge NFC ai dipendenti. Ogni tap registrato dal kiosk
@@ -186,21 +188,16 @@ export default function NfcSettingsPage() {
         </button>
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-        <div className="flex items-start gap-2">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
-          <div>
-            <p className="font-semibold">Usa badge Mifare 1K (o equivalenti) come tessera per il kiosk.</p>
-            <p className="mt-1">
-              <strong>La CIE 3.0, le CNS recenti, le carte bancarie contactless e gli smartphone NFC</strong> generano un
-              UID casuale ad ogni lettura come misura di privacy (gli UID iniziano per <code className="font-mono">08</code>),
-              quindi <strong>non possono essere usati come badge stabile</strong>: ogni tap risulterebbe come una tessera
-              diversa. Acquista badge Mifare Classic 1K dedicati (pochi euro per lotti da 10-100) — l&apos;UID è fisso e
-              immutabile, e funzionano da subito col kiosk senza modifiche.
-            </p>
-          </div>
-        </div>
-      </div>
+      <InfoBanner kind="warning">
+        <p className="font-semibold">Usa badge Mifare 1K (o equivalenti) come tessera per il kiosk.</p>
+        <p className="mt-1">
+          <strong>La CIE 3.0, le CNS recenti, le carte bancarie contactless e gli smartphone NFC</strong> generano un
+          UID casuale ad ogni lettura come misura di privacy (gli UID iniziano per <code className="font-mono">08</code>),
+          quindi <strong>non possono essere usati come badge stabile</strong>: ogni tap risulterebbe come una tessera
+          diversa. Acquista badge Mifare Classic 1K dedicati (pochi euro per lotti da 10-100) — l&apos;UID è fisso e
+          immutabile, e funzionano da subito col kiosk senza modifiche.
+        </p>
+      </InfoBanner>
 
       {loading && <div className="text-sm text-on-surface-variant">Caricamento…</div>}
 
@@ -210,9 +207,7 @@ export default function NfcSettingsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               Tessere non riconosciute{" "}
-              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                {unrecognized.length}
-              </span>
+              <StatusBadge kind="warning" className="ml-2">{unrecognized.length}</StatusBadge>
             </h2>
             {unrecognized.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -268,7 +263,8 @@ export default function NfcSettingsPage() {
                             <button
                               type="button"
                               onClick={() => handleIgnore(u.id)}
-                              className="inline-flex items-center gap-1 rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest"
+                              aria-label="Elimina"
+                              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1 rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest"
                               title="Rimuovi dalla lista"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -287,9 +283,7 @@ export default function NfcSettingsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               Dipendenti con tessera{" "}
-              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                {assignedEmployees.length}
-              </span>
+              <StatusBadge kind="success" className="ml-2">{assignedEmployees.length}</StatusBadge>
             </h2>
             {assignedEmployees.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -320,6 +314,7 @@ export default function NfcSettingsPage() {
                                   setEditing((prev) => ({ ...prev, [e.id]: ev.target.value }))
                                 }
                                 placeholder="UID hex"
+                                aria-label="UID NFC"
                                 className="w-48 rounded border-0 bg-surface-container-highest px-2 py-1 font-mono text-xs focus:ring-1 focus:ring-primary/20"
                               />
                             ) : (
@@ -365,7 +360,7 @@ export default function NfcSettingsPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleUnlink(e.id)}
-                                    className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                                    className="inline-flex items-center gap-1 rounded-md bg-error-container px-2.5 py-1 text-xs font-medium text-error hover:bg-error-container/80"
                                     title="Scollega tessera"
                                   >
                                     <Link2Off className="h-3 w-3" />

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { ArrowLeft, MessageCircle, Trash2, Link2, Link2Off, RefreshCw } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { InfoBanner } from "@/components/InfoBanner";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface Employee {
   id: string;
@@ -199,7 +201,7 @@ export default function TelegramSettingsPage() {
             <ArrowLeft className="h-3.5 w-3.5" /> Impostazioni
           </Link>
           <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-primary flex items-center gap-2">
-            <MessageCircle className="h-7 w-7 text-sky-500" /> Bot Telegram
+            <MessageCircle className="h-7 w-7 text-primary" /> Bot Telegram
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
             Associa i chat Telegram dei dipendenti al loro profilo. Una volta associato, il dipendente può timbrare e richiedere ferie scrivendo al bot.
@@ -214,11 +216,11 @@ export default function TelegramSettingsPage() {
         </button>
       </div>
 
-      <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+      <InfoBanner kind="info">
         <p>
           <strong>Come funziona:</strong> il dipendente apre Telegram, cerca <code className="font-mono">@ep-bot</code> (o il nome configurato), digita <code className="font-mono">/start</code>. Riceve un identificativo numerico che ti comunica. Tu lo trovi qui sotto in &quot;Chat non associate&quot; e lo colleghi al suo profilo.
         </p>
-      </div>
+      </InfoBanner>
 
       {loading && <div className="text-sm text-on-surface-variant">Caricamento…</div>}
 
@@ -227,9 +229,7 @@ export default function TelegramSettingsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               Chat non associate{" "}
-              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                {unrecognized.length}
-              </span>
+              <StatusBadge kind="warning" className="ml-2">{unrecognized.length}</StatusBadge>
             </h2>
             {unrecognized.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -282,7 +282,8 @@ export default function TelegramSettingsPage() {
                             <button
                               type="button"
                               onClick={() => handleIgnore(c)}
-                              className="inline-flex items-center gap-1 rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest"
+                              aria-label="Elimina"
+                              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1 rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest"
                               title="Rimuovi dalla lista"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -300,9 +301,7 @@ export default function TelegramSettingsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               Dipendenti collegati{" "}
-              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                {assignedEmployees.length}
-              </span>
+              <StatusBadge kind="success" className="ml-2">{assignedEmployees.length}</StatusBadge>
             </h2>
             {assignedEmployees.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -334,6 +333,7 @@ export default function TelegramSettingsPage() {
                                   setEditing((p) => ({ ...p, [e.id]: { ...p[e.id], username: ev.target.value } }))
                                 }
                                 placeholder="username (opzionale)"
+                                aria-label="Username Telegram"
                                 className="w-40 rounded border-0 bg-surface-container-highest px-2 py-1 text-xs focus:ring-1 focus:ring-primary/20"
                               />
                             ) : (
@@ -348,6 +348,7 @@ export default function TelegramSettingsPage() {
                                 onChange={(ev) =>
                                   setEditing((p) => ({ ...p, [e.id]: { ...p[e.id], chatId: ev.target.value } }))
                                 }
+                                aria-label="Chat ID Telegram"
                                 className="w-40 rounded border-0 bg-surface-container-highest px-2 py-1 text-xs focus:ring-1 focus:ring-primary/20"
                               />
                             ) : (
@@ -385,7 +386,7 @@ export default function TelegramSettingsPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleUnlink(e.id)}
-                                    className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                                    className="inline-flex items-center gap-1 rounded-md bg-error-container px-2.5 py-1 text-xs font-medium text-error hover:bg-error-container/80"
                                     title="Scollega bot"
                                   >
                                     <Link2Off className="h-3 w-3" />

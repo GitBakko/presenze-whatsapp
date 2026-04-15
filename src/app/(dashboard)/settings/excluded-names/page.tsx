@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface ExcludedName {
   id: string;
@@ -9,8 +11,10 @@ interface ExcludedName {
 }
 
 export default function ExcludedNamesPage() {
+  const confirm = useConfirm();
   const [names, setNames] = useState<ExcludedName[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState("");
 
@@ -27,23 +31,43 @@ export default function ExcludedNamesPage() {
   const handleAdd = async () => {
     setError("");
     if (!newName.trim()) return;
-    const res = await fetch("/api/excluded-names", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim() }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Errore");
-      return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/excluded-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Errore");
+        return;
+      }
+      setNewName("");
+      load();
+    } finally {
+      setAdding(false);
     }
-    setNewName("");
-    load();
   };
 
-  const handleDelete = async (id: string) => {
-    await fetch(`/api/excluded-names?id=${id}`, { method: "DELETE" });
-    load();
+  const handleDelete = async (id: string, name: string) => {
+    const ok = await confirm({
+      title: "Elimina nome escluso",
+      message: `Eliminare "${name}" dalla lista?`,
+      confirmLabel: "Elimina",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/excluded-names?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        toast.error("Errore durante l'eliminazione");
+        return;
+      }
+      load();
+    } catch {
+      toast.error("Errore di rete");
+    }
   };
 
   return (
@@ -61,7 +85,9 @@ export default function ExcludedNamesPage() {
       </p>
 
       <div className="flex items-center gap-3">
+        <label className="sr-only" htmlFor="excluded-name-input">Nome da escludere</label>
         <input
+          id="excluded-name-input"
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -70,8 +96,10 @@ export default function ExcludedNamesPage() {
           className="flex-1 rounded-lg border-0 bg-surface-container-highest px-3 py-2 text-sm text-on-surface shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/20"
         />
         <button
+          type="button"
           onClick={handleAdd}
-          className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary hover:shadow-elevated"
+          disabled={adding || !newName.trim()}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-container disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Aggiungi
         </button>
@@ -98,7 +126,8 @@ export default function ExcludedNamesPage() {
               <li key={n.id} className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm font-medium text-on-surface">{n.name}</span>
                 <button
-                  onClick={() => handleDelete(n.id)}
+                  type="button"
+                  onClick={() => handleDelete(n.id, n.name)}
                   className="rounded bg-error-container px-2.5 py-1 text-xs font-medium text-error hover:bg-error-container/80"
                 >
                   Rimuovi

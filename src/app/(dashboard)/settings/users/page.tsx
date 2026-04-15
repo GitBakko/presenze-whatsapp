@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { ArrowLeft, Users, UserCheck, UserX, RefreshCw } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface PendingUser {
   id: string;
@@ -37,6 +38,7 @@ export default function UsersSettingsPage() {
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [assoc, setAssoc] = useState<Record<string, string>>({});
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -97,14 +99,19 @@ export default function UsersSettingsPage() {
       danger: true,
     });
     if (!ok) return;
-    const res = await fetch(`/api/settings/users?id=${userId}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
-      toast.success("Utente disattivato");
-      loadAll();
-    } else {
-      toast.error("Errore");
+    setPendingId(userId);
+    try {
+      const res = await fetch(`/api/settings/users?id=${userId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Utente disattivato");
+        loadAll();
+      } else {
+        toast.error("Errore");
+      }
+    } finally {
+      setPendingId(null);
     }
   };
 
@@ -146,7 +153,7 @@ export default function UsersSettingsPage() {
             <ArrowLeft className="h-3.5 w-3.5" /> Impostazioni
           </Link>
           <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-primary flex items-center gap-2">
-            <Users className="h-7 w-7 text-indigo-500" /> Utenti dipendenti
+            <Users className="h-7 w-7 text-primary" /> Utenti dipendenti
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
             Attiva gli account dei dipendenti registrati e associali al loro profilo.
@@ -169,9 +176,7 @@ export default function UsersSettingsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               In attesa di attivazione{" "}
-              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                {pending.length}
-              </span>
+              <StatusBadge kind="warning" className="ml-2">{pending.length}</StatusBadge>
             </h2>
             {pending.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -213,7 +218,7 @@ export default function UsersSettingsPage() {
                             ))}
                           </select>
                           {u.suggestedEmployeeId && (
-                            <span className="ml-2 text-[10px] text-emerald-700 font-semibold">
+                            <span aria-label="email associata" className="ml-2 text-[10px] text-emerald-700 font-semibold">
                               ✓ match email
                             </span>
                           )}
@@ -224,6 +229,7 @@ export default function UsersSettingsPage() {
                               type="button"
                               onClick={() => handleActivate(u.id)}
                               disabled={!assoc[u.id]}
+                              aria-label="Attiva utente"
                               className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-on-primary hover:bg-primary/90 disabled:opacity-40"
                             >
                               <UserCheck className="h-3 w-3" /> Attiva
@@ -242,9 +248,7 @@ export default function UsersSettingsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               Utenti attivi{" "}
-              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                {active.length}
-              </span>
+              <StatusBadge kind="success" className="ml-2">{active.length}</StatusBadge>
             </h2>
             {active.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -271,11 +275,7 @@ export default function UsersSettingsPage() {
                           <select
                             value={u.role}
                             onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                            className={`rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-primary/20 ${
-                              u.role === "ADMIN"
-                                ? "bg-violet-100 text-violet-800"
-                                : "bg-blue-100 text-blue-800"
-                            }`}
+                            className="rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-primary/20 bg-primary-container/40 text-on-primary-container"
                           >
                             <option value="EMPLOYEE">Dipendente</option>
                             <option value="ADMIN">Amministratore</option>
@@ -289,7 +289,9 @@ export default function UsersSettingsPage() {
                             <button
                               type="button"
                               onClick={() => handleDeactivate(u.id)}
-                              className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                              disabled={pendingId === u.id}
+                              aria-label="Disattiva utente"
+                              className="inline-flex items-center gap-1 rounded-md bg-error-container px-2.5 py-1 text-xs font-medium text-error hover:bg-error-container/80 disabled:opacity-40"
                             >
                               <UserX className="h-3 w-3" /> Disattiva
                             </button>

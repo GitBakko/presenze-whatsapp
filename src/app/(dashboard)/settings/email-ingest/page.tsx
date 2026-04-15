@@ -5,6 +5,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { ArrowLeft, Mail, Trash2, Link2, RefreshCw, PlayCircle } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { InfoBanner } from "@/components/InfoBanner";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface Employee {
   id: string;
@@ -63,6 +65,7 @@ export default function EmailIngestPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [pendingAssoc, setPendingAssoc] = useState<Record<string, string>>({});
+  const [pending, setPendingIgnore] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -145,12 +148,17 @@ export default function EmailIngestPage() {
       danger: true,
     });
     if (!ok) return;
-    const res = await fetch(`/api/settings/unrecognized-email?id=${item.id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast.success("Mittente rimosso");
-      loadAll();
-    } else {
-      toast.error("Errore");
+    setPendingIgnore(item.id);
+    try {
+      const res = await fetch(`/api/settings/unrecognized-email?id=${item.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Mittente rimosso");
+        loadAll();
+      } else {
+        toast.error("Errore");
+      }
+    } finally {
+      setPendingIgnore(null);
     }
   };
 
@@ -167,7 +175,7 @@ export default function EmailIngestPage() {
             <ArrowLeft className="h-3.5 w-3.5" /> Impostazioni
           </Link>
           <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-primary flex items-center gap-2">
-            <Mail className="h-7 w-7 text-violet-500" /> Richieste ferie via email
+            <Mail className="h-7 w-7 text-primary" /> Richieste ferie via email
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
             Le richieste con oggetto <code className="font-mono">ferie</code> e corpo <code className="font-mono">DAL ... AL ...</code> arrivate sulla casella IMAP configurata vengono ingerite automaticamente come richieste in attesa di approvazione.
@@ -178,7 +186,7 @@ export default function EmailIngestPage() {
             type="button"
             onClick={runNow}
             disabled={running}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-primary-container px-3 py-2 text-sm font-medium text-on-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary hover:bg-primary-container disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PlayCircle className="h-4 w-4" /> {running ? "Elaboro…" : "Esegui ora"}
           </button>
@@ -192,11 +200,11 @@ export default function EmailIngestPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
+      <InfoBanner kind="info">
         <p>
           <strong>Come funziona:</strong> il dipendente invia un&apos;email con oggetto <code className="font-mono">ferie</code> dal suo indirizzo associato. Nel corpo scrive <code className="font-mono">DAL gg/mm AL gg/mm</code> (anno corrente) o <code className="font-mono">DAL gg/mm/aaaa AL gg/mm/aaaa</code>. Il sistema controlla la casella ogni 2 minuti, parsea, crea una richiesta in stato <em>In attesa</em> e risponde con conferma. Se il mittente non è riconosciuto o il formato è errato, viene loggato qui sotto e gli viene inviata una mail con la spiegazione.
         </p>
-      </div>
+      </InfoBanner>
 
       {loading && <div className="text-sm text-on-surface-variant">Caricamento…</div>}
 
@@ -205,9 +213,7 @@ export default function EmailIngestPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               Mittenti sconosciuti{" "}
-              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                {unrecognized.length}
-              </span>
+              <StatusBadge kind="warning" className="ml-2">{unrecognized.length}</StatusBadge>
             </h2>
             {unrecognized.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -264,7 +270,9 @@ export default function EmailIngestPage() {
                             <button
                               type="button"
                               onClick={() => handleIgnore(u)}
-                              className="rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest"
+                              disabled={pending === u.id}
+                              aria-label="Elimina"
+                              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-40"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
@@ -281,9 +289,7 @@ export default function EmailIngestPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-on-surface">
               Storico ingest{" "}
-              <span className="ml-2 rounded-full bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                {logs.length}
-              </span>
+              <StatusBadge kind="neutral" className="ml-2">{logs.length}</StatusBadge>
             </h2>
             {logs.length === 0 ? (
               <div className="rounded-lg border border-dashed border-surface-container-high bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
@@ -308,7 +314,7 @@ export default function EmailIngestPage() {
                         <td className="px-4 py-3 font-mono text-xs">{l.fromAddress}</td>
                         <td className="px-4 py-3 text-xs">{l.subject}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_BADGE[l.status] || "bg-surface-container"}`}>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_BADGE[l.status] || "bg-surface-container text-on-surface-variant"}`}>
                             {l.status}
                           </span>
                         </td>

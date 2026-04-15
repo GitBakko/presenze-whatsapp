@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { CheckCircle, KeyRound, Trash2 } from "lucide-react";
+import { KeyRound, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { InfoBanner } from "@/components/InfoBanner";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface ApiKeyItem {
   id: string;
@@ -37,11 +39,13 @@ export default function ApiKeysPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() }),
       });
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         setNewKey(data.key);
         setName("");
         fetchKeys();
+      } else {
+        toast.error(data.error ?? "Errore nella creazione");
       }
     } finally {
       setLoading(false);
@@ -89,7 +93,7 @@ export default function ApiKeysPage() {
         <button
           type="submit"
           disabled={loading || !name.trim()}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary shadow-sm transition-all hover:bg-primary-container disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Genera chiave
         </button>
@@ -97,31 +101,27 @@ export default function ApiKeysPage() {
 
       {/* New key display */}
       {newKey && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-          <p className="mb-2 text-sm font-bold text-green-800 flex items-center gap-1.5">
-            <CheckCircle className="h-5 w-5 text-emerald-500" />
-            Chiave generata — copiala ora, non sarà più visibile!
-          </p>
-          <code className="block break-all rounded bg-white px-3 py-2 font-mono text-xs text-green-900 select-all">
+        <InfoBanner kind="success" title="Chiave generata — copiala ora, non sarà più visibile!">
+          <code className="mt-2 block break-all rounded bg-surface-container-low px-3 py-2 font-mono text-xs select-all">
             {newKey}
           </code>
           <button
             onClick={() => setNewKey(null)}
-            className="mt-2 text-xs font-semibold text-green-700 hover:underline"
+            className="mt-2 text-xs font-semibold hover:underline"
           >
             Ho copiato, chiudi
           </button>
-        </div>
+        </InfoBanner>
       )}
 
       {/* Keys list */}
       {keys.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-white py-12 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-12 text-center">
           <KeyRound className="mb-3 h-12 w-12 text-outline-variant" />
           <p className="text-sm text-on-surface-variant">Nessuna chiave API creata</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-card">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-surface-container bg-surface-container-low/50">
@@ -139,14 +139,15 @@ export default function ApiKeysPage() {
                     {new Date(k.createdAt).toLocaleDateString("it-IT")}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${k.active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                    <StatusBadge kind={k.active ? "success" : "error"}>
                       {k.active ? "Attiva" : "Disattivata"}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleDelete(k.id)}
-                      className="rounded-lg p-1 text-outline-variant hover:bg-red-50 hover:text-red-500"
+                      aria-label="Elimina chiave"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg p-1 text-outline-variant hover:bg-red-50 hover:text-red-500"
                       title="Elimina"
                     >
                       <Trash2 className="h-5 w-5" />
@@ -160,7 +161,7 @@ export default function ApiKeysPage() {
       )}
 
       {/* API usage docs */}
-      <div className="rounded-xl border border-outline-variant/30 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-card">
         <h3 className="mb-3 font-display text-sm font-bold uppercase tracking-wider text-primary">Documentazione API</h3>
         <div className="space-y-3 text-xs text-on-surface-variant">
           <p><strong>Endpoint:</strong> <code className="rounded bg-surface-container-high px-1.5 py-0.5 font-mono">POST /api/external/leaves</code></p>

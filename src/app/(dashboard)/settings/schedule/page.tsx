@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface Employee {
   id: string;
@@ -40,10 +41,10 @@ export default function SchedulePage() {
       .then((emps: Employee[]) => {
         const sorted = emps.sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
         setEmployees(sorted);
-        if (sorted.length > 0 && !selectedEmpId) setSelectedEmpId(sorted[0].id);
+        if (sorted.length > 0) setSelectedEmpId((prev) => prev || sorted[0].id);
       })
       .finally(() => setLoading(false));
-  }, [selectedEmpId]);
+  }, []);
 
   const loadSchedule = useCallback(() => {
     if (!selectedEmpId) return;
@@ -79,24 +80,36 @@ export default function SchedulePage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const promises = Object.entries(editState).map(([dayStr, blocks]) => {
-      const dayOfWeek = Number(dayStr);
-      return fetch("/api/schedule", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeId: selectedEmpId,
-          dayOfWeek,
-          block1Start: blocks.block1Start || null,
-          block1End: blocks.block1End || null,
-          block2Start: blocks.block2Start || null,
-          block2End: blocks.block2End || null,
-        }),
-      });
-    });
-    await Promise.all(promises);
-    setSaving(false);
-    loadSchedule();
+    try {
+      const results = await Promise.allSettled(
+        Object.entries(editState).map(([dayStr, blocks]) => {
+          const dayOfWeek = Number(dayStr);
+          return fetch("/api/schedule", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              employeeId: selectedEmpId,
+              dayOfWeek,
+              block1Start: blocks.block1Start || null,
+              block1End: blocks.block1End || null,
+              block2Start: blocks.block2Start || null,
+              block2End: blocks.block2End || null,
+            }),
+          });
+        })
+      );
+      const failures = results.filter((r) => r.status === "rejected");
+      if (failures.length > 0) {
+        toast.error(`Errore nel salvataggio (${failures.length} giorni falliti)`);
+      } else {
+        toast.success("Orari salvati");
+      }
+      loadSchedule();
+    } catch {
+      toast.error("Errore nel salvataggio degli orari");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateDay = (day: number, field: string, value: string) => {
@@ -141,7 +154,7 @@ export default function SchedulePage() {
             <select
               value={selectedEmpId}
               onChange={(e) => setSelectedEmpId(e.target.value)}
-              className="rounded-lg border-0 bg-surface-container-highest px-3 py-2 text-sm text-on-surface shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/20"
+              className="rounded-lg border-0 bg-surface-container-highest px-3 py-2 text-sm text-on-surface shadow-card focus:outline-none focus:ring-1 focus:ring-primary/20"
             >
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>{e.displayName || e.name}</option>
@@ -158,7 +171,9 @@ export default function SchedulePage() {
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Mattina Fine</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Pomeriggio Inizio</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Pomeriggio Fine</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant"></th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                    <span className="sr-only">Azioni</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -203,6 +218,7 @@ export default function SchedulePage() {
                       <td className="px-4 py-3">
                         {d.block2Start && (
                           <button
+                            type="button"
                             onClick={() => clearAfternoon(day)}
                             className="rounded bg-surface-container px-2 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
                             title="Solo mattina"
@@ -219,9 +235,10 @@ export default function SchedulePage() {
           </div>
 
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-6 py-2 text-sm font-medium text-on-primary hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-on-primary hover:bg-primary-container disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Salvataggio..." : "Salva Orari"}
           </button>

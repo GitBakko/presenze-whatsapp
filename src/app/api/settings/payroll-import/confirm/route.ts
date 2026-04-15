@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { checkAuth } from "@/lib/auth-guard";
+import { checkAuthAny, isAuthUser } from "@/lib/auth-guard";
 import { confirmImport } from "@/lib/payroll-import-service";
 import { PayrollParseError } from "@/lib/payroll-pdf-parser";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
-  const denied = await checkAuth();
-  if (denied) return denied;
-
-  const session = await auth();
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
-    return NextResponse.json({ error: "Sessione non valida" }, { status: 401 });
+  const authResult = await checkAuthAny();
+  if (!isAuthUser(authResult)) return authResult;
+  if (authResult.role !== "ADMIN") {
+    return NextResponse.json(
+      { error: "Accesso riservato agli amministratori" },
+      { status: 403 }
+    );
   }
+  const userId = authResult.id;
 
   let formData: FormData;
   try {
@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "File troppo grande (max 5MB)" }, { status: 413 });
   }
-  if (file.type && file.type !== "application/pdf") {
-    return NextResponse.json({ error: "Il file deve essere un PDF" }, { status: 415 });
-  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  if (buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    return NextResponse.json({ error: "Il file deve essere un PDF" }, { status: 415 });
+  }
 
   try {
     const result = await confirmImport(buffer, expectedHash, file.name, userId);

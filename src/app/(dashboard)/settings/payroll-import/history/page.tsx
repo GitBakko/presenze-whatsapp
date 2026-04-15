@@ -19,8 +19,12 @@ export default function PayrollImportHistoryPage() {
 
   useEffect(() => {
     fetch("/api/settings/payroll-import/history")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("fetch failed");
+        return r.json();
+      })
       .then(setItems)
+      .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, []);
 

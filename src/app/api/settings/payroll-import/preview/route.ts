@@ -26,15 +26,15 @@ export async function POST(request: NextRequest) {
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "File troppo grande (max 5MB)" }, { status: 413 });
   }
-  if (file.type && file.type !== "application/pdf") {
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
     return NextResponse.json({ error: "Il file deve essere un PDF" }, { status: 415 });
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
   try {
     const preview = await buildPreview(buffer);
     const { parsed: _parsed, ...payload } = preview;
-    void _parsed;
     return NextResponse.json(payload);
   } catch (e) {
     if (e instanceof PayrollParseError) {

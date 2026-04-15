@@ -49,3 +49,6 @@ presenze-hr-deploy*.zip
 # ── Claude Code working dir ──
 # Configurazione per-user dell'harness CLI, non va versionata.
 .claude/
+
+graphify-out/
+graphify-out/

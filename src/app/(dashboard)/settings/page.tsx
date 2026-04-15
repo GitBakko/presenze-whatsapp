@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Ban, Calendar, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from "lucide-react";
+import { Ban, Calendar, FileSpreadsheet, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -91,6 +91,16 @@ export default function SettingsPage() {
           <p className="mt-2 text-sm text-on-surface-variant">
             Gestisci le chiavi API per l&apos;integrazione con applicazioni esterne
             (es. richieste ferie/permessi dai dipendenti).
+          </p>
+        </Link>
+
+        <Link
+          href="/settings/payroll-import"
+          className="rounded-lg bg-surface-container-lowest shadow-card p-6 transition-shadow hover:shadow-elevated"
+        >
+          <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2"><FileSpreadsheet className="h-4 w-4 text-teal-500" /> Import tabulato paghe</h2>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Importa ferie, festività e permessi dal PDF del consulente paghe e riallinea i saldi dipendenti.
           </p>
         </Link>
       </div>

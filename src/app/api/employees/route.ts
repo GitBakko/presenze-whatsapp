@@ -3,9 +3,20 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const denied = await checkAuth();
   if (denied) return denied;
+
+  const url = new URL(request.url);
+  if (url.searchParams.get("withoutPayrollId") === "1") {
+    const list = await prisma.employee.findMany({
+      where: { payrollId: null },
+      select: { id: true, name: true, displayName: true },
+      orderBy: { name: "asc" },
+    });
+    return NextResponse.json(list);
+  }
+
   const employees = await prisma.employee.findMany({
     include: {
       records: {

@@ -10,7 +10,8 @@ import { NotificationsProvider } from "./NotificationsProvider";
 import { NotificationBell } from "./NotificationBell";
 import { NotificationToast } from "./NotificationToast";
 import { ConfirmProvider } from "./ConfirmProvider";
-import { getInitials, getAvatarColor } from "@/lib/avatar-utils";
+import { getInitials } from "@/lib/avatar-utils";
+import { StatusBadge } from "@/components/StatusBadge";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   // Desktop: sidebar aperta di default. Mobile: chiusa.
@@ -24,7 +25,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const userRole = (session?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
   const userEmployeeId = (session?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
   const initials = getInitials(userName);
-  const avatarColor = getAvatarColor(userName);
 
   // User dropdown
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -50,7 +50,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       closeButton
       toastOptions={{ duration: 4000 }}
     />
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -62,13 +62,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main
-        className={`min-h-screen flex-1 overflow-y-auto transition-[margin] duration-300 ease-editorial ${
-          sidebarOpen ? "lg:ml-64" : "ml-0"
+        id="main-content"
+        className={`min-h-screen flex-1 overflow-y-auto transition-[padding-left] motion-reduce:transition-none duration-300 ease-editorial ${
+          sidebarOpen ? "lg:pl-64" : "pl-0"
         }`}
       >
         {/* Glass topbar */}
         <header
-          className={`fixed right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-surface-container bg-white/80 px-4 shadow-glass backdrop-blur-xl transition-[width] duration-300 ease-editorial sm:px-8 ${
+          className={`fixed right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-surface-container bg-surface/80 px-4 shadow-glass backdrop-blur-xl transition-[width] motion-reduce:transition-none duration-300 ease-editorial sm:px-8 ${
             sidebarOpen ? "lg:w-[calc(100%-16rem)]" : "w-full"
           }`}
         >
@@ -89,10 +90,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <div ref={menuRef} className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
+                aria-expanded={userMenuOpen}
+                aria-haspopup="menu"
                 className="flex items-center gap-2 rounded-full px-2 py-1.5 transition-colors hover:bg-surface-container-low"
               >
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${avatarColor} text-xs font-bold text-white`}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-container text-xs font-bold text-on-primary-container"
                 >
                   {initials}
                 </div>
@@ -103,22 +106,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-64 rounded-xl bg-white shadow-elevated ring-1 ring-surface-container">
+                <div role="menu" className="absolute right-0 z-50 mt-2 w-64 rounded-xl bg-surface-container-lowest shadow-elevated ring-1 ring-outline-variant/30">
                   <div className="border-b border-surface-container px-4 py-3">
                     <p className="text-sm font-semibold text-on-surface">{userName}</p>
                     <p className="text-xs text-on-surface-variant">{userEmail}</p>
-                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      userRole === "ADMIN"
-                        ? "bg-violet-100 text-violet-800"
-                        : "bg-blue-100 text-blue-800"
-                    }`}>
+                    <StatusBadge kind={userRole === "ADMIN" ? "info" : "neutral"} className="mt-1">
                       {userRole === "ADMIN" ? "Amministratore" : "Dipendente"}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <div className="p-1">
                     {userEmployeeId && (
                       <Link
                         href={`/employees/${userEmployeeId}/edit`}
+                        role="menuitem"
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-on-surface hover:bg-surface-container-low"
                       >
@@ -127,8 +127,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                       </Link>
                     )}
                     <button
+                      role="menuitem"
                       onClick={() => signOut({ callbackUrl: "/login" })}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-error hover:bg-error-container/50"
                     >
                       <LogOut className="h-4 w-4" />
                       Esci

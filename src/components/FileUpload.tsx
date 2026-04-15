@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 
 interface FileUploadProps {
@@ -11,6 +11,7 @@ interface FileUploadProps {
 export function FileUpload({ onUpload, isLoading }: FileUploadProps) {
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -39,6 +40,14 @@ export function FileUpload({ onUpload, isLoading }: FileUploadProps) {
   return (
     <div className="space-y-4">
       <div
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -59,6 +68,7 @@ export function FileUpload({ onUpload, isLoading }: FileUploadProps) {
         <label className="mt-2 cursor-pointer rounded-lg bg-surface-container-lowest px-4 py-2 text-sm font-medium text-primary shadow-card transition-shadow hover:shadow-elevated focus-within:ring-2 focus-within:ring-primary/30">
           Sfoglia file
           <input
+            ref={fileInputRef}
             type="file"
             accept=".txt"
             aria-label="Seleziona file da importare"
@@ -80,7 +90,7 @@ export function FileUpload({ onUpload, isLoading }: FileUploadProps) {
           <button
             onClick={handleUpload}
             disabled={isLoading}
-            className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-4 py-2 text-sm font-medium text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:cursor-not-allowed"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary-container disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? "Importando..." : "Importa"}
           </button>

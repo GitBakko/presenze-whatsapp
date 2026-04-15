@@ -23,6 +23,7 @@ export const metadata: Metadata = {
     icon: "/favicon.png",
     apple: "/favicon.png",
   },
+  viewport: "width=device-width, initial-scale=1",
 };
 
 export default function RootLayout({
@@ -33,6 +34,12 @@ export default function RootLayout({
   return (
     <html lang="it" className={`${inter.variable} ${manrope.variable}`}>
       <body className="bg-surface text-on-surface antialiased font-sans">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-on-primary focus-visible:ring-2 focus-visible:ring-primary-container"
+        >
+          Vai al contenuto
+        </a>
         {children}
       </body>
     </html>

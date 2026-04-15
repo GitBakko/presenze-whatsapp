@@ -144,7 +144,7 @@ function ConfirmDialog({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
-      onClick={() => close(false)}
+      onClick={() => { if (!opts?.danger) close(false); }}
     >
       <div
         ref={modalContentRef}
@@ -152,6 +152,7 @@ function ConfirmDialog({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -163,7 +164,7 @@ function ConfirmDialog({
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div className="flex-1">
-              <h2 className="font-display text-base font-bold text-on-surface">
+              <h2 id="confirm-dialog-title" className="font-display text-base font-bold text-on-surface">
                 {opts.title ?? "Conferma"}
               </h2>
               <div className="mt-1 text-sm text-on-surface-variant">{opts.message}</div>
@@ -172,7 +173,7 @@ function ConfirmDialog({
           <button
             type="button"
             onClick={() => close(false)}
-            className="rounded p-1 text-on-surface-variant hover:bg-surface-container"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-on-surface-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none focus:outline-none"
             aria-label="Chiudi"
           >
             <X className="h-4 w-4" />
@@ -195,7 +196,7 @@ function ConfirmDialog({
                 onChange={(e) => setPromptValue(e.target.value)}
                 placeholder={(opts as ConfirmWithPromptOptions).promptPlaceholder}
                 rows={3}
-                className="w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus:ring-1 focus:ring-primary/40"
+                className="w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none focus:outline-none"
                 autoFocus
               />
             ) : (
@@ -204,7 +205,7 @@ function ConfirmDialog({
                 value={promptValue}
                 onChange={(e) => setPromptValue(e.target.value)}
                 placeholder={(opts as ConfirmWithPromptOptions).promptPlaceholder}
-                className="w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus:ring-1 focus:ring-primary/40"
+                className="w-full rounded border-0 bg-surface-container-highest px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none focus:outline-none"
                 autoFocus
               />
             )}
@@ -215,7 +216,7 @@ function ConfirmDialog({
           <button
             type="button"
             onClick={() => close(false)}
-            className="rounded-md bg-surface-container px-4 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-high"
+            className="min-h-[44px] rounded-md bg-surface-container px-4 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-high focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none focus:outline-none"
           >
             {opts.cancelLabel ?? "Annulla"}
           </button>
@@ -223,10 +224,10 @@ function ConfirmDialog({
             type="button"
             onClick={() => close(true)}
             disabled={!canConfirm}
-            className={`rounded-md px-4 py-2 text-sm font-medium text-white shadow-card transition-shadow hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`rounded-md px-4 py-2 text-sm font-medium shadow-card transition-shadow hover:shadow-elevated disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none focus:outline-none ${
               opts.danger
-                ? "bg-rose-600 hover:bg-rose-700"
-                : "bg-gradient-to-br from-primary to-primary-container text-on-primary"
+                ? "bg-rose-600 hover:bg-rose-700 text-white"
+                : "bg-primary hover:bg-primary-container text-on-primary"
             }`}
           >
             {opts.confirmLabel ?? "Conferma"}

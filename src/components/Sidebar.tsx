@@ -52,6 +52,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
 
   return (
     <aside
+      aria-label="Navigazione principale"
       className={`fixed left-0 top-0 z-50 flex h-screen w-64 flex-col bg-surface-container-low py-6 transition-transform duration-300 ease-editorial ${
         open ? "translate-x-0" : "-translate-x-full"
       }`}
@@ -73,35 +74,39 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 px-3">
-        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={isActive ? "page" : undefined}
-              className={`flex items-center gap-3 px-4 py-3 transition-colors duration-200 ${
-                isActive
-                  ? "border-r-4 border-primary-container bg-surface-container-low font-bold text-primary"
-                  : "text-on-surface-variant hover:text-primary-container"
-              }`}
-            >
-              <item.icon className={`h-5 w-5 ${isActive ? "" : item.color}`} strokeWidth={1.75} />
-              <span className="text-xs uppercase tracking-wider">
-                {item.label}
-              </span>
-              {item.href === "/leaves" && pendingLeaves > 0 && (
-                <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-yellow-400 px-1 text-[10px] font-bold text-white">
-                  {pendingLeaves}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3">
+        <ul role="list" className="space-y-1">
+          {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+            const isActive =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors duration-200 ${
+                    isActive
+                      ? "border-r-4 border-primary-container bg-surface-container-low font-bold text-primary"
+                      : "text-on-surface-variant hover:text-primary-container"
+                  }`}
+                >
+                  <item.icon className={`h-5 w-5 ${isActive ? "text-primary" : item.color}`} strokeWidth={1.75} />
+                  <span className="text-xs uppercase tracking-wider">
+                    {item.label}
+                  </span>
+                  {item.href === "/leaves" && pendingLeaves > 0 && (
+                    <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-warning-container px-1 text-[10px] font-bold text-warning">
+                      {pendingLeaves}
+                      <span className="sr-only"> richieste in attesa</span>
+                    </span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
       {/* Bottom */}
@@ -116,7 +121,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
                 : "text-on-surface-variant hover:text-primary-container"
             }`}
           >
-            <Settings className={`h-5 w-5 ${pathname.startsWith("/settings") ? "" : "text-outline-variant"}`} strokeWidth={1.75} />
+            <Settings className={`h-5 w-5 ${pathname.startsWith("/settings") ? "text-primary" : "text-outline-variant"}`} strokeWidth={1.75} />
             <span className="text-xs uppercase tracking-wider">Impostazioni</span>
           </Link>
         )}

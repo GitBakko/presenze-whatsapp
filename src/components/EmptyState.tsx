@@ -19,7 +19,7 @@ export function EmptyState({ icon: Icon = Inbox, message, action }: EmptyStatePr
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+          className="mt-4 min-h-[44px] rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90"
         >
           {action.label}
         </button>

@@ -48,6 +48,7 @@ export async function GET(
     telegramChatId: employee.telegramChatId,
     telegramUsername: employee.telegramUsername,
     email: employee.email,
+    payrollId: employee.payrollId,
     vacationCarryOver: balance?.vacationCarryOver ?? 0,
     rolCarryOver: balance?.rolCarryOver ?? 0,
     vacationAccrualAdjust: balance?.vacationAccrualAdjust ?? 0,
@@ -78,6 +79,7 @@ export async function PUT(
   const telegramChatIdRaw = formData.get("telegramChatId") as string | null;
   const telegramUsernameRaw = formData.get("telegramUsername") as string | null;
   const emailRaw = formData.get("email") as string | null;
+  const payrollIdRaw = formData.get("payrollId") as string | null;
 
   // Saldi ferie/permessi (anno corrente). Tutti opzionali. Se almeno
   // uno e' presente nel form, facciamo upsert sulla tabella LeaveBalance
@@ -96,6 +98,7 @@ export async function PUT(
     telegramChatId?: string | null;
     telegramUsername?: string | null;
     email?: string | null;
+    payrollId?: string | null;
   } = {};
 
   // Update display name (empty string = reset to null/use original name)
@@ -161,6 +164,12 @@ export async function PUT(
     } else {
       updateData.email = trimmed;
     }
+  }
+
+  // Update payrollId (matricola paghe). Stringa vuota = scollega.
+  if (payrollIdRaw !== null) {
+    const trimmed = payrollIdRaw.trim();
+    updateData.payrollId = trimmed === "" ? null : trimmed;
   }
 
   // Handle avatar upload
@@ -255,6 +264,8 @@ export async function PUT(
         ? "Chat Telegram già associata a un altro dipendente"
         : targetStr.includes("email")
         ? "Email già associata a un altro dipendente"
+        : targetStr.includes("payrollId")
+        ? "Matricola paghe già associata a un altro dipendente"
         : "UID NFC già associato a un altro dipendente";
       return NextResponse.json({ error: msg }, { status: 409 });
     }
@@ -273,5 +284,6 @@ export async function PUT(
     telegramChatId: updated.telegramChatId,
     telegramUsername: updated.telegramUsername,
     email: updated.email,
+    payrollId: updated.payrollId,
   });
 }

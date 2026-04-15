@@ -5,13 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  AlertTriangle,
   FileSpreadsheet,
   FileText,
-  Info,
   Upload,
 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { InfoBanner } from "@/components/InfoBanner";
 
 interface DiffPair {
   currentRemaining: number;
@@ -91,10 +90,15 @@ export default function PayrollImportPage() {
     }
   }
 
-  function handleFile(f: File | null) {
-    setFile(f);
-    if (f) void runPreview(f);
-  }
+  const handleFile = useCallback(
+    (f: File | null) => {
+      setFile(f);
+      if (f) void runPreview(f);
+    },
+    // runPreview depends on setBusy/setPreview which are stable — no external deps needed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -108,8 +112,7 @@ export default function PayrollImportPage() {
       }
       handleFile(f);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [handleFile]
   );
 
   async function associate(matricola: string, employeeId: string) {
@@ -274,7 +277,7 @@ export default function PayrollImportPage() {
         </div>
 
         {file && (
-          <div className="flex items-center gap-3 rounded-xl border border-outline-variant/30 bg-white px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 shadow-card">
             <FileText
               className="h-5 w-5 shrink-0 text-primary"
               strokeWidth={1.5}
@@ -301,7 +304,7 @@ export default function PayrollImportPage() {
       {preview && (
         <>
           <section className="space-y-3">
-            <div className="rounded-xl border border-outline-variant/30 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-card">
               <h2 className="font-display text-base font-bold text-on-surface">
                 Tabulato {preview.sourceMonthLabel}
               </h2>
@@ -324,55 +327,35 @@ export default function PayrollImportPage() {
             </div>
 
             {preview.alreadyImported && (
-              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <AlertTriangle
-                  className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"
-                  strokeWidth={1.5}
-                />
-                <div className="flex-1 text-sm text-amber-900">
-                  <p className="font-semibold">File già importato</p>
-                  <p className="mt-1">
-                    Questo tabulato è già stato importato il{" "}
-                    {new Date(
-                      preview.alreadyImported.createdAt
-                    ).toLocaleString("it-IT")}
-                    .{" "}
-                    <Link
-                      href={`/settings/payroll-import/history/${preview.alreadyImported.importId}`}
-                      className="font-semibold underline hover:no-underline"
-                    >
-                      Vedi import precedente
-                    </Link>
-                  </p>
-                </div>
-              </div>
+              <InfoBanner kind="warning" title="File già importato">
+                Questo tabulato è già stato importato il{" "}
+                {new Date(
+                  preview.alreadyImported.createdAt
+                ).toLocaleString("it-IT")}
+                .{" "}
+                <Link
+                  href={`/settings/payroll-import/history/${preview.alreadyImported.importId}`}
+                  className="font-semibold underline hover:no-underline"
+                >
+                  Vedi import precedente
+                </Link>
+              </InfoBanner>
             )}
 
             {preview.orphans.length > 0 && (
-              <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4">
-                <Info
-                  className="mt-0.5 h-5 w-5 shrink-0 text-sky-600"
-                  strokeWidth={1.5}
-                />
-                <div className="flex-1 text-sm text-sky-900">
-                  <p className="font-semibold">
-                    Dipendenti non presenti nel PDF
-                  </p>
-                  <p className="mt-1">
-                    I saldi di{" "}
-                    <strong>
-                      {preview.orphans
-                        .map((o) => o.displayName)
-                        .join(", ")}
-                    </strong>{" "}
-                    non verranno modificati.
-                  </p>
-                </div>
-              </div>
+              <InfoBanner kind="info" title="Dipendenti non presenti nel PDF">
+                I saldi di{" "}
+                <strong>
+                  {preview.orphans
+                    .map((o) => o.displayName)
+                    .join(", ")}
+                </strong>{" "}
+                non verranno modificati.
+              </InfoBanner>
             )}
           </section>
 
-          <section className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+          <section className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-card">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-surface-container bg-surface-container-low/50">
@@ -420,7 +403,7 @@ export default function PayrollImportPage() {
                       ) : (
                         <select
                           aria-label={`Associa matricola ${r.matricola}`}
-                          className="rounded-lg border border-outline-variant/40 bg-white px-2 py-1.5 text-sm text-on-surface focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                          className="rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                           defaultValue=""
                           onChange={(e) =>
                             associate(r.matricola, e.target.value)
@@ -460,7 +443,7 @@ export default function PayrollImportPage() {
             <button
               onClick={handleConfirm}
               disabled={!canConfirm}
-              className="rounded-lg bg-gradient-to-br from-primary to-primary-container px-5 py-2 text-sm font-bold text-on-primary shadow-card transition-shadow hover:shadow-elevated disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-primary px-5 py-2 text-sm font-bold text-on-primary shadow-card transition-shadow hover:shadow-elevated disabled:cursor-not-allowed disabled:opacity-50"
             >
               Conferma import
             </button>

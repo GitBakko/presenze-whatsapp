@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { CircleAlert, LogIn, Lock } from "lucide-react";
 
 export default function LoginPage() {
@@ -44,24 +45,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-cover bg-center bg-fixed p-6"
-      style={{
-        backgroundImage:
-          "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCahqfV34AMLb9q8_uMjV4OkeUDoWy8ZKVpJCboY4hUPno3YJCmTdpGIaBcJ8K17fYn3PAiPtlKgmezKWOxgLHJNQLCfAVNSoo4SbkmjZ_LfSd75DlWPTYCMc2LgC-LDaTyrjGBRC4wcM0LkHZKO_qi4zbT9oVCEi4qx74neZDR5rLVhzyTx93jWmBjzCw72mfNZ2Brvn8jSfGvIlM404r-x9CRD1e9LiFcyZ2uKDzMif6w6n1QYnM21rMDJ2DyAWl4Gch-tWvEIsWA')",
-      }}
-    >
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-surface to-surface-container-high p-6">
       {/* Background decorative blobs */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-primary-fixed opacity-10 blur-3xl" />
-        <div className="absolute top-1/2 -right-48 h-[32rem] w-[32rem] rounded-full bg-secondary-container opacity-20 blur-[100px]" />
+        <div className="absolute top-1/2 -right-48 h-[32rem] w-[32rem] rounded-full bg-secondary-container opacity-20 blur-3xl" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="mb-10 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="ePartner HR" className="mx-auto mb-6 h-10" />
+          <Image src="/logo.svg" width={120} height={40} alt="E-Partner" priority className="mx-auto mb-6" />
           <h1 className="mb-2 font-display text-4xl font-extrabold tracking-tight text-primary">
             ePartner HR
           </h1>
@@ -71,7 +65,7 @@ export default function LoginPage() {
         </div>
 
         {/* Login Card */}
-        <div className="rounded-xl bg-white/95 p-8 shadow-editorial backdrop-blur-sm md:p-10">
+        <div className="rounded-xl bg-surface-container-lowest/95 p-8 shadow-editorial backdrop-blur-sm md:p-10">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
             <div className="space-y-2">
@@ -125,7 +119,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-primary to-primary-container px-6 py-4 font-bold text-on-primary shadow-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-4 font-bold text-on-primary shadow-elevated transition-all hover:bg-primary-container active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>{loading ? "Accesso in corso..." : "Accedi"}</span>
               {!loading && (
@@ -152,13 +146,10 @@ export default function LoginPage() {
         <div className="mt-8 flex items-center justify-center gap-2 opacity-40">
           <Lock className="h-3 w-3" />
           <span className="text-[0.65rem] font-bold uppercase tracking-[0.2em]">
-            Connessione sicura SSL 256-bit
+            HTTPS / TLS
           </span>
         </div>
       </div>
-
-      {/* Bottom gradient bar */}
-      <div className="fixed bottom-0 left-0 right-0 hidden h-1 bg-gradient-to-r from-primary via-primary-container to-secondary lg:block" />
     </div>
   );
 }

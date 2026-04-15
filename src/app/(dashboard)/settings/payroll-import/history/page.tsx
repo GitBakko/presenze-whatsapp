@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { FileSpreadsheet, History } from "lucide-react";
+import { InfoBanner } from "@/components/InfoBanner";
 
 interface Item {
   id: string;
@@ -19,6 +21,7 @@ interface Item {
 export default function PayrollImportHistoryPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/settings/payroll-import/history")
@@ -27,7 +30,11 @@ export default function PayrollImportHistoryPage() {
         return r.json();
       })
       .then(setItems)
-      .catch(() => setItems([]))
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : "Errore caricamento storico";
+        setError(msg);
+        toast.error("Errore nel caricamento dello storico import");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -58,8 +65,14 @@ export default function PayrollImportHistoryPage() {
         <p className="text-sm text-on-surface-variant">Caricamento…</p>
       )}
 
-      {!loading && items.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-white py-12 text-center">
+      {!loading && error && (
+        <InfoBanner kind="error" title="Errore caricamento storico">
+          {error}
+        </InfoBanner>
+      )}
+
+      {!loading && !error && items.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-12 text-center">
           <History className="mb-3 h-12 w-12 text-outline-variant" strokeWidth={1.5} />
           <p className="text-sm text-on-surface-variant">
             Nessun import ancora eseguito
@@ -68,7 +81,7 @@ export default function PayrollImportHistoryPage() {
       )}
 
       {items.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-card">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-surface-container bg-surface-container-low/50">

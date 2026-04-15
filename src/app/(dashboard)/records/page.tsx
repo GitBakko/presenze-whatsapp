@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Clock, Trash2, Pencil, Filter, Nfc, MessageCircle, RefreshCw, Save, X } from "lucide-react";
 import { formatDate } from "@/lib/formatTime";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface Employee {
   id: string;
@@ -192,6 +193,16 @@ export default function RecordsPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const pageButtons = useMemo(
+    () =>
+      Array.from({ length: totalPages }, (_, i) => {
+        const show = i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1;
+        const showEllipsis = !show && (i === 1 || i === totalPages - 2);
+        return { i, show, showEllipsis };
+      }),
+    [totalPages, page]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -288,8 +299,8 @@ export default function RecordsPage() {
               onClick={() => setSource(source === "NFC" ? "" : "NFC")}
               className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                 source === "NFC"
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                  : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  ? "bg-success text-on-primary hover:bg-success/90"
+                  : "bg-success-container text-success hover:bg-success-container/80"
               }`}
               title="Mostra solo timbrature NFC"
             >
@@ -312,13 +323,13 @@ export default function RecordsPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-surface-container bg-surface-container-low">
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Data</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Ora</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Dipendente</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Tipo</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Origine</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Note</th>
-                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Azioni</th>
+                  <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Data</th>
+                  <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Ora</th>
+                  <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Dipendente</th>
+                  <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Tipo</th>
+                  <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Origine</th>
+                  <th scope="col" className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Note</th>
+                  <th scope="col" className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Azioni</th>
                 </tr>
               </thead>
               <tbody>
@@ -364,21 +375,25 @@ export default function RecordsPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            r.source === "NFC"
-                              ? "bg-emerald-100 text-emerald-900"
-                              : r.source === "TELEGRAM"
-                              ? "bg-sky-100 text-sky-900"
-                              : r.source === "MANUAL"
-                              ? "bg-blue-100 text-blue-900"
-                              : "bg-surface-container text-on-surface-variant"
-                          }`}
-                        >
-                          {r.source === "NFC" && <Nfc className="h-3 w-3" />}
-                          {r.source === "TELEGRAM" && <MessageCircle className="h-3 w-3" />}
-                          {SOURCE_LABELS[r.source] ?? r.source}
-                        </span>
+                        {r.source === "NFC" ? (
+                          <StatusBadge kind="success">
+                            <Nfc className="mr-1 h-3 w-3" />
+                            {SOURCE_LABELS[r.source]}
+                          </StatusBadge>
+                        ) : r.source === "TELEGRAM" ? (
+                          <StatusBadge kind="info">
+                            <MessageCircle className="mr-1 h-3 w-3" />
+                            {SOURCE_LABELS[r.source]}
+                          </StatusBadge>
+                        ) : r.source === "MANUAL" ? (
+                          <StatusBadge kind="neutral">
+                            {SOURCE_LABELS[r.source]}
+                          </StatusBadge>
+                        ) : (
+                          <StatusBadge kind="neutral">
+                            {SOURCE_LABELS[r.source] ?? r.source}
+                          </StatusBadge>
+                        )}
                       </td>
                       <td className="px-4 py-3 max-w-xs truncate text-xs text-on-surface-variant" title={r.rawMessage}>
                         {r.rawMessage}
@@ -391,7 +406,7 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={() => saveEdit(r)}
                                 disabled={busy}
-                                className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-on-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-on-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Save className="h-3 w-3" /> Salva
                               </button>
@@ -399,7 +414,8 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={cancelEdit}
                                 disabled={busy}
-                                className="rounded-md bg-surface-container px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Annulla modifica"
+                                className="inline-flex min-h-[44px] items-center rounded-md bg-surface-container px-3 py-2 text-xs font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <X className="h-3 w-3" />
                               </button>
@@ -410,7 +426,8 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={() => startEdit(r)}
                                 disabled={busy}
-                                className="inline-flex items-center gap-1 rounded-md bg-surface-container-high px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Modifica timbratura"
+                                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-surface-container-high px-3 py-2 text-xs font-medium text-on-surface hover:bg-surface-container-highest disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Modifica"
                               >
                                 <Pencil className="h-3 w-3" />
@@ -419,7 +436,8 @@ export default function RecordsPage() {
                                 type="button"
                                 onClick={() => handleDelete(r)}
                                 disabled={busy}
-                                className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Elimina timbratura"
+                                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-error-container px-3 py-2 text-xs font-medium text-error hover:bg-error-container/80 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Elimina"
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -449,10 +467,7 @@ export default function RecordsPage() {
               >
                 ←
               </button>
-              {Array.from({ length: totalPages }, (_, i) => {
-                // Show: first, last, current ±1, ellipsis
-                const show = i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1;
-                const showEllipsis = !show && (i === 1 || i === totalPages - 2);
+              {pageButtons.map(({ i, show, showEllipsis }) => {
                 if (!show && !showEllipsis) return null;
                 if (showEllipsis) return <span key={i} className="px-1 text-outline-variant">…</span>;
                 return (
@@ -462,7 +477,7 @@ export default function RecordsPage() {
                     onClick={() => setPage(i)}
                     className={`min-w-[32px] rounded-md px-2.5 py-1.5 text-sm font-medium transition-all ${
                       i === page
-                        ? "bg-primary text-white shadow-sm"
+                        ? "bg-primary text-on-primary shadow-sm"
                         : "bg-surface-container text-on-surface hover:bg-surface-container-high"
                     }`}
                   >

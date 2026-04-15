@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CircleAlert, Info, ArrowRight } from "lucide-react";
+import Image from "next/image";
+import { CircleAlert, Info, ArrowRight, CheckCircle2 } from "lucide-react";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -12,8 +12,6 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  void router;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,18 +36,11 @@ export default function RegisterPage() {
   };
 
   return (
-    <div
-      className="flex min-h-screen items-center justify-center bg-cover bg-center bg-fixed p-6"
-      style={{
-        backgroundImage:
-          "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCahqfV34AMLb9q8_uMjV4OkeUDoWy8ZKVpJCboY4hUPno3YJCmTdpGIaBcJ8K17fYn3PAiPtlKgmezKWOxgLHJNQLCfAVNSoo4SbkmjZ_LfSd75DlWPTYCMc2LgC-LDaTyrjGBRC4wcM0LkHZKO_qi4zbT9oVCEi4qx74neZDR5rLVhzyTx93jWmBjzCw72mfNZ2Brvn8jSfGvIlM404r-x9CRD1e9LiFcyZ2uKDzMif6w6n1QYnM21rMDJ2DyAWl4Gch-tWvEIsWA')",
-      }}
-    >
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-surface to-surface-container-high p-6">
       <main className="flex w-full max-w-md flex-col items-center">
         {/* Brand header */}
         <div className="mb-8 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="ePartner HR" className="mx-auto mb-6 h-10" />
+          <Image src="/logo.svg" width={120} height={40} alt="E-Partner" priority className="mx-auto mb-6" />
           <h1 className="font-display text-4xl font-extrabold tracking-tighter text-primary">
             ePartner HR
           </h1>
@@ -60,9 +51,9 @@ export default function RegisterPage() {
 
         {/* Success state */}
         {success && (
-          <div className="rounded-xl bg-white/80 p-8 text-center shadow-editorial backdrop-blur-xl lg:p-10">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <ArrowRight className="h-8 w-8 text-green-600" />
+          <div className="rounded-xl bg-surface-container-lowest/95 p-8 text-center shadow-editorial backdrop-blur-xl lg:p-10">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success-container">
+              <CheckCircle2 className="h-8 w-8 text-success" />
             </div>
             <h2 className="font-display text-xl font-bold text-on-surface">Registrazione completata!</h2>
             <p className="mt-3 text-sm text-on-surface-variant">
@@ -81,7 +72,7 @@ export default function RegisterPage() {
 
         {/* Registration card */}
         {!success && (
-        <div className="rounded-xl bg-white/80 p-8 shadow-editorial backdrop-blur-xl lg:p-10">
+        <div className="rounded-xl bg-surface-container-lowest/95 p-8 shadow-editorial backdrop-blur-xl lg:p-10">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Error */}
             {error && (
@@ -161,7 +152,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-container px-6 py-4 font-display font-bold text-on-primary transition-all duration-200 hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 font-display font-bold text-on-primary transition-all duration-200 hover:bg-primary-container active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Registrazione in corso..." : "Registrati"}
                 {!loading && (
@@ -174,7 +165,7 @@ export default function RegisterPage() {
         )}
 
         {/* Footer link */}
-        <div className="mx-auto mt-6 inline-block rounded-full bg-white/40 p-2 text-center backdrop-blur-md">
+        <div className="mx-auto mt-6 inline-block rounded-full bg-surface-container-lowest/70 p-2 text-center">
           <p className="text-sm text-secondary">
             Hai già un account?
             <Link

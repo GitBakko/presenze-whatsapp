@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { FileSpreadsheet } from "lucide-react";
+import { InfoBanner } from "@/components/InfoBanner";
 
 interface Snapshot {
   vacationCarryOver: number;
@@ -81,7 +82,9 @@ export default function PayrollImportDetailPage() {
         >
           ← Storico
         </Link>
-        <p className="text-sm text-on-surface-variant">Import non trovato.</p>
+        <InfoBanner kind="error" title="Import non trovato">
+          Torna allo storico per la lista completa.
+        </InfoBanner>
       </div>
     );
   }
@@ -104,7 +107,7 @@ export default function PayrollImportDetailPage() {
         </h1>
       </div>
 
-      <div className="rounded-xl border border-outline-variant/30 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-card">
         <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-outline-variant">
@@ -139,7 +142,7 @@ export default function PayrollImportDetailPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-card">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-surface-container bg-surface-container-low/50">
@@ -206,7 +209,7 @@ export default function PayrollImportDetailPage() {
       </div>
 
       {data.payload.orphans.length > 0 && (
-        <div className="rounded-xl border border-outline-variant/30 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-card">
           <h3 className="mb-2 font-display text-sm font-bold uppercase tracking-wider text-primary">
             Dipendenti non presenti nel PDF
           </h3>

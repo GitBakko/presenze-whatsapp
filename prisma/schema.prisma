@@ -18,6 +18,7 @@ model User {
   createdAt      DateTime       @default(now())
   anomalies      Anomaly[]      @relation("ResolvedBy")
   approvedLeaves LeaveRequest[] @relation("ApprovedLeaves")
+  payrollImports PayrollImport[] @relation("PayrollImports")
   employee       Employee?      @relation("UserEmployee", fields: [employeeId], references: [id])
 }
 
@@ -33,6 +34,7 @@ model Employee {
   telegramChatId   String?        @unique // chat_id Telegram (string per evitare overflow Int64)
   telegramUsername String?                // @username Telegram (cosmetico, mostrato nella UI admin)
   email        String?            @unique // email associata per richieste ferie via mail
+  payrollId    String?            @unique // matricola from payroll system
   createdAt    DateTime           @default(now())
   records      AttendanceRecord[]
   employeeApiKey EmployeeApiKey?
@@ -229,4 +231,27 @@ model EmailIngestLog {
   @@index([processedAt])
   @@index([fromAddress])
   @@index([status])
+}
+
+// ── Payroll Import ──
+
+model PayrollImport {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  userId           String
+  fileName         String
+  fileHash         String
+  year             Int
+  sourceMonth      String   // "Marzo 2026"
+  totalEmployees   Int
+  matchedEmployees Int
+  skippedEmployees Int
+  orphanEmployees  Int
+  payload          String   // JSON string
+
+  user User @relation("PayrollImports", fields: [userId], references: [id])
+
+  @@index([year])
+  @@index([fileHash])
+  @@index([createdAt])
 }

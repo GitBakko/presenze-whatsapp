@@ -4,10 +4,10 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { StatCardProps } from "@/types/dashboard";
 
 const COLOR_MAP = {
-  green: { bg: "bg-green-50", text: "text-green-700", bar: "bg-green-500" },
-  blue: { bg: "bg-blue-50", text: "text-blue-700", bar: "bg-blue-500" },
-  amber: { bg: "bg-amber-50", text: "text-amber-700", bar: "bg-amber-500" },
-  red: { bg: "bg-red-50", text: "text-red-700", bar: "bg-red-500" },
+  green: { bg: "bg-success-container/40", text: "text-success", bar: "bg-success" },
+  blue: { bg: "bg-primary-container/40", text: "text-on-primary-container", bar: "bg-primary" },
+  amber: { bg: "bg-warning-container/40", text: "text-warning", bar: "bg-warning" },
+  red: { bg: "bg-error-container", text: "text-on-error-container", bar: "bg-error" },
   gray: { bg: "bg-surface-container-low", text: "text-on-surface-variant", bar: "bg-outline-variant" },
 };
 
@@ -39,7 +39,7 @@ export function StatCard({
     : Minus;
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-outline-variant/30 bg-white p-5">
+    <div className="relative overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-card p-5">
       <p className="text-xs font-medium text-on-surface-variant">{label}</p>
       <p className={`mt-1 text-2xl font-semibold ${c.text}`}>{value}</p>
       {delta !== 0 ? (

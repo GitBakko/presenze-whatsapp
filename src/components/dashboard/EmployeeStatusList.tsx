@@ -1,17 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import type { EmployeeTodayStatus, EmployeeStatus } from "@/types/dashboard";
-import { getInitials, getAvatarColor } from "@/lib/avatar-utils";
+import { getInitials } from "@/lib/avatar-utils";
 
-const STATUS_DOT: Record<EmployeeStatus, string> = {
-  present: "bg-green-500",
-  late: "bg-amber-500",
-  absent: "bg-red-500",
-  sick: "bg-red-400",
-  vacation: "bg-outline-variant",
-  nonWorking: "bg-blue-300",
+const STATUS_DOT: Record<EmployeeStatus, { dot: string; label: string }> = {
+  present: { dot: "bg-green-500", label: "Presente" },
+  late: { dot: "bg-amber-500", label: "In ritardo" },
+  absent: { dot: "bg-red-500", label: "Assente" },
+  sick: { dot: "bg-red-400", label: "Malattia" },
+  vacation: { dot: "bg-outline-variant", label: "Ferie" },
+  nonWorking: { dot: "bg-blue-300", label: "Non lavorativo" },
 };
 
 export function EmployeeStatusList({
@@ -23,7 +24,7 @@ export function EmployeeStatusList({
   const remaining = employees.length - shown.length;
 
   return (
-    <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-on-surface">
           Dipendenti — stato oggi
@@ -38,7 +39,7 @@ export function EmployeeStatusList({
       <div className="space-y-2">
         {shown.map((emp) => {
           const initials = getInitials(emp.name);
-          const avatarColor = getAvatarColor(emp.name);
+          const statusInfo = STATUS_DOT[emp.status];
 
           return (
             <div
@@ -46,18 +47,20 @@ export function EmployeeStatusList({
               className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-container-low"
             >
               <span
-                className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${STATUS_DOT[emp.status]}`}
+                className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${statusInfo.dot}`}
+                aria-label={statusInfo.label}
               />
               {emp.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={emp.avatarUrl}
                   alt={emp.name}
+                  width={32}
+                  height={32}
                   className="h-8 w-8 rounded-full object-cover"
                 />
               ) : (
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${avatarColor} text-xs font-bold text-white`}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-container text-xs font-bold text-on-primary-container"
                 >
                   {initials}
                 </div>
@@ -75,7 +78,7 @@ export function EmployeeStatusList({
                 </p>
               </div>
               {emp.delayMinutes > 15 && (
-                <div className="flex items-center gap-1 text-[11px] font-medium text-amber-600">
+                <div className="flex items-center gap-1 text-[11px] font-medium text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   +{emp.delayMinutes}&apos;
                 </div>

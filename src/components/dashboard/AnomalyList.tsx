@@ -5,9 +5,9 @@ import { AlertTriangle, HelpCircle, RefreshCw } from "lucide-react";
 import type { AnomalyRecent } from "@/types/dashboard";
 
 const SEVERITY_STYLE: Record<number, { bg: string; text: string }> = {
-  2: { bg: "bg-red-100", text: "text-red-800" },
-  1: { bg: "bg-amber-100", text: "text-amber-800" },
-  0: { bg: "bg-blue-100", text: "text-blue-800" },
+  2: { bg: "bg-error-container", text: "text-on-error-container" },
+  1: { bg: "bg-warning-container/40", text: "text-warning" },
+  0: { bg: "bg-primary-container/40", text: "text-on-primary-container" },
 };
 
 function relativeDate(dateStr: string): string {
@@ -28,7 +28,7 @@ function typeIcon(type: string) {
 
 export function AnomalyList({ anomalies }: { anomalies: AnomalyRecent[] }) {
   return (
-    <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-on-surface">
           Anomalie recenti

@@ -35,7 +35,7 @@ export function EmployeeMetricChart({
 }) {
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
+      <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5">
         <h3 className="mb-4 text-sm font-semibold text-on-surface">{title}</h3>
         <div className="flex h-32 items-center justify-center text-sm text-on-surface-variant">
           {emptyMessage}
@@ -59,7 +59,7 @@ export function EmployeeMetricChart({
   const chartHeight = Math.max(120, chartData.length * barHeight + 40);
 
   return (
-    <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5">
       <h3 className="mb-4 text-sm font-semibold text-on-surface">{title}</h3>
       <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart

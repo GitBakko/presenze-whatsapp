@@ -13,7 +13,12 @@ import { AnomalyList } from "@/components/dashboard/AnomalyList";
 import { LeaveBalanceTable } from "@/components/dashboard/LeaveBalanceTable";
 import { EmployeeMetricChart } from "@/components/dashboard/EmployeeMetricChart";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
+import { InfoBanner } from "@/components/InfoBanner";
 import type { DashboardPeriod, DashboardStatsResponse } from "@/types/dashboard";
+
+// warning/primary tokens (hex) — used for recharts which requires actual hex values
+const CHART_COLOR_WARNING = "#f59e0b";
+const CHART_COLOR_PRIMARY = "#3b82f6";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -85,22 +90,24 @@ export default function DashboardPage() {
             className="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-highest disabled:opacity-50 disabled:cursor-not-allowed"
             title="Aggiorna dati"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-label="Aggiorna dashboard" />
           </button>
         </div>
       </div>
 
       {/* ── Error banner ────────────────────────────────────────── */}
       {error && (
-        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <span>{error}</span>
-          <button
-            onClick={load}
-            className="ml-4 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-800 hover:bg-red-200"
-          >
-            Riprova
-          </button>
-        </div>
+        <InfoBanner kind="error" title="Errore">
+          <div className="flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 rounded-lg bg-error-container px-3 py-1.5 text-xs font-semibold text-on-error-container hover:opacity-80"
+            >
+              Riprova
+            </button>
+          </div>
+        </InfoBanner>
       )}
 
       {/* ── Loading skeleton ────────────────────────────────────── */}
@@ -129,25 +136,23 @@ export default function DashboardPage() {
 
           {/* Banner giorno non lavorativo */}
           {data.isNonWorkingToday && (
-            <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4">
-              {data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica" ? (
-                <CalendarOff className="h-8 w-8 flex-shrink-0 text-blue-500" />
-              ) : (
-                <PartyPopper className="h-8 w-8 flex-shrink-0 text-indigo-500" />
-              )}
-              <div>
-                <p className="text-sm font-bold text-blue-900">
-                  {data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica"
-                    ? `Oggi è ${data.nonWorkingLabel}`
-                    : `Oggi è festa: ${data.nonWorkingLabel}`}
-                </p>
-                <p className="text-xs text-blue-700">
-                  {data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica"
-                    ? "Giorno non lavorativo — i dati di presenza e assenza non sono rilevanti."
-                    : "Giornata festiva nazionale — l'ufficio è chiuso. Buona festa! 🎉"}
-                </p>
-              </div>
-            </div>
+            <InfoBanner
+              kind="info"
+              icon={
+                data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica"
+                  ? CalendarOff
+                  : PartyPopper
+              }
+              title={
+                data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica"
+                  ? `Oggi è ${data.nonWorkingLabel}`
+                  : `Oggi è festa: ${data.nonWorkingLabel}`
+              }
+            >
+              {data.nonWorkingLabel === "Sabato" || data.nonWorkingLabel === "Domenica"
+                ? "Giorno non lavorativo — i dati di presenza e assenza non sono rilevanti."
+                : "Giornata festiva nazionale — l'ufficio è chiuso. Buona festa! 🎉"}
+            </InfoBanner>
           )}
 
           {/* SEZIONE A — Riepilogo Oggi (solo admin) */}
@@ -162,13 +167,13 @@ export default function DashboardPage() {
               <EmployeeMetricChart
                 title="Ritardo per dipendente"
                 data={data.charts?.ritardoPerDipendente ?? []}
-                color="#f59e0b"
+                color={CHART_COLOR_WARNING}
                 emptyMessage="Nessun ritardo nel periodo"
               />
               <EmployeeMetricChart
                 title="Straordinario per dipendente"
                 data={data.charts?.straordinarioPerDipendente ?? []}
-                color="#3b82f6"
+                color={CHART_COLOR_PRIMARY}
                 emptyMessage="Nessuno straordinario nel periodo"
               />
             </div>

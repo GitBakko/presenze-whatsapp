@@ -22,7 +22,7 @@ export function OreChart({ data }: { data: OreChartPoint[] }) {
   }
 
   return (
-    <div className="rounded-xl border border-outline-variant/30 bg-white p-5">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5">
       <h3 className="mb-4 text-sm font-semibold text-on-surface">
         Ore lavorate vs contratto
       </h3>

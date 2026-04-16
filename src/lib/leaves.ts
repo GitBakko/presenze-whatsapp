@@ -126,6 +126,8 @@ export async function computeLeaveBalance(
     throw new Error("Dipendente non trovato");
   }
 
+  // NOTE: fallback to 0 for PART_TIME employees without schedule rows means all
+  // accrual is zeroed out for those employees — known limitation, not fixed here.
   const weeklyHours = employee.schedule.length > 0
     ? calcWeeklyHours(employee.schedule)
     : (employee.contractType === "FULL_TIME" ? FULL_TIME_WEEKLY_HOURS : 0);
@@ -251,9 +253,7 @@ export async function computeLeaveBalance(
     sickDays,
     sickDaysThisMonth,
     weeklyHours,
-    contractType: employee.schedule.length > 0
-      ? (weeklyHours >= FULL_TIME_WEEKLY_HOURS ? "FULL_TIME" : "PART_TIME")
-      : employee.contractType,
+    contractType: employee.contractType,
   };
 }
 

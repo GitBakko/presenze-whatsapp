@@ -246,6 +246,25 @@ export function leaveDecisionNotification(args: {
   return { subject, text, html };
 }
 
+/** Email per il report presenze mensile automatico (con allegato .xlsx). */
+export function monthlyReportEmail(args: {
+  monthLabel: string;
+  filename: string;
+}): MailReply {
+  const subject = `Report presenze ${args.monthLabel}`;
+  const text =
+    `In allegato il foglio presenze di ${args.monthLabel}.\n\n` +
+    `Il file "${args.filename}" è in formato Excel (.xlsx) e contiene ` +
+    `il riepilogo giornaliero di tutti i dipendenti.` +
+    FOOTER;
+  const html = renderEmailHtml(
+    `<p>In allegato il foglio presenze di <strong>${args.monthLabel}</strong>.</p>` +
+    `<p>Il file <strong>${args.filename}</strong> è in formato Excel (.xlsx) e contiene ` +
+    `il riepilogo giornaliero di tutti i dipendenti.</p>`
+  );
+  return { subject, text, html };
+}
+
 /** Notifica agli admin quando un dipendente crea una richiesta in PENDING. */
 export function newPendingLeaveNotification(args: {
   employeeName: string;

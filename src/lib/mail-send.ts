@@ -13,6 +13,12 @@
 
 import { sendMailGraph, isMailGraphConfigured } from "./mail-graph";
 
+export interface MailAttachment {
+  filename: string;
+  contentBytes: string; // base64-encoded
+  contentType: string;
+}
+
 export interface SendMailArgs {
   to: string;
   subject: string;
@@ -24,6 +30,7 @@ export interface SendMailArgs {
    * mantenere il threading.
    */
   replyToMessageId?: string;
+  attachments?: MailAttachment[];
 }
 
 export async function sendMail(args: SendMailArgs): Promise<boolean> {

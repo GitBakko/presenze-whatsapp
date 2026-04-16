@@ -244,6 +244,7 @@ export interface SendMailArgs {
   text: string;
   html?: string;
   replyToMessageId?: string; // Graph messageId (non internetMessageId)
+  attachments?: import("./mail-send").MailAttachment[];
 }
 
 /**
@@ -268,6 +269,14 @@ export async function sendMailGraph(args: SendMailArgs): Promise<void> {
     ...(fromName
       ? { from: { emailAddress: { name: fromName, address: mailbox } } }
       : {}),
+    ...(args.attachments?.length ? {
+      attachments: args.attachments.map(a => ({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: a.filename,
+        contentType: a.contentType,
+        contentBytes: a.contentBytes,
+      })),
+    } : {}),
   };
 
   if (args.replyToMessageId) {

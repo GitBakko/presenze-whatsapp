@@ -12,6 +12,8 @@ import { EmployeeStatusList } from "@/components/dashboard/EmployeeStatusList";
 import { AnomalyList } from "@/components/dashboard/AnomalyList";
 import { LeaveBalanceTable } from "@/components/dashboard/LeaveBalanceTable";
 import { EmployeeMetricChart } from "@/components/dashboard/EmployeeMetricChart";
+import { TodayLeavesBox } from "@/components/dashboard/TodayLeavesBox";
+import { UpcomingLeavesBox } from "@/components/dashboard/UpcomingLeavesBox";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
 import { InfoBanner } from "@/components/InfoBanner";
 import type { DashboardPeriod, DashboardStatsResponse } from "@/types/dashboard";
@@ -157,6 +159,14 @@ export default function DashboardPage() {
 
           {/* SEZIONE A — Riepilogo Oggi (solo admin) */}
           {isAdmin && <TodayOverview data={data.today} />}
+
+          {/* SEZIONE A+ — Dettaglio ferie & permessi oggi + prossimi 14 giorni (solo admin) */}
+          {isAdmin && (data.todayLeaves.length > 0 || data.upcomingLeaves.length > 0) && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <TodayLeavesBox leaves={data.todayLeaves} today={new Date().toISOString().split("T")[0]} />
+              <UpcomingLeavesBox leaves={data.upcomingLeaves} today={new Date().toISOString().split("T")[0]} />
+            </div>
+          )}
 
           {/* SEZIONE B — KPI */}
           <KpiGrid kpi={data.kpi} />

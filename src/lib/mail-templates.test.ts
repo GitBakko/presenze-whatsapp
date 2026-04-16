@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderEmailHtml, renderButton } from "./mail-templates";
+import { renderEmailHtml, renderButton, newPendingLeaveNotification } from "./mail-templates";
 
 describe("renderEmailHtml", () => {
   it("wraps content in HTML with ePartner HR header and footer", () => {
@@ -30,5 +30,21 @@ describe("renderButton", () => {
     expect(btn).toContain("Vai");
     expect(btn).toContain("background-color");
     expect(btn).toContain("#004253");
+  });
+});
+
+describe("newPendingLeaveNotification", () => {
+  it("produces subject with employee name and type", () => {
+    const r = newPendingLeaveNotification({
+      employeeName: "Stefano Brunelli",
+      leaveTypeLabel: "Ferie",
+      startDate: "2026-04-21",
+      endDate: "2026-04-25",
+    });
+    expect(r.subject).toBe("Nuova richiesta: Ferie da Stefano Brunelli");
+    expect(r.text).toContain("Stefano Brunelli");
+    expect(r.html).toContain("Stefano Brunelli");
+    expect(r.html).toContain("Ferie");
+    expect(r.html).toContain("Vedi richieste in attesa");
   });
 });

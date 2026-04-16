@@ -1,11 +1,7 @@
 /**
  * Template di testo per le email automatiche dell'ingest.
  *
- * Tutti i template sono solo plain text — niente HTML — per massima
- * compatibilita' con client mail eterogenei e per evitare di sembrare
- * spam.
- *
- * Le funzioni restituiscono { subject, text } pronti per nodemailer.
+ * Tutti i template restituiscono { subject, text, html } pronti per nodemailer.
  */
 
 import { formatItDate } from "./leave-date-parser";
@@ -72,10 +68,17 @@ Solo giornate intere.`;
 export interface MailReply {
   subject: string;
   text: string;
+  html: string;
 }
 
 /** Risposta a un mittente non riconosciuto (email non in tabella Employee). */
 export function replyUnknownSender(originalSubject: string): MailReply {
+  const html = renderEmailHtml(
+    `<p>Ciao,</p>` +
+    `<p>il tuo indirizzo non risulta associato a nessun dipendente registrato. ` +
+    `Per inviare richieste di ferie via email, contatta l'amministratore HR ` +
+    `e fagli associare il tuo indirizzo email al tuo profilo.</p>`
+  );
   return {
     subject: `Re: ${originalSubject || "ferie"} — indirizzo non autorizzato`,
     text:
@@ -84,11 +87,22 @@ export function replyUnknownSender(originalSubject: string): MailReply {
       "Per inviare richieste di ferie via email, contatta l'amministratore HR " +
       "e fagli associare il tuo indirizzo email al tuo profilo." +
       FOOTER,
+    html,
   };
 }
 
 /** Risposta su corpo malformato. */
 export function replyParseError(originalSubject: string): MailReply {
+  const html = renderEmailHtml(
+    `<p>Ciao,</p>` +
+    `<p>non sono riuscito a interpretare la tua richiesta di ferie.</p>` +
+    `<div style="background-color:#f3f4f5;border-radius:8px;padding:16px;font-family:monospace;font-size:13px;line-height:1.6;margin:16px 0">` +
+    `<strong>Formato corretto:</strong><br>` +
+    `Oggetto: ferie<br>Corpo:<br>&nbsp;&nbsp;DAL 15/04/2026<br>&nbsp;&nbsp;AL 18/04/2026<br><br>` +
+    `Date accettate: GG/MM/AAAA o GG/MM (anno corrente).<br>Solo giornate intere.` +
+    `</div>` +
+    `<p>Riprova a inviare la richiesta con il formato corretto.</p>`
+  );
   return {
     subject: `Re: ${originalSubject || "ferie"} — formato richiesta non valido`,
     text:
@@ -97,6 +111,7 @@ export function replyParseError(originalSubject: string): MailReply {
       FORMATO_ESEMPIO +
       "\n\nRiprova a inviare la richiesta con il formato corretto." +
       FOOTER,
+    html,
   };
 }
 
@@ -111,6 +126,13 @@ export function replyRequestAccepted(args: {
     args.startDate === args.endDate
       ? formatItDate(args.startDate)
       : `dal ${formatItDate(args.startDate)} al ${formatItDate(args.endDate)}`;
+  const html = renderEmailHtml(
+    `<p>Ciao <strong>${args.employeeName}</strong>,</p>` +
+    `<p>la tua richiesta di ferie è stata acquisita.</p>` +
+    `<p><strong>Periodo:</strong> ${period}<br><strong>Stato:</strong> in attesa di approvazione</p>` +
+    `<p>Riceverai una nuova email quando l'amministratore l'avrà approvata o rifiutata.</p>` +
+    `<p style="margin-top:24px">${renderButton("Vai alla piattaforma", "https://hr.epartner.it/leaves")}</p>`
+  );
   return {
     subject: `Re: ${args.originalSubject || "ferie"} — richiesta acquisita`,
     text:
@@ -120,6 +142,7 @@ export function replyRequestAccepted(args: {
       `Stato: in attesa di approvazione\n\n` +
       `Riceverai una nuova email quando l'amministratore l'avrà approvata o rifiutata.` +
       FOOTER,
+    html,
   };
 }
 
@@ -161,9 +184,24 @@ export function leaveCancellationNotification(args: {
   }
   text += FOOTER;
 
+  let htmlBody =
+    `<p>Ciao <strong>${args.employeeName}</strong>,</p>` +
+    `<p>la tua richiesta di ferie ${statusLabel} per il periodo <strong>${period}</strong> ` +
+    `è stata cancellata dall'amministratore.</p>`;
+  if (args.reason?.trim()) {
+    htmlBody += `<p><strong>Motivo:</strong><br>${args.reason.trim()}</p>`;
+  }
+  if (args.previousStatus === "APPROVED") {
+    htmlBody += `<p style="color:#ba1a1a;font-weight:600">ATTENZIONE: queste ferie erano già state approvate. ` +
+      `Assicurati di essere al lavoro nei giorni indicati.</p>`;
+  }
+  htmlBody += `<p style="margin-top:24px">${renderButton("Vai alla piattaforma", "https://hr.epartner.it/leaves")}</p>`;
+  const html = renderEmailHtml(htmlBody);
+
   return {
     subject: "Ferie cancellate",
     text,
+    html,
   };
 }
 
@@ -193,5 +231,53 @@ export function leaveDecisionNotification(args: {
   }
   text += FOOTER;
 
-  return { subject, text };
+  const statusColor = isApproved ? "#1a6b2d" : "#ba1a1a";
+  const statusLabel = isApproved ? "APPROVATA" : "RIFIUTATA";
+  let htmlBody =
+    `<p>Ciao <strong>${args.employeeName}</strong>,</p>` +
+    `<p>la tua richiesta di ferie è stata <span style="color:${statusColor};font-weight:700">${statusLabel}</span>.</p>` +
+    `<p><strong>Periodo:</strong> ${period}</p>`;
+  if (args.notes?.trim()) {
+    htmlBody += `<p><strong>Note dell'amministratore:</strong><br>${args.notes.trim()}</p>`;
+  }
+  htmlBody += `<p style="margin-top:24px">${renderButton("Vai alla piattaforma", "https://hr.epartner.it/leaves")}</p>`;
+  const html = renderEmailHtml(htmlBody);
+
+  return { subject, text, html };
+}
+
+/** Notifica agli admin quando un dipendente crea una richiesta in PENDING. */
+export function newPendingLeaveNotification(args: {
+  employeeName: string;
+  leaveTypeLabel: string;
+  startDate: string;
+  endDate: string;
+  hours?: number | null;
+  notes?: string | null;
+}): MailReply {
+  const period =
+    args.startDate === args.endDate
+      ? formatItDate(args.startDate)
+      : `dal ${formatItDate(args.startDate)} al ${formatItDate(args.endDate)}`;
+  const subject = `Nuova richiesta: ${args.leaveTypeLabel} da ${args.employeeName}`;
+
+  let details = `<strong>Dipendente:</strong> ${args.employeeName}<br>` +
+    `<strong>Tipo:</strong> ${args.leaveTypeLabel}<br>` +
+    `<strong>Periodo:</strong> ${period}`;
+  if (args.hours) details += `<br><strong>Ore:</strong> ${args.hours}`;
+  if (args.notes?.trim()) details += `<br><strong>Note:</strong> ${args.notes.trim()}`;
+
+  const text =
+    `Nuova richiesta di ${args.leaveTypeLabel} da ${args.employeeName}.\n\n` +
+    `Periodo: ${period}` +
+    (args.hours ? `\nOre: ${args.hours}` : "") +
+    (args.notes?.trim() ? `\nNote: ${args.notes.trim()}` : "") +
+    `\n\nAccedi alla piattaforma per approvarla o rifiutarla.` +
+    FOOTER;
+  const html = renderEmailHtml(
+    `<p>Nuova richiesta in attesa di approvazione:</p>` +
+    `<p style="background-color:#f3f4f5;border-radius:8px;padding:16px;line-height:1.8">${details}</p>` +
+    `<p style="margin-top:24px">${renderButton("Vedi richieste in attesa", "https://hr.epartner.it/leaves")}</p>`
+  );
+  return { subject, text, html };
 }

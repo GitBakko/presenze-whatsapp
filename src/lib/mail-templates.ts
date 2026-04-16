@@ -9,6 +9,54 @@
  */
 
 import { formatItDate } from "./leave-date-parser";
+import { readFileSync } from "fs";
+import { join } from "path";
+
+// Base64-encode logo for inline email use (emails can't fetch local URLs)
+let logoBase64: string;
+try {
+  const svg = readFileSync(join(process.cwd(), "public/logo.svg"), "utf-8");
+  logoBase64 = Buffer.from(svg).toString("base64");
+} catch {
+  logoBase64 = "";
+}
+
+export function renderButton(label: string, href: string): string {
+  return `<a href="${href}" style="display:inline-block;background-color:#004253;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:8px;mso-padding-alt:0;text-align:center">${label}</a>`;
+}
+
+export function renderEmailHtml(body: string): string {
+  return `<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f8f9fa;font-family:Arial,Helvetica,sans-serif;color:#191c1d">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9fa">
+  <tr><td align="center" style="padding:32px 16px 0">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+      <tr><td style="background-color:#004253;border-radius:12px 12px 0 0;padding:20px 32px;text-align:left">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          ${logoBase64 ? `<td style="padding-right:12px"><img src="data:image/svg+xml;base64,${logoBase64}" alt="ePartner HR" width="32" height="32" style="display:block"></td>` : ""}
+          <td style="color:#ffffff;font-size:20px;font-weight:700;line-height:1.2">ePartner HR</td>
+        </tr></table>
+      </td></tr>
+    </table>
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+      <tr><td style="background-color:#ffffff;padding:32px;font-size:14px;line-height:1.6;color:#191c1d">
+        ${body}
+      </td></tr>
+    </table>
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+      <tr><td style="background-color:#f8f9fa;border-top:1px solid #e1e3e4;padding:20px 32px;text-align:center;font-size:12px;color:#6f797c;line-height:1.5">
+        ePartner HR &mdash; Questa &egrave; un'email automatica, non rispondere.<br>
+        <a href="https://hr.epartner.it" style="color:#004253;text-decoration:underline">hr.epartner.it</a>
+      </td></tr>
+    </table>
+    <div style="height:32px"></div>
+  </td></tr>
+</table>
+</body>
+</html>`;
+}
 
 const FOOTER = "\n\n— HR Presenze\nQuesta è un'email automatica, non rispondere.";
 

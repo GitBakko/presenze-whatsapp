@@ -69,6 +69,6 @@ export const config = {
      *   - /api/employee-portal (employee API key)
      *   - /api/telegram/webhook (Telegram bot)
      */
-    "/((?!_next/static|_next/image|favicon\\.ico|login|register|api/auth|api/register|api/kiosk|api/external|api/employee-portal|api/telegram/webhook).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|logo\\.svg|logo-dark\\.svg|uploads/|login|register|api/auth|api/register|api/kiosk|api/external|api/employee-portal|api/telegram/webhook).*)",
   ],
 };

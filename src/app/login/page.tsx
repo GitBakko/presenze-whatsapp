@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { CircleAlert, LogIn, Lock } from "lucide-react";
+import logoDarkSrc from "@/../public/logo-dark.svg";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -55,7 +56,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="mb-10 text-center">
-          <Image src="/logo-dark.svg" width={120} height={80} alt="E-Partner" priority className="mx-auto mb-6" />
+          <Image src={logoDarkSrc} width={120} height={80} alt="E-Partner" priority className="mx-auto mb-6" />
           <h1 className="mb-2 font-display text-4xl font-extrabold tracking-tight text-primary">
             ePartner HR
           </h1>

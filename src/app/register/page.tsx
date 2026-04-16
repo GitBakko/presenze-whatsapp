@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { CircleAlert, Info, ArrowRight, CheckCircle2 } from "lucide-react";
+import logoDarkSrc from "@/../public/logo-dark.svg";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -40,7 +41,7 @@ export default function RegisterPage() {
       <main className="flex w-full max-w-md flex-col items-center">
         {/* Brand header */}
         <div className="mb-8 text-center">
-          <Image src="/logo-dark.svg" width={120} height={80} alt="E-Partner" priority className="mx-auto mb-6" />
+          <Image src={logoDarkSrc} width={120} height={80} alt="E-Partner" priority className="mx-auto mb-6" />
           <h1 className="font-display text-4xl font-extrabold tracking-tighter text-primary">
             ePartner HR
           </h1>

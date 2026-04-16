@@ -32,6 +32,7 @@ export async function GET() {
       employeeId: true,
       createdAt: true,
       receiveLeaveNotifications: true,
+      receiveMonthlyReport: true,
       employee: {
         select: { id: true, name: true, displayName: true },
       },
@@ -75,6 +76,7 @@ export async function GET() {
         : null,
       createdAt: u.createdAt.toISOString(),
       receiveLeaveNotifications: u.receiveLeaveNotifications,
+      receiveMonthlyReport: u.receiveMonthlyReport,
     })),
     employees: employees.map((e) => ({
       id: e.id,
@@ -228,6 +230,10 @@ export async function PATCH(request: NextRequest) {
 
   if (typeof receiveLeaveNotifications === "boolean") {
     data.receiveLeaveNotifications = receiveLeaveNotifications;
+  }
+
+  if (typeof body.receiveMonthlyReport === "boolean") {
+    data.receiveMonthlyReport = body.receiveMonthlyReport;
   }
 
   if (Object.keys(data).length === 0) {

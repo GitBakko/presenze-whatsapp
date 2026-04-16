@@ -24,6 +24,7 @@ interface ActiveUser {
   employeeName: string | null;
   createdAt: string;
   receiveLeaveNotifications: boolean;
+  receiveMonthlyReport: boolean;
 }
 
 interface EmployeeOption {
@@ -115,6 +116,20 @@ export default function UsersSettingsPage() {
       setPendingId(null);
     }
   };
+
+  async function handleToggleMonthlyReport(userId: string, value: boolean) {
+    const res = await fetch("/api/settings/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, receiveMonthlyReport: value }),
+    });
+    if (res.ok) {
+      toast.success(value ? "Report mensile attivato" : "Report mensile disattivato");
+      loadAll();
+    } else {
+      toast.error("Errore nell'aggiornamento");
+    }
+  }
 
   async function handleToggleNotifications(userId: string, value: boolean) {
     const res = await fetch("/api/settings/users", {
@@ -305,6 +320,17 @@ export default function UsersSettingsPage() {
                                   className="h-4 w-4 rounded border-outline-variant text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
                                 />
                                 <span className="text-xs text-on-surface-variant">Notifiche ferie</span>
+                              </label>
+                            )}
+                            {u.role === "ADMIN" && (
+                              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={u.receiveMonthlyReport}
+                                  onChange={() => handleToggleMonthlyReport(u.id, !u.receiveMonthlyReport)}
+                                  className="h-4 w-4 rounded border-outline-variant text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                                />
+                                <span className="text-xs text-on-surface-variant">Report mensile</span>
                               </label>
                             )}
                           </div>

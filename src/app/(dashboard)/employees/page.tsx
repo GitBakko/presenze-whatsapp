@@ -78,10 +78,10 @@ export default function EmployeesPage() {
     setShowModal(true);
   };
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     if (submitting) return;
     setShowModal(false);
-  };
+  }, [submitting]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, LogIn, LogOut, Pause, Play } from "lucide-react";
+import { Bell, CalendarPlus, LogIn, LogOut, Pause, Play } from "lucide-react";
 import { useNotificationsContext } from "./NotificationsProvider";
 import { ACTION_LABELS, type NotificationAction } from "@/lib/useNotifications";
 
@@ -15,6 +15,8 @@ function actionIcon(action: NotificationAction) {
       return <Pause className="h-3.5 w-3.5 text-amber-600" />;
     case "PAUSE_END":
       return <Play className="h-3.5 w-3.5 text-blue-600" />;
+    case "LEAVE_PENDING":
+      return <CalendarPlus className="h-3.5 w-3.5 text-primary" />;
   }
 }
 
@@ -81,14 +83,14 @@ export function NotificationBell() {
         <div className="absolute right-0 z-50 mt-2 w-80 rounded-lg bg-surface-container-lowest shadow-elevated">
           <div className="border-b border-surface-container px-4 py-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-on-surface">Timbrature in tempo reale</h3>
+              <h3 className="text-sm font-semibold text-on-surface">Notifiche in tempo reale</h3>
               <span className="text-[11px] text-on-surface-variant">{events.length} eventi</span>
             </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {events.length === 0 ? (
               <div className="px-4 py-8 text-center text-xs text-on-surface-variant">
-                Nessuna timbratura nelle ultime ore.
+                Nessuna notifica nelle ultime ore.
               </div>
             ) : (
               <ul>
@@ -101,10 +103,16 @@ export function NotificationBell() {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-on-surface">
                         <span className="font-semibold">{evt.employeeName}</span>{" "}
-                        <span className="text-on-surface-variant">{ACTION_LABELS[evt.action]}</span>
+                        <span className="text-on-surface-variant">
+                          {evt.action === "LEAVE_PENDING"
+                            ? `ha richiesto ${evt.time}`
+                            : ACTION_LABELS[evt.action]}
+                        </span>
                       </div>
                       <div className="text-[11px] text-on-surface-variant">
-                        {evt.time} — {relativeTime(evt.ts)}
+                        {evt.action === "LEAVE_PENDING"
+                          ? `${evt.date} — ${relativeTime(evt.ts)}`
+                          : `${evt.time} — ${relativeTime(evt.ts)}`}
                       </div>
                     </div>
                   </li>

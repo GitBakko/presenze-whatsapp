@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
+import { notifyAdminsOfPendingLeave } from "@/lib/leave-notifications";
 
 export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -135,6 +136,19 @@ export async function POST(request: NextRequest) {
       },
       include: { employee: true },
     });
+
+    // Notify admins of pending leave (fire-and-forget)
+    if (!isAdmin) {
+      void notifyAdminsOfPendingLeave({
+        employeeId: leave.employeeId,
+        employeeName: leave.employee.displayName || leave.employee.name,
+        type: leave.type,
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        hours: leave.hours,
+        notes: leave.notes,
+      });
+    }
 
     return NextResponse.json({
       id: leave.id,

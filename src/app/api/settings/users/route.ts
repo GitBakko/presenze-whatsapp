@@ -204,7 +204,7 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-/** PATCH — aggiorna il ruolo o le preferenze di notifica di un utente attivo. */
+/** PATCH — aggiorna il ruolo, le preferenze di notifica, il nome o l'associazione dipendente di un utente attivo. */
 export async function PATCH(request: NextRequest) {
   const denied = await checkAuth();
   if (denied) return denied;
@@ -238,6 +238,22 @@ export async function PATCH(request: NextRequest) {
 
   if (typeof body.receiveMonthlyReport === "boolean") {
     data.receiveMonthlyReport = body.receiveMonthlyReport;
+  }
+
+  if (typeof body.name === "string" && body.name.trim()) {
+    data.name = body.name.trim();
+  }
+
+  if ("employeeId" in body) {
+    const newEmpId = body.employeeId as string | null;
+    if (newEmpId) {
+      // Verify employee exists and is not already linked to another user
+      const emp = await prisma.employee.findUnique({ where: { id: newEmpId } });
+      if (!emp) return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
+      const existing = await prisma.user.findFirst({ where: { employeeId: newEmpId, id: { not: userId } } });
+      if (existing) return NextResponse.json({ error: `Dipendente già associato a ${existing.name}` }, { status: 409 });
+    }
+    data.employeeId = newEmpId ?? null;
   }
 
   if (Object.keys(data).length === 0) {

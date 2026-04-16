@@ -41,6 +41,7 @@ export default function UsersSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [assoc, setAssoc] = useState<Record<string, string>>({});
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<{ userId: string; value: string } | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -113,6 +114,35 @@ export default function UsersSettingsPage() {
       setPendingId(null);
     }
   };
+
+  async function handleChangeName(userId: string, name: string) {
+    const res = await fetch("/api/settings/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, name }),
+    });
+    if (res.ok) {
+      toast.success("Nome aggiornato");
+      loadAll();
+    } else {
+      toast.error("Errore nell'aggiornamento");
+    }
+  }
+
+  async function handleChangeEmployee(userId: string, employeeId: string | null) {
+    const res = await fetch("/api/settings/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, employeeId }),
+    });
+    if (res.ok) {
+      toast.success(employeeId ? "Dipendente associato" : "Associazione rimossa");
+      loadAll();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "Errore nell'aggiornamento");
+    }
+  }
 
   async function handleToggleMonthlyReport(userId: string, value: boolean) {
     const res = await fetch("/api/settings/users", {
@@ -296,7 +326,36 @@ export default function UsersSettingsPage() {
                     {active.map((u) => (
                       <tr key={u.id} className="border-b border-surface-container">
                         <td className="px-4 py-3 font-mono text-xs">{u.email}</td>
-                        <td className="px-4 py-3 font-medium">{u.name}</td>
+                        <td className="px-4 py-3">
+                          {editingName?.userId === u.id ? (
+                            <input
+                              type="text"
+                              value={editingName.value}
+                              onChange={(e) => setEditingName({ userId: u.id, value: e.target.value })}
+                              onBlur={() => {
+                                if (editingName.value.trim() && editingName.value !== u.name) {
+                                  handleChangeName(u.id, editingName.value.trim());
+                                }
+                                setEditingName(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                if (e.key === "Escape") setEditingName(null);
+                              }}
+                              autoFocus
+                              className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest px-2 py-1 text-sm focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setEditingName({ userId: u.id, value: u.name })}
+                              className="text-left font-medium text-on-surface hover:text-primary cursor-pointer"
+                              title="Clicca per modificare"
+                            >
+                              {u.name}
+                            </button>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-1.5">
                             <select
@@ -331,8 +390,24 @@ export default function UsersSettingsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs">
-                          {u.employeeName ?? <span className="text-on-surface-variant">—</span>}
+                        <td className="px-4 py-3">
+                          <select
+                            value={u.employeeId ?? ""}
+                            onChange={(e) => handleChangeEmployee(u.id, e.target.value || null)}
+                            className="rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-2 py-1 text-xs text-on-surface focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+                          >
+                            <option value="">Nessuno (solo admin)</option>
+                            {/* Show the currently associated employee even if they're "taken" */}
+                            {u.employeeId && u.employeeName && (
+                              <option value={u.employeeId}>{u.employeeName}</option>
+                            )}
+                            {/* Show available (unlinked) employees */}
+                            {availableEmployees
+                              .filter((e) => e.id !== u.employeeId)
+                              .map((e) => (
+                                <option key={e.id} value={e.id}>{e.name}</option>
+                              ))}
+                          </select>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">

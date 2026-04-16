@@ -55,6 +55,10 @@ export interface DashboardStatsResponse {
 
   // Sezione E — Saldi ferie & ROL per tutti i dipendenti
   leaveBalances: LeaveBalanceRow[];
+
+  // Sezione A+ — Dettaglio assenze oggi e prossime
+  todayLeaves: LeaveListItem[];
+  upcomingLeaves: LeaveListItem[];
 }
 
 // ── Sezione C: punti grafico ─────────────────────────────────────────
@@ -115,6 +119,18 @@ export interface LeaveBalanceRow {
   vacationPercent: number;   // usato / totale × 100
   rolRemaining: number;      // ore
   alert: boolean;            // true se < 5 gg residui e siamo in H2
+}
+
+// ── Leave detail for dashboard boxes ─────────────────────────────────
+
+export interface LeaveListItem {
+  employeeId: string;
+  employeeName: string;
+  type: string;
+  startDate: string;
+  endDate: string;
+  hours: number | null;
+  timeSlots: string | null;
 }
 
 // ── Props componenti ─────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import type {
   AnomalyRecent,
   LeaveBalanceRow,
   OreChartPoint,
+  LeaveListItem,
 } from "@/types/dashboard";
 
 /**
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
 
   const now = new Date();
   const today = now.toISOString().split("T")[0];
+  const today14 = new Date(now.getTime() + 14 * 86400000).toISOString().split("T")[0];
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-based
 
@@ -68,6 +70,7 @@ export async function GET(request: NextRequest) {
     currentRecords,
     prevRecords,
     todayLeaves,
+    upcomingLeavesRaw,
     periodLeaves,
     prevPeriodLeaves,
     anomaliesUnresolved,
@@ -104,6 +107,13 @@ export async function GET(request: NextRequest) {
     // Leaves approvati di oggi (per sezione D)
     prisma.leaveRequest.findMany({
       where: { status: "APPROVED", startDate: { lte: today }, endDate: { gte: today } },
+      include: { employee: { select: { id: true, name: true, displayName: true } } },
+    }),
+    // Leaves dei prossimi 14 giorni (startDate > today, startDate <= today+14)
+    prisma.leaveRequest.findMany({
+      where: { status: "APPROVED", startDate: { gt: today, lte: today14 } },
+      include: { employee: { select: { id: true, name: true, displayName: true } } },
+      orderBy: [{ startDate: "asc" }],
     }),
     // Leaves del periodo corrente (per KPI malattia + assenteismo)
     prisma.leaveRequest.findMany({
@@ -199,6 +209,31 @@ export async function GET(request: NextRequest) {
   ).length;
   const malattiaTodayCount = [...todayLeaveMap.values()].filter((t) => t === "SICK").length;
   const assentiToday = totalEmployees - presentTodayIds.size - ferieTodayCount - malattiaTodayCount;
+
+  // ── Leave detail lists for dashboard boxes ──────────────────────────
+  const todayLeavesList: LeaveListItem[] = todayLeaves
+    .sort((a, b) => a.employee.name.localeCompare(b.employee.name))
+    .map((l) => ({
+      employeeId: l.employeeId,
+      employeeName: l.employee.displayName ?? l.employee.name,
+      type: l.type,
+      startDate: l.startDate,
+      endDate: l.endDate,
+      hours: l.hours,
+      timeSlots: l.timeSlots,
+    }));
+
+  const upcomingLeavesList: LeaveListItem[] = upcomingLeavesRaw
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.employee.name.localeCompare(b.employee.name))
+    .map((l) => ({
+      employeeId: l.employeeId,
+      employeeName: l.employee.displayName ?? l.employee.name,
+      type: l.type,
+      startDate: l.startDate,
+      endDate: l.endDate,
+      hours: l.hours,
+      timeSlots: l.timeSlots,
+    }));
 
   // ── Giorno non lavorativo ────────────────────────────────────────────
   const isNonWorkingToday = isNonWorkingDay(today);
@@ -479,6 +514,7 @@ export async function GET(request: NextRequest) {
           giorniMalattia: { value: 0, delta: 0 }, percAnomalieRisolte: { value: 0, delta: 0 },
         },
         employeesToday: [], anomalieRecenti: [], leaveBalances: [],
+        todayLeaves: [], upcomingLeaves: [],
       };
       return NextResponse.json(emptyResponse);
     }
@@ -530,6 +566,8 @@ export async function GET(request: NextRequest) {
       employeesToday: ownTodayStatus ? [ownTodayStatus] : [],
       anomalieRecenti: [],
       leaveBalances: ownBalance,
+      todayLeaves: todayLeavesList.filter((l) => l.employeeId === selfEmployeeId),
+      upcomingLeaves: upcomingLeavesList.filter((l) => l.employeeId === selfEmployeeId),
     };
     return NextResponse.json(response);
   }
@@ -546,6 +584,8 @@ export async function GET(request: NextRequest) {
     employeesToday,
     anomalieRecenti,
     leaveBalances,
+    todayLeaves: todayLeavesList,
+    upcomingLeaves: upcomingLeavesList,
   };
 
   return NextResponse.json(response);

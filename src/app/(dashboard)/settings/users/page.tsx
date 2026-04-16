@@ -70,16 +70,13 @@ export default function UsersSettingsPage() {
   }, [loadAll]);
 
   const handleActivate = async (userId: string) => {
+    // empId can be null for admin-only users (no employee association)
     const empId = assoc[userId];
-    if (!empId) {
-      toast.warning("Seleziona prima un dipendente da associare");
-      return;
-    }
     try {
       const res = await fetch("/api/settings/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, employeeId: empId }),
+        body: JSON.stringify({ userId, employeeId: empId || null }),
       });
       if (res.ok) {
         toast.success("Utente attivato e notificato");
@@ -240,7 +237,7 @@ export default function UsersSettingsPage() {
                             }
                             className="rounded border-0 bg-surface-container-highest px-2 py-1 text-sm focus:ring-1 focus:ring-primary/20"
                           >
-                            <option value="">— scegli —</option>
+                            <option value="">Nessuno (solo admin)</option>
                             {availableEmployees.map((e) => (
                               <option key={e.id} value={e.id}>
                                 {e.name}{e.email ? ` (${e.email})` : ""}
@@ -258,7 +255,6 @@ export default function UsersSettingsPage() {
                             <button
                               type="button"
                               onClick={() => handleActivate(u.id)}
-                              disabled={!assoc[u.id]}
                               aria-label="Attiva utente"
                               className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-on-primary hover:bg-primary/90 disabled:opacity-40"
                             >

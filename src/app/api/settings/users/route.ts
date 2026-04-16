@@ -10,8 +10,8 @@ import { getTelegramBot } from "@/lib/telegram-bot";
  * Lista utenti per la pagina di attivazione admin.
  *
  * POST /api/settings/users
- * Attiva un utente e lo associa a un dipendente.
- * Body: { userId, employeeId }
+ * Attiva un utente, opzionalmente associandolo a un dipendente.
+ * Body: { userId, employeeId? }  — employeeId può essere null per utenti solo-admin
  *
  * DELETE /api/settings/users?id=<userId>
  * Disattiva un utente (active=false, employeeId=null).
@@ -93,12 +93,12 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { userId, employeeId } = body as {
     userId: string;
-    employeeId: string;
+    employeeId: string | null;
   };
 
-  if (!userId || !employeeId) {
+  if (!userId) {
     return NextResponse.json(
-      { error: "userId e employeeId obbligatori" },
+      { error: "userId obbligatorio" },
       { status: 400 }
     );
   }
@@ -108,38 +108,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Utente non trovato" }, { status: 404 });
   }
 
-  const employee = await prisma.employee.findUnique({
-    where: { id: employeeId },
-  });
-  if (!employee) {
-    return NextResponse.json(
-      { error: "Dipendente non trovato" },
-      { status: 404 }
-    );
+  // Only validate employee when an association is requested
+  let employee = null;
+  if (employeeId) {
+    employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+    });
+    if (!employee) {
+      return NextResponse.json(
+        { error: "Dipendente non trovato" },
+        { status: 404 }
+      );
+    }
+
+    // Verifica che l'employee non sia già associato a un altro user
+    const existingLink = await prisma.user.findUnique({
+      where: { employeeId },
+    });
+    if (existingLink && existingLink.id !== userId) {
+      return NextResponse.json(
+        { error: "Questo dipendente è già associato a un altro utente" },
+        { status: 409 }
+      );
+    }
   }
 
-  // Verifica che l'employee non sia già associato a un altro user
-  const existingLink = await prisma.user.findUnique({
-    where: { employeeId },
-  });
-  if (existingLink && existingLink.id !== userId) {
-    return NextResponse.json(
-      { error: "Questo dipendente è già associato a un altro utente" },
-      { status: 409 }
-    );
-  }
-
-  // Attiva e associa
+  // Attiva e associa (employeeId può essere null per utenti solo-admin)
   await prisma.user.update({
     where: { id: userId },
-    data: { active: true, employeeId },
+    data: { active: true, employeeId: employeeId || null },
   });
 
   // ── Notifica al dipendente ─────────────────────────────────────────
   const portalUrl = process.env.NEXTAUTH_URL || "https://hr.epartner.it";
 
-  // Email
-  if (employee.email) {
+  // Email (solo se c'è un dipendente associato con email)
+  if (employee && employee.email) {
     try {
       await sendMail({
         to: employee.email,
@@ -157,8 +161,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Telegram
-  if (employee.telegramChatId) {
+  // Telegram (solo se c'è un dipendente associato con chatId)
+  if (employee && employee.telegramChatId) {
     const bot = getTelegramBot();
     if (bot) {
       try {

@@ -124,8 +124,8 @@ export async function GET(request: NextRequest) {
       where: { status: "APPROVED", startDate: { lte: prevTo }, endDate: { gte: prevFrom } },
     }),
     // Anomalie non risolte globali (per sezione A)
-    prisma.anomaly.count({ where: { resolved: false, date: today } }),
-    prisma.anomaly.count({ where: { date: today } }),
+    prisma.anomaly.count({ where: { resolved: false, date: { lt: today } } }),
+    prisma.anomaly.count({ where: { date: { lt: today } } }),
     // Anomalie risolte/totali nel periodo (per KPI % risolta)
     prisma.anomaly.count({ where: { resolved: true, date: { gte: from, lte: to } } }),
     prisma.anomaly.count({ where: { date: { gte: from, lte: to } } }),
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
     prisma.anomaly.count({ where: { date: { gte: prevFrom, lte: prevTo } } }),
     // Ultime 4 anomalie non risolte per sezione D
     prisma.anomaly.findMany({
-      where: { resolved: false },
+      where: { resolved: false, date: { lt: today } },
       include: { employee: true },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: 20, // prendiamo di più e ordiniamo per severity in JS

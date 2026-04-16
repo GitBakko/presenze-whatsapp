@@ -20,7 +20,7 @@ export function EmployeeStatusList({
 }: {
   employees: EmployeeTodayStatus[];
 }) {
-  const shown = employees.slice(0, 8);
+  const shown = employees.slice(0, 12);
   const remaining = employees.length - shown.length;
 
   return (
@@ -36,7 +36,7 @@ export function EmployeeStatusList({
           {remaining > 0 ? `+${remaining} altri →` : "Vedi tutti →"}
         </Link>
       </div>
-      <div className="space-y-2">
+      <div className="grid max-h-80 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((emp) => {
           const initials = getInitials(emp.name);
           const statusInfo = STATUS_DOT[emp.status];
@@ -44,42 +44,39 @@ export function EmployeeStatusList({
           return (
             <div
               key={emp.id}
-              className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-container-low"
+              className="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 p-3"
             >
-              <span
-                className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${statusInfo.dot}`}
-                aria-label={statusInfo.label}
-              />
-              {emp.avatarUrl ? (
-                <Image
-                  src={emp.avatarUrl}
-                  alt={emp.name}
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 rounded-full object-cover"
+              <div className="flex items-center gap-2">
+                {emp.avatarUrl ? (
+                  <Image
+                    src={emp.avatarUrl}
+                    alt={emp.name}
+                    width={28}
+                    height={28}
+                    className="h-7 w-7 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-[10px] font-bold text-on-primary-container">
+                    {initials}
+                  </div>
+                )}
+                <span className="truncate text-sm font-medium text-on-surface">{emp.name}</span>
+                <span
+                  className={`ml-auto h-2 w-2 shrink-0 rounded-full ${statusInfo.dot}`}
+                  aria-label={statusInfo.label}
                 />
-              ) : (
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-container text-xs font-bold text-on-primary-container"
-                >
-                  {initials}
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-on-surface">
-                  {emp.name}
-                </p>
-                <p className="text-[11px] text-on-surface-variant">
-                  {emp.label
-                    ? emp.label
-                    : emp.entryTime
-                    ? `Entrata ${emp.entryTime}`
-                    : "Non registrato"}
-                </p>
+                <span className="shrink-0 text-[10px] text-on-surface-variant">{statusInfo.label}</span>
               </div>
+              <p className="mt-1.5 text-xs text-on-surface-variant">
+                {emp.label
+                  ? emp.label
+                  : emp.entryTime
+                  ? `Entrata ${emp.entryTime}`
+                  : "Non timbrato"}
+              </p>
               {emp.delayMinutes > 15 && (
-                <div className="flex items-center gap-1 text-[11px] font-medium text-warning">
-                  <AlertTriangle className="h-3.5 w-3.5" />
+                <div className="mt-1 flex items-center gap-1 text-xs font-medium text-warning">
+                  <AlertTriangle className="h-3 w-3" />
                   +{emp.delayMinutes}&apos;
                 </div>
               )}

@@ -31,7 +31,7 @@ export function AnomalyList({ anomalies }: { anomalies: AnomalyRecent[] }) {
     <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-on-surface">
-          Anomalie recenti
+          Anomalie da verificare
         </h3>
         <Link
           href="/anomalies"
@@ -45,31 +45,29 @@ export function AnomalyList({ anomalies }: { anomalies: AnomalyRecent[] }) {
           Nessuna anomalia aperta
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="grid max-h-80 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
           {anomalies.map((a) => {
             const sev = SEVERITY_STYLE[a.severity] ?? SEVERITY_STYLE[0];
             const Icon = typeIcon(a.type);
             return (
               <div
                 key={a.id}
-                className="flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-surface-container-low"
+                className="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 p-3"
               >
-                <span
-                  className={`mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ${sev.bg}`}
-                >
-                  <Icon className={`h-3.5 w-3.5 ${sev.text}`} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-on-surface">
-                    {a.employeeName}
-                  </p>
-                  <p className="truncate text-xs text-on-surface-variant">
-                    {a.description}
-                  </p>
+                <p className="truncate text-sm font-bold text-on-surface">
+                  {a.employeeName}
+                </p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span
+                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${sev.bg}`}
+                  >
+                    <Icon className={`h-3 w-3 ${sev.text}`} />
+                  </span>
+                  <span className="text-xs text-on-surface-variant">{relativeDate(a.date)}</span>
                 </div>
-                <span className="flex-shrink-0 text-[11px] text-on-surface-variant">
-                  {relativeDate(a.date)}
-                </span>
+                <p className="mt-1 line-clamp-2 text-xs text-on-surface-variant">
+                  {a.description}
+                </p>
               </div>
             );
           })}

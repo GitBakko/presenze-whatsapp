@@ -24,9 +24,9 @@ export function TodayOverview({ data }: { data: DashboardStatsResponse["today"] 
       iconColor: "text-error",
     },
     {
-      label: "Anomalie aperte",
+      label: "Anomalie da verificare",
       value: data.anomalieAperte,
-      sub: "da verificare oggi",
+      sub: "dai giorni precedenti",
       color: "border-warning/40 bg-warning-container/40",
       textColor: "text-warning",
       icon: AlertTriangle,

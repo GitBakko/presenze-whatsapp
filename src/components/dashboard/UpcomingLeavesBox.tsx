@@ -17,31 +17,33 @@ export function UpcomingLeavesBox({ leaves, today }: { leaves: LeaveListItem[]; 
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-5 w-5 text-primary" strokeWidth={1.5} />
-          <h3 className="text-sm font-semibold text-on-surface">Prossimi 14 giorni</h3>
+          <h3 className="text-sm font-semibold text-on-surface">Ferie & permessi prossimi 14 giorni</h3>
         </div>
         <StatusBadge kind="info">{leaves.length}</StatusBadge>
       </div>
       {leaves.length === 0 ? (
         <p className="py-4 text-center text-sm text-on-surface-variant">Nessuna assenza pianificata</p>
       ) : (
-        <ul className="max-h-80 space-y-3 overflow-y-auto" role="list">
+        <div className="grid max-h-80 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3" role="list">
           {leaves.map((l) => (
-            <li key={`${l.employeeId}-${l.type}-${l.startDate}`} className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container text-xs font-bold">
-                {getInitials(l.employeeName)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-semibold text-on-surface">{l.employeeName}</span>
-                  <StatusBadge kind={leaveKind(l.type)}>
-                    {(LEAVE_TYPES as Record<string, { label: string }>)[l.type]?.label ?? l.type}
-                  </StatusBadge>
+            <div key={`${l.employeeId}-${l.type}-${l.startDate}`} role="listitem" className="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 p-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container text-[10px] font-bold">
+                  {getInitials(l.employeeName)}
                 </div>
-                <p className="text-xs text-on-surface-variant">{formatLeaveDetail(l, "upcoming", today)}</p>
+                <span className="truncate text-sm font-semibold text-on-surface">{l.employeeName}</span>
               </div>
-            </li>
+              <div className="mt-1.5 flex items-center gap-2">
+                <StatusBadge kind={leaveKind(l.type)}>
+                  {(LEAVE_TYPES as Record<string, { label: string }>)[l.type]?.label ?? l.type}
+                </StatusBadge>
+              </div>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                {formatLeaveDetail(l, "upcoming", today)}
+              </p>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

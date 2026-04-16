@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Ban, Calendar, FileSpreadsheet, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from "lucide-react";
+import { Ban, Calendar, CalendarCog, FileSpreadsheet, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -101,6 +101,16 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2"><FileSpreadsheet className="h-4 w-4 text-primary" /> Import tabulato paghe</h2>
           <p className="mt-2 text-sm text-on-surface-variant">
             Importa ferie, festività e permessi dal PDF del consulente paghe e riallinea i saldi dipendenti.
+          </p>
+        </Link>
+
+        <Link
+          href="/settings/monthly-report"
+          className="rounded-lg bg-surface-container-lowest shadow-card p-6 transition-shadow hover:shadow-elevated"
+        >
+          <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2"><CalendarCog className="h-4 w-4 text-primary" /> Report automatico</h2>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Invio mensile del foglio presenze agli amministratori.
           </p>
         </Link>
       </div>

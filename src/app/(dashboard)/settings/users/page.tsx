@@ -275,7 +275,7 @@ export default function UsersSettingsPage() {
                           <select
                             value={u.role}
                             onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                            className="rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-primary/20 bg-primary-container/40 text-on-primary-container"
+                            className="rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-primary/20 bg-primary-fixed/30 text-primary"
                           >
                             <option value="EMPLOYEE">Dipendente</option>
                             <option value="ADMIN">Amministratore</option>

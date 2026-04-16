@@ -12,7 +12,7 @@ const KIND_CLASSES: Record<StatusKind, string> = {
   success: "bg-success-container text-success",
   warning: "bg-warning-container text-warning",
   error: "bg-error-container text-on-error-container",
-  info: "bg-primary-container/40 text-on-primary-container",
+  info: "bg-primary-fixed/30 text-primary",
   neutral: "bg-surface-container-high text-on-surface-variant",
 };
 

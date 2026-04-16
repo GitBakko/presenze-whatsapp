@@ -22,4 +22,8 @@ export async function register() {
   // porta senza passare dal reverse proxy.
   const { startWsNotificationServer } = await import("./lib/ws-notifications");
   startWsNotificationServer();
+
+  // Monthly presenze report worker (hourly check)
+  const { ensureMonthlyReportWorkerStarted } = await import("./lib/monthly-report-worker");
+  ensureMonthlyReportWorkerStarted();
 }

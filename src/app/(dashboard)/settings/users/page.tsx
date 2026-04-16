@@ -23,6 +23,7 @@ interface ActiveUser {
   employeeId: string | null;
   employeeName: string | null;
   createdAt: string;
+  receiveLeaveNotifications: boolean;
 }
 
 interface EmployeeOption {
@@ -114,6 +115,20 @@ export default function UsersSettingsPage() {
       setPendingId(null);
     }
   };
+
+  async function handleToggleNotifications(userId: string, value: boolean) {
+    const res = await fetch("/api/settings/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, receiveLeaveNotifications: value }),
+    });
+    if (res.ok) {
+      toast.success(value ? "Notifiche ferie attivate" : "Notifiche ferie disattivate");
+      loadAll();
+    } else {
+      toast.error("Errore nell'aggiornamento");
+    }
+  }
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
@@ -272,14 +287,27 @@ export default function UsersSettingsPage() {
                         <td className="px-4 py-3 font-mono text-xs">{u.email}</td>
                         <td className="px-4 py-3 font-medium">{u.name}</td>
                         <td className="px-4 py-3">
-                          <select
-                            value={u.role}
-                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                            className="rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-primary/20 bg-primary-fixed/30 text-primary"
-                          >
-                            <option value="EMPLOYEE">Dipendente</option>
-                            <option value="ADMIN">Amministratore</option>
-                          </select>
+                          <div className="flex flex-col gap-1.5">
+                            <select
+                              value={u.role}
+                              onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                              className="rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-primary/20 bg-primary-fixed/30 text-primary"
+                            >
+                              <option value="EMPLOYEE">Dipendente</option>
+                              <option value="ADMIN">Amministratore</option>
+                            </select>
+                            {u.role === "ADMIN" && (
+                              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={u.receiveLeaveNotifications}
+                                  onChange={() => handleToggleNotifications(u.id, !u.receiveLeaveNotifications)}
+                                  className="h-4 w-4 rounded border-outline-variant text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                                />
+                                <span className="text-xs text-on-surface-variant">Notifiche ferie</span>
+                              </label>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-xs">
                           {u.employeeName ?? <span className="text-on-surface-variant">—</span>}

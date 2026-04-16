@@ -31,6 +31,7 @@ export async function GET() {
       active: true,
       employeeId: true,
       createdAt: true,
+      receiveLeaveNotifications: true,
       employee: {
         select: { id: true, name: true, displayName: true },
       },
@@ -73,6 +74,7 @@ export async function GET() {
         ? u.employee.displayName || u.employee.name
         : null,
       createdAt: u.createdAt.toISOString(),
+      receiveLeaveNotifications: u.receiveLeaveNotifications,
     })),
     employees: employees.map((e) => ({
       id: e.id,
@@ -196,19 +198,40 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-/** PATCH — aggiorna il ruolo di un utente attivo. */
+/** PATCH — aggiorna il ruolo o le preferenze di notifica di un utente attivo. */
 export async function PATCH(request: NextRequest) {
   const denied = await checkAuth();
   if (denied) return denied;
 
   const body = await request.json();
-  const { userId, role } = body as { userId: string; role: string };
+  const { userId, role, receiveLeaveNotifications } = body as {
+    userId: string;
+    role?: string;
+    receiveLeaveNotifications?: boolean;
+  };
 
-  if (!userId || !["ADMIN", "EMPLOYEE"].includes(role)) {
-    return NextResponse.json(
-      { error: "userId e role (ADMIN|EMPLOYEE) obbligatori" },
-      { status: 400 }
-    );
+  if (!userId) {
+    return NextResponse.json({ error: "userId obbligatorio" }, { status: 400 });
+  }
+
+  const data: Record<string, unknown> = {};
+
+  if (role !== undefined) {
+    if (!["ADMIN", "EMPLOYEE"].includes(role)) {
+      return NextResponse.json(
+        { error: "role deve essere ADMIN o EMPLOYEE" },
+        { status: 400 }
+      );
+    }
+    data.role = role;
+  }
+
+  if (typeof receiveLeaveNotifications === "boolean") {
+    data.receiveLeaveNotifications = receiveLeaveNotifications;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "Nessun campo da aggiornare" }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -218,7 +241,7 @@ export async function PATCH(request: NextRequest) {
 
   await prisma.user.update({
     where: { id: userId },
-    data: { role },
+    data,
   });
 
   return NextResponse.json({ ok: true });

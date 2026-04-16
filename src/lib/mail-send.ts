@@ -17,6 +17,7 @@ export interface SendMailArgs {
   to: string;
   subject: string;
   text: string;
+  html?: string;
   /**
    * Graph messageId del messaggio originale a cui si sta rispondendo.
    * Se presente, usa /messages/{id}/reply invece di /sendMail per

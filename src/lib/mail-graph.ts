@@ -242,6 +242,7 @@ export interface SendMailArgs {
   to: string;
   subject: string;
   text: string;
+  html?: string;
   replyToMessageId?: string; // Graph messageId (non internetMessageId)
 }
 
@@ -260,8 +261,8 @@ export async function sendMailGraph(args: SendMailArgs): Promise<void> {
   const message = {
     subject: args.subject,
     body: {
-      contentType: "Text" as const,
-      content: args.text,
+      contentType: (args.html ? "HTML" : "Text") as "HTML" | "Text",
+      content: args.html ?? args.text,
     },
     toRecipients: [{ emailAddress: { address: args.to } }],
     ...(fromName
@@ -276,7 +277,10 @@ export async function sendMailGraph(args: SendMailArgs): Promise<void> {
       `/users/${encodeURIComponent(mailbox)}/messages/${args.replyToMessageId}/reply`,
       {
         message: {
-          body: { contentType: "Text", content: args.text },
+          body: {
+            contentType: args.html ? "HTML" : "Text",
+            content: args.html ?? args.text,
+          },
           subject: args.subject,
         },
         comment: "",

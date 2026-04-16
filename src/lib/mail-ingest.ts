@@ -214,6 +214,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
       to: fromAddr,
       subject: reply.subject,
       text: reply.text,
+      html: reply.html,
       replyToMessageId: msg.id,
     });
     await markMessageRead(msg.id);
@@ -230,6 +231,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
       to: fromAddr,
       subject: reply.subject,
       text: reply.text,
+      html: reply.html,
       replyToMessageId: msg.id,
     });
     await markMessageRead(msg.id);
@@ -244,6 +246,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
       to: fromAddr,
       subject: reply.subject,
       text: reply.text,
+      html: reply.html,
       replyToMessageId: msg.id,
     });
     await markMessageRead(msg.id);
@@ -277,6 +280,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
     to: fromAddr,
     subject: reply.subject,
     text: reply.text,
+    html: reply.html,
     replyToMessageId: msg.id,
   });
 

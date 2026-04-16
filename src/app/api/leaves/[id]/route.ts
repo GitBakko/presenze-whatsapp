@@ -120,6 +120,7 @@ export async function PUT(
           to: updated.employee.email,
           subject: reply.subject,
           text: reply.text,
+          html: reply.html,
         });
       } catch (err) {
         console.error("[leaves/PUT] sendMail decision failed:", err);
@@ -209,6 +210,7 @@ export async function DELETE(
           to: leave.employee.email,
           subject: reply.subject,
           text: reply.text,
+          html: reply.html,
         });
       } catch (err) {
         console.error("[leaves/DELETE] sendMail cancellation failed:", err);

@@ -410,7 +410,13 @@ export default function UsersSettingsPage() {
                           </select>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/settings/users/${u.id}`}
+                              className="inline-flex items-center gap-1 rounded-md bg-surface-container px-2.5 py-1 text-xs font-medium text-on-surface hover:bg-surface-container-high"
+                            >
+                              Modifica
+                            </Link>
                             <button
                               type="button"
                               onClick={() => handleDeactivate(u.id)}

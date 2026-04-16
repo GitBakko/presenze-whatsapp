@@ -16,6 +16,7 @@ model User {
   active         Boolean        @default(false)      // true dopo attivazione admin
   employeeId     String?        @unique              // link al dipendente associato (null per admin puri)
   receiveLeaveNotifications Boolean @default(true)
+  receiveMonthlyReport         Boolean @default(true)
   createdAt      DateTime       @default(now())
   anomalies      Anomaly[]      @relation("ResolvedBy")
   approvedLeaves LeaveRequest[] @relation("ApprovedLeaves")
@@ -255,4 +256,9 @@ model PayrollImport {
   @@index([year])
   @@index([fileHash])
   @@index([createdAt])
+}
+
+model AppSetting {
+  key   String @id
+  value String
 }

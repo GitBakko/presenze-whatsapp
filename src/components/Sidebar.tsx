@@ -42,13 +42,20 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
   const role = (session?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
   const isAdmin = role === "ADMIN";
   const [pendingLeaves, setPendingLeaves] = useState(0);
+  const [anomalyCount, setAnomalyCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/leaves?status=PENDING")
       .then((r) => r.ok ? r.json() : [])
       .then((data: unknown[]) => setPendingLeaves(data.length))
       .catch(() => {});
-  }, [pathname]);
+    if (isAdmin) {
+      fetch("/api/anomalies/count")
+        .then((r) => r.ok ? r.json() : { count: 0 })
+        .then((data: { count: number }) => setAnomalyCount(data.count))
+        .catch(() => {});
+    }
+  }, [pathname, isAdmin]);
 
   return (
     <aside
@@ -74,7 +81,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3">
+      <nav className="flex-1 pl-3 pr-0">
         <ul role="list" className="space-y-1">
           {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
             const isActive =
@@ -89,7 +96,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
                   className={`flex items-center gap-3 px-4 py-3 transition-colors duration-200 ${
                     isActive
                       ? "border-r-4 border-primary-container bg-surface-container-low font-bold text-primary"
-                      : "text-on-surface-variant hover:text-primary-container"
+                      : "mr-3 text-on-surface-variant hover:text-primary-container"
                   }`}
                 >
                   <item.icon className={`h-5 w-5 ${isActive ? "text-primary" : item.color}`} strokeWidth={1.75} />
@@ -102,6 +109,12 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
                       <span className="sr-only"> richieste in attesa</span>
                     </span>
                   )}
+                  {item.href === "/anomalies" && anomalyCount > 0 && (
+                    <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-warning-container px-1 text-[10px] font-bold text-warning">
+                      {anomalyCount}
+                      <span className="sr-only"> anomalie da verificare</span>
+                    </span>
+                  )}
                 </Link>
               </li>
             );
@@ -110,7 +123,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
       </nav>
 
       {/* Bottom */}
-      <div className="border-t border-outline-variant/30 px-3 pt-6">
+      <div className="border-t border-outline-variant/30 pl-3 pr-0 pt-6">
         {isAdmin && (
           <Link
             href="/settings"
@@ -118,7 +131,7 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
             className={`flex items-center gap-3 px-4 py-3 transition-colors duration-200 ${
               pathname.startsWith("/settings")
                 ? "border-r-4 border-primary-container bg-surface-container-low font-bold text-primary"
-                : "text-on-surface-variant hover:text-primary-container"
+                : "mr-3 text-on-surface-variant hover:text-primary-container"
             }`}
           >
             <Settings className={`h-5 w-5 ${pathname.startsWith("/settings") ? "text-primary" : "text-outline-variant"}`} strokeWidth={1.75} />

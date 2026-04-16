@@ -287,3 +287,32 @@ export async function PUT(
     payrollId: updated.payrollId,
   });
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const denied = await checkAuth();
+  if (denied) return denied;
+
+  const { id } = await params;
+
+  const employee = await prisma.employee.findUnique({
+    where: { id },
+    select: { name: true, displayName: true },
+  });
+  if (!employee) {
+    return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
+  }
+
+  // Unlink any User account associated with this employee
+  await prisma.user.updateMany({
+    where: { employeeId: id },
+    data: { employeeId: null },
+  });
+
+  // Delete employee (cascades to records, anomalies, schedules, leaves, balances, api keys)
+  await prisma.employee.delete({ where: { id } });
+
+  return NextResponse.json({ ok: true, name: employee.displayName ?? employee.name });
+}

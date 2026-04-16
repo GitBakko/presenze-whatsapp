@@ -5,9 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/formatTime";
-import { Pencil, UserPlus, X } from "lucide-react";
+import { Pencil, Trash2, UserPlus, X } from "lucide-react";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { InfoBanner } from "@/components/InfoBanner";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface Employee {
   id: string;
@@ -56,6 +57,36 @@ export default function EmployeesPage() {
   const [formContractType, setFormContractType] = useState("FULL_TIME");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const confirm = useConfirm();
+
+  async function handleDelete(empId: string, empName: string) {
+    const ok = await confirm({
+      title: "Elimina dipendente",
+      message: (
+        <>
+          Eliminare <strong>{empName}</strong>? Verranno cancellate tutte le
+          timbrature, ferie, anomalie e dati associati. L&apos;operazione è
+          irreversibile.
+        </>
+      ),
+      confirmLabel: "Elimina definitivamente",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/employees/${empId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(`Dipendente eliminato`);
+        load();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Errore nell'eliminazione");
+      }
+    } catch {
+      toast.error("Errore di rete");
+    }
+  }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -199,6 +230,15 @@ export default function EmployeesPage() {
                         <Pencil className="mr-0.5 inline h-3.5 w-3.5" />
                         Profilo
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(emp.id, emp.displayName ?? emp.name)}
+                        className="rounded-md bg-error-container px-2.5 py-1 text-xs font-medium text-error hover:bg-error-container/80"
+                        aria-label={`Elimina ${emp.displayName ?? emp.name}`}
+                      >
+                        <Trash2 className="mr-0.5 inline h-3.5 w-3.5" />
+                        Elimina
+                      </button>
                     </div>
                   </td>
                 </tr>

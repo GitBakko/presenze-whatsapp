@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
-export type NotificationAction = "ENTRY" | "EXIT" | "PAUSE_START" | "PAUSE_END";
+export type NotificationAction = "ENTRY" | "EXIT" | "PAUSE_START" | "PAUSE_END" | "LEAVE_PENDING";
 
 export interface NotificationEvent {
   id: string;
@@ -128,4 +128,5 @@ export const ACTION_LABELS: Record<NotificationAction, string> = {
   EXIT: "è uscito",
   PAUSE_START: "ha iniziato la pausa",
   PAUSE_END: "ha finito la pausa",
+  LEAVE_PENDING: "ha richiesto",
 };

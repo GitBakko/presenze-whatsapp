@@ -16,7 +16,7 @@
  * target di questa applicazione e' LAN single-server.
  */
 
-export type NotificationAction = "ENTRY" | "EXIT" | "PAUSE_START" | "PAUSE_END";
+export type NotificationAction = "ENTRY" | "EXIT" | "PAUSE_START" | "PAUSE_END" | "LEAVE_PENDING";
 
 export interface NotificationEvent {
   id: string;          // unique, monotonically increasing

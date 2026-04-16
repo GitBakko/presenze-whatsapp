@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LogIn, LogOut, Pause, Play, X } from "lucide-react";
+import { CalendarClock, LogIn, LogOut, Pause, Play, X } from "lucide-react";
 import { useNotificationsContext } from "./NotificationsProvider";
 import { ACTION_LABELS, type NotificationEvent, type NotificationAction } from "@/lib/useNotifications";
 
@@ -25,6 +25,8 @@ function actionIcon(action: NotificationAction) {
       return <Pause className={`${cls} text-warning`} />;
     case "PAUSE_END":
       return <Play className={`${cls} text-on-primary-container`} />;
+    case "LEAVE_PENDING":
+      return <CalendarClock className={`${cls} text-info`} />;
   }
 }
 
@@ -38,6 +40,8 @@ function colorClasses(action: NotificationAction): string {
       return "border-warning/40 bg-warning-container/60 text-warning";
     case "PAUSE_END":
       return "border-primary/30 bg-primary-container/30 text-on-primary-container";
+    case "LEAVE_PENDING":
+      return "border-info/30 bg-info-container/60 text-info";
   }
 }
 

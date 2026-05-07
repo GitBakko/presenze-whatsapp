@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useConfirm, useConfirmWithPrompt } from "@/components/ConfirmProvider";
+import { useNotificationsContext } from "@/components/NotificationsProvider";
 
 import type { LeaveRequest, CalendarDay, Employee, LeaveBalance, ByEmployeeCard } from "./_components/types";
 import { BalanceCard } from "./_components/BalanceCard";
@@ -98,6 +99,21 @@ export default function LeavesPage() {
     if (selectedEmployee) fetchBalance(selectedEmployee);
     else setBalance(null);
   }, [selectedEmployee, fetchBalance]);
+
+  // Reattivo a eventi real-time su ferie/permessi: ricarica calendario,
+  // lista richieste e — se aperta — la vista "Per dipendente". Riaggiorna
+  // anche il bilancio ferie del dipendente selezionato se rilevante.
+  const { lastEvent } = useNotificationsContext();
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (!lastEvent.action.startsWith("LEAVE_")) return;
+    fetchCalendar();
+    fetchRequests();
+    if (tab === "byEmployee") fetchByEmployee();
+    if (selectedEmployee && lastEvent.employeeId === selectedEmployee) {
+      fetchBalance(selectedEmployee);
+    }
+  }, [lastEvent, fetchCalendar, fetchRequests, fetchByEmployee, tab, selectedEmployee, fetchBalance]);
 
   // ── Actions ──
 

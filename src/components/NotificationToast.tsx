@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarClock, LogIn, LogOut, Pause, Play, X } from "lucide-react";
+import {
+  Ban,
+  CalendarCheck,
+  CalendarClock,
+  CalendarX,
+  LogIn,
+  LogOut,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useNotificationsContext } from "./NotificationsProvider";
 import { ACTION_LABELS, type NotificationEvent, type NotificationAction } from "@/lib/useNotifications";
 
@@ -9,8 +23,6 @@ const TOAST_DURATION_MS = 5000;
 
 interface ToastEntry {
   evt: NotificationEvent;
-  // monotonic id, perche' due eventi distinti col stesso id sono impossibili
-  // ma il toast component vuole la sua chiave React stabile
   key: string;
 }
 
@@ -27,34 +39,79 @@ function actionIcon(action: NotificationAction) {
       return <Play className={`${cls} text-on-primary-container`} />;
     case "LEAVE_PENDING":
       return <CalendarClock className={`${cls} text-info`} />;
+    case "LEAVE_APPROVED":
+      return <CalendarCheck className={`${cls} text-success`} />;
+    case "LEAVE_REJECTED":
+      return <CalendarX className={`${cls} text-error`} />;
+    case "LEAVE_CANCELLED":
+      return <Ban className={`${cls} text-on-surface-variant`} />;
+    case "RECORD_CREATED":
+      return <Plus className={`${cls} text-success`} />;
+    case "RECORD_UPDATED":
+      return <Pencil className={`${cls} text-warning`} />;
+    case "RECORD_DELETED":
+      return <Trash2 className={`${cls} text-error`} />;
   }
 }
 
 function colorClasses(action: NotificationAction): string {
   switch (action) {
     case "ENTRY":
+    case "LEAVE_APPROVED":
+    case "RECORD_CREATED":
       return "border-success/30 bg-success-container/60 text-success";
     case "EXIT":
+    case "LEAVE_REJECTED":
+    case "RECORD_DELETED":
       return "border-error/30 bg-error-container text-on-error-container";
     case "PAUSE_START":
+    case "RECORD_UPDATED":
       return "border-warning/40 bg-warning-container/60 text-warning";
     case "PAUSE_END":
       return "border-primary/30 bg-primary-container/30 text-on-primary-container";
     case "LEAVE_PENDING":
       return "border-info/30 bg-info-container/60 text-info";
+    case "LEAVE_CANCELLED":
+      return "border-outline-variant/40 bg-surface-container text-on-surface-variant";
+    case "ANOMALY_RESOLVED":
+    default:
+      return "border-outline-variant/40 bg-surface-container text-on-surface-variant";
   }
+}
+
+/**
+ * Testo del toast. Se l'evento riguarda la richiesta dell'utente stesso
+ * (self-event) riscriviamo in prima persona — è più chiaro per il
+ * dipendente vedere "La tua richiesta ferie è stata approvata" invece di
+ * "Mario Rossi richiesta approvata".
+ */
+function headline(evt: NotificationEvent, isSelf: boolean): { subject: string; verb: string } {
+  if (isSelf) {
+    switch (evt.action) {
+      case "LEAVE_APPROVED":
+        return { subject: "La tua richiesta", verb: `${evt.time} è stata approvata` };
+      case "LEAVE_REJECTED":
+        return { subject: "La tua richiesta", verb: `${evt.time} è stata rifiutata` };
+      case "LEAVE_CANCELLED":
+        return { subject: "La tua richiesta", verb: `${evt.time} è stata annullata` };
+    }
+  }
+  return { subject: evt.employeeName, verb: ACTION_LABELS[evt.action] };
 }
 
 function ToastItem({
   toastEntry,
+  isSelf,
   onDismiss,
 }: {
   toastEntry: ToastEntry;
+  isSelf: boolean;
   onDismiss: (key: string) => void;
 }) {
   const { evt, key } = toastEntry;
   const [visible, setVisible] = useState(false);
   const rafRef = useRef<number | null>(null);
+  const { subject, verb } = headline(evt, isSelf);
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(() => {
@@ -77,10 +134,12 @@ function ToastItem({
       <div className="mt-0.5">{actionIcon(evt.action)}</div>
       <div className="flex-1 min-w-0">
         <div className="text-sm text-on-surface">
-          <span className="font-semibold">{evt.employeeName}</span>{" "}
-          <span className="text-on-surface-variant">{ACTION_LABELS[evt.action]}</span>
+          <span className="font-semibold">{subject}</span>{" "}
+          <span className="text-on-surface-variant">{verb}</span>
         </div>
-        <div className="text-[11px] text-on-surface-variant">alle {evt.time}</div>
+        <div className="text-[11px] text-on-surface-variant">
+          {evt.action.startsWith("LEAVE_") ? evt.date : `alle ${evt.time}`}
+        </div>
       </div>
       <button
         type="button"
@@ -96,6 +155,8 @@ function ToastItem({
 
 export function NotificationToast() {
   const { lastEvent } = useNotificationsContext();
+  const { data: session } = useSession();
+  const myEmployeeId = (session?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
   const [stack, setStack] = useState<ToastEntry[]>([]);
 
   useEffect(() => {
@@ -117,7 +178,12 @@ export function NotificationToast() {
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-2">
       {stack.map((entry) => (
-        <ToastItem key={entry.key} toastEntry={entry} onDismiss={dismiss} />
+        <ToastItem
+          key={entry.key}
+          toastEntry={entry}
+          isSelf={!!myEmployeeId && entry.evt.employeeId === myEmployeeId}
+          onDismiss={dismiss}
+        />
       ))}
     </div>
   );

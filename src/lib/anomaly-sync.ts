@@ -19,10 +19,17 @@ async function isFullDayLeave(employeeId: string, date: string): Promise<boolean
  * Persist detected anomalies from calculated daily stats.
  * - Skips anomaly creation for dates fully covered by approved leave
  * - Creates new anomalies that don't exist yet
- * - Removes unresolved anomalies that no longer apply (e.g. records were fixed)
- * - Preserves resolved anomalies (manual resolutions are never deleted)
+ * - Removes (or marks resolved) unresolved anomalies that no longer apply
+ * - Preserves resolved anomalies (manual resolutions are never touched)
+ *
+ * @param options.resolveNote - When set, stale unresolved anomalies are marked
+ *   as resolved with this note instead of being deleted. Useful when a record
+ *   edit automatically resolves existing anomalies.
  */
-export async function syncAnomalies(dailyStats: DailyStats[]): Promise<number> {
+export async function syncAnomalies(
+  dailyStats: DailyStats[],
+  options?: { resolveNote?: string }
+): Promise<number> {
   let created = 0;
 
   // Collect all employee+date combos we're processing
@@ -80,11 +87,22 @@ export async function syncAnomalies(dailyStats: DailyStats[]): Promise<number> {
     });
 
     if (staleAnomalies.length > 0) {
-      await prisma.anomaly.deleteMany({
-        where: {
-          id: { in: staleAnomalies.map((a) => a.id) },
-        },
-      });
+      if (options?.resolveNote) {
+        await prisma.anomaly.updateMany({
+          where: { id: { in: staleAnomalies.map((a) => a.id) } },
+          data: {
+            resolved: true,
+            resolvedAt: new Date(),
+            resolution: options.resolveNote,
+          },
+        });
+      } else {
+        await prisma.anomaly.deleteMany({
+          where: {
+            id: { in: staleAnomalies.map((a) => a.id) },
+          },
+        });
+      }
     }
   }
 

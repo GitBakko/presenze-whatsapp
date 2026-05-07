@@ -32,8 +32,10 @@ export interface PresenzeDayData {
 
 export interface PresenzeEmployeeData {
   displayName: string; // "COGNOME NOME" (gia' uppercase)
+  contractType: string; // "FULL_TIME" | "PART_TIME"
   days: Map<number, PresenzeDayData>; // giorno 1-31 → dati
-  buoniPasto: number;
+  straordinari: number; // ore straordinari del mese, arrotondate ai 15 min
+  scheduledHoursPerDay: Map<number, number>; // giorno 1-31 → ore pianificate dallo schedule
 }
 
 export interface PresenzeMonthData {
@@ -99,6 +101,38 @@ const ALIGN_CENTER_WRAP: Partial<ExcelJS.Alignment> = {
 function daysInMonth(year: number, month: number): number {
   // month e' 1-12; new Date(y, m, 0) restituisce l'ultimo giorno del mese m-1
   return new Date(year, month, 0).getDate();
+}
+
+// ── Costanti ore contrattuali ────────────────────────────────────────
+
+const CONTRACT_HOURS: Record<string, number> = {
+  FULL_TIME: 8,
+  PART_TIME: 4,
+};
+
+/** Arrotonda al mezzo più vicino (es. 6.75 → 7.0, 6.25 → 6.5). */
+function roundHalf(n: number): number {
+  return Math.round(n * 2) / 2;
+}
+
+/** Arrotonda al quarto d'ora più vicino (es. 0.83h → 0.75h, 0.42h → 0.5h). */
+function roundQuarter(n: number): number {
+  return Math.round(n * 4) / 4;
+}
+
+/** Calcola le ore pianificate per un giorno dato lo schedule (block1 + block2). */
+function scheduledHoursForDay(schedule: EmployeeScheduleDay | null | undefined): number {
+  if (!schedule) return 0;
+  if (!schedule.block1Start || !schedule.block1End) return 0;
+  const toMin = (t: string): number => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  let minutes = toMin(schedule.block1End) - toMin(schedule.block1Start);
+  if (schedule.block2Start && schedule.block2End) {
+    minutes += toMin(schedule.block2End) - toMin(schedule.block2Start);
+  }
+  return minutes / 60;
 }
 
 // ── Generatore principale ────────────────────────────────────────────
@@ -198,9 +232,9 @@ export async function generatePresenzeXlsx(
     cell.border = BORDERS_ALL_THIN;
   }
 
-  // "buoni pasto" header: Calibri 11 normal, nessun bordo
+  // "straordinari" header: Calibri 11 normal, nessun bordo
   const buoniHeader = row2.getCell(BUONI_COL);
-  buoniHeader.value = "buoni pasto";
+  buoniHeader.value = "straordinari";
   buoniHeader.font = FONT_BUONI_HEADER;
   buoniHeader.alignment = ALIGN_CENTER_WRAP;
   // nessun bordo
@@ -272,12 +306,27 @@ export async function generatePresenzeXlsx(
           cellO.value = null;
           cellFP.value = null;
         }
+        // Colore cella: usa le ore pianificate per quel giorno specifico.
+        const scheduledHoursDay = emp.scheduledHoursPerDay.get(d) ?? 0;
+        if (scheduledHoursDay > 0) {
+          const dayData2 = emp.days.get(d);
+          const totale = (dayData2?.oreOrdinario ?? 0) + (dayData2?.oreFuoriSede ?? 0);
+          if (totale < scheduledHoursDay) {
+            const redFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFF0000" } };
+            cellO.fill = redFill;
+            cellFP.fill = redFill;
+          } else if (totale > scheduledHoursDay) {
+            const yellowFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
+            cellO.fill = yellowFill;
+            cellFP.fill = yellowFill;
+          }
+        }
       }
     }
 
-    // Col "buoni pasto"
+    // Col "straordinari"
     const buoniO = rO.getCell(BUONI_COL);
-    buoniO.value = emp.buoniPasto;
+    buoniO.value = emp.straordinari > 0 ? emp.straordinari : null;
     buoniO.font = FONT_BASE;
     buoniO.alignment = ALIGN_CENTER_WRAP;
     buoniO.border = BORDERS_ALL_THIN;
@@ -337,6 +386,7 @@ export async function buildPresenzeMonthData(
 
   // ── 1. Employees (tutti, anche quelli senza record nel mese) ─────
   const employees = await prisma.employee.findMany({
+    select: { id: true, name: true, displayName: true, contractType: true },
     orderBy: { name: "asc" },
   });
 
@@ -420,7 +470,8 @@ export async function buildPresenzeMonthData(
 
   for (const emp of employees) {
     const days = new Map<number, PresenzeDayData>();
-    let buoniPasto = 0;
+    const scheduledHoursPerDay = new Map<number, number>();
+    let overtimeTotal = 0;
 
     for (let d = 1; d <= nDays; d++) {
       const dateStr = `${yearStr}-${monthStr}-${String(d).padStart(2, "0")}`;
@@ -430,8 +481,13 @@ export async function buildPresenzeMonthData(
       const hoursWorked = hoursMap.get(keyHours) ?? 0;
       const leave = leaveMap.get(keyLeave);
 
-      // Conteggio buoni pasto (solo ore effettivamente lavorate)
-      if (hoursWorked >= 6) buoniPasto++;
+      // Ore pianificate per questo giorno specifico (dipende dal giorno della settimana)
+      const dayOfWeek = getDayOfWeek(dateStr);
+      const daySchedule = scheduleMap.get(emp.id)?.get(dayOfWeek) ?? null;
+      const scheduledHours = scheduledHoursForDay(daySchedule);
+      if (scheduledHours > 0) {
+        scheduledHoursPerDay.set(d, scheduledHours);
+      }
 
       let oreOrdinario: number | null = null;
       let oreFuoriSede: number | null = null;
@@ -439,18 +495,35 @@ export async function buildPresenzeMonthData(
       if (leave) {
         if (FULL_DAY_LEAVE_TYPES.has(leave.type)) {
           oreOrdinario = null;
-          oreFuoriSede = 8;
+          // La ferie vale le ore pianificate quel giorno (es. 4h se part-time, 8h se giornata piena)
+          oreFuoriSede = scheduledHours > 0 ? roundHalf(scheduledHours) : 8;
         } else if (HALF_DAY_LEAVE_TYPES.has(leave.type)) {
-          oreOrdinario = hoursWorked > 0 ? Math.round(hoursWorked) : null;
-          oreFuoriSede = 4;
+          // Se la giornata ha ≤4h pianificate (es. part-time), "ferie mattina/pomeriggio" = intera giornata
+          const isShortDay = scheduledHours > 0 && scheduledHours <= 4;
+          oreOrdinario = hoursWorked > 0 ? roundHalf(hoursWorked) : null;
+          oreFuoriSede = isShortDay
+            ? roundHalf(scheduledHours)
+            : scheduledHours > 0 ? roundHalf(scheduledHours / 2) : 4;
         } else {
           // ROL / MEDICAL_VISIT / altri a ore
           const leaveHours = leave.hours ?? 0;
-          oreOrdinario = hoursWorked > 0 ? Math.round(hoursWorked) : null;
-          oreFuoriSede = leaveHours > 0 ? Math.round(leaveHours) : null;
+          const rawFuoriSede = leaveHours > 0 ? roundHalf(leaveHours) : null;
+          // Cap oreOrdinario so that ordinario + fuoriSede never exceeds scheduledHours
+          // (avoids false-positive yellow when worked hours + leave > scheduledHours)
+          let rawOrdinario = hoursWorked > 0 ? roundHalf(hoursWorked) : null;
+          if (rawOrdinario !== null && rawFuoriSede !== null && scheduledHours > 0) {
+            const maxOrdinario = roundHalf(scheduledHours - rawFuoriSede);
+            rawOrdinario = maxOrdinario > 0 ? Math.min(rawOrdinario, maxOrdinario) : null;
+          }
+          oreOrdinario = rawOrdinario;
+          oreFuoriSede = rawFuoriSede;
         }
       } else if (hoursWorked > 0) {
-        oreOrdinario = Math.round(hoursWorked);
+        // Giorno lavorativo puro: calcola straordinari e ore nette
+        const effectiveSoglia = scheduledHours > 0 ? scheduledHours : (CONTRACT_HOURS[emp.contractType] ?? 8);
+        const overtime = Math.max(0, hoursWorked - effectiveSoglia);
+        overtimeTotal += overtime;
+        oreOrdinario = roundHalf(hoursWorked - overtime); // ore nette al netto degli straordinari
       }
 
       if (oreOrdinario !== null || oreFuoriSede !== null) {
@@ -460,8 +533,10 @@ export async function buildPresenzeMonthData(
 
     presenzeEmployees.push({
       displayName: (emp.displayName || emp.name).toUpperCase(),
+      contractType: emp.contractType,
       days,
-      buoniPasto,
+      straordinari: roundQuarter(overtimeTotal),
+      scheduledHoursPerDay,
     });
   }
 

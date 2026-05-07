@@ -2,7 +2,19 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
-export type NotificationAction = "ENTRY" | "EXIT" | "PAUSE_START" | "PAUSE_END" | "LEAVE_PENDING";
+export type NotificationAction =
+  | "ENTRY"
+  | "EXIT"
+  | "PAUSE_START"
+  | "PAUSE_END"
+  | "LEAVE_PENDING"
+  | "LEAVE_APPROVED"
+  | "LEAVE_REJECTED"
+  | "LEAVE_CANCELLED"
+  | "RECORD_CREATED"
+  | "RECORD_UPDATED"
+  | "RECORD_DELETED"
+  | "ANOMALY_RESOLVED";
 
 export interface NotificationEvent {
   id: string;
@@ -12,6 +24,14 @@ export interface NotificationEvent {
   action: NotificationAction;
   time: string;
   date: string;
+  details?: {
+    leaveId?: string;
+    leaveType?: string;
+    leaveStartDate?: string;
+    leaveEndDate?: string;
+    recordId?: string;
+    recordType?: string;
+  };
 }
 
 const MAX_LIST = 50;
@@ -129,4 +149,11 @@ export const ACTION_LABELS: Record<NotificationAction, string> = {
   PAUSE_START: "ha iniziato la pausa",
   PAUSE_END: "ha finito la pausa",
   LEAVE_PENDING: "ha richiesto",
+  LEAVE_APPROVED: "richiesta approvata",
+  LEAVE_REJECTED: "richiesta rifiutata",
+  LEAVE_CANCELLED: "richiesta annullata",
+  RECORD_CREATED: "timbratura inserita",
+  RECORD_UPDATED: "timbratura modificata",
+  RECORD_DELETED: "timbratura eliminata",
+  ANOMALY_RESOLVED: "anomalia risolta",
 };

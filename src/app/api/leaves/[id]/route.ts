@@ -6,6 +6,7 @@ import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import { notifyLeaveDecision, notifyLeaveCancellation } from "@/lib/telegram-handlers";
 import { sendMail } from "@/lib/mail-send";
 import { leaveDecisionNotification, leaveCancellationNotification } from "@/lib/mail-templates";
+import { notificationsBus } from "@/lib/notifications-bus";
 
 export async function GET(
   _request: NextRequest,
@@ -126,6 +127,26 @@ export async function PUT(
         console.error("[leaves/PUT] sendMail decision failed:", err);
       }
     }
+
+    // Pubblica sul bus per far reagire sidebar (contatore pending) e
+    // pagina ferie (calendario / lista).
+    try {
+      notificationsBus.publish({
+        employeeId: updated.employeeId,
+        employeeName: updated.employee.displayName || updated.employee.name,
+        action: status === "APPROVED" ? "LEAVE_APPROVED" : "LEAVE_REJECTED",
+        time: LEAVE_TYPES[updated.type as LeaveType]?.label ?? updated.type,
+        date: updated.startDate,
+        details: {
+          leaveId: updated.id,
+          leaveType: updated.type,
+          leaveStartDate: updated.startDate,
+          leaveEndDate: updated.endDate,
+        },
+      });
+    } catch (err) {
+      console.error("[leaves/PUT] bus publish failed:", err);
+    }
   }
 
   return NextResponse.json({
@@ -216,6 +237,27 @@ export async function DELETE(
         console.error("[leaves/DELETE] sendMail cancellation failed:", err);
       }
     }
+  }
+
+  // Pubblica sul bus per far reagire sidebar + pagina ferie. Emettiamo
+  // anche quando previousStatus === "REJECTED" perché la riga scompare
+  // dalla lista delle richieste.
+  try {
+    notificationsBus.publish({
+      employeeId: leave.employeeId,
+      employeeName: leave.employee.displayName || leave.employee.name,
+      action: "LEAVE_CANCELLED",
+      time: LEAVE_TYPES[leave.type as LeaveType]?.label ?? leave.type,
+      date: leave.startDate,
+      details: {
+        leaveId: leave.id,
+        leaveType: leave.type,
+        leaveStartDate: leave.startDate,
+        leaveEndDate: leave.endDate,
+      },
+    });
+  } catch (err) {
+    console.error("[leaves/DELETE] bus publish failed:", err);
   }
 
   return NextResponse.json({ success: true, previousStatus });

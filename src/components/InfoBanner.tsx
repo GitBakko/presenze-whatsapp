@@ -13,7 +13,7 @@ interface InfoBannerProps {
 
 const KIND_CONFIG: Record<BannerKind, { container: string; iconClass: string; defaultIcon: LucideIcon }> = {
   info: {
-    container: "border-primary-container/50 bg-primary-container/20 text-on-primary-container",
+    container: "border-primary/20 bg-primary/10 text-primary",
     iconClass: "text-primary",
     defaultIcon: Info,
   },

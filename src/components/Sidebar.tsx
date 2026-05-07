@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -13,6 +13,7 @@ import {
   Clock,
   Settings,
 } from "lucide-react";
+import { useNotificationsContext } from "./NotificationsProvider";
 
 interface NavItem {
   href: string;
@@ -43,19 +44,46 @@ export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
   const isAdmin = role === "ADMIN";
   const [pendingLeaves, setPendingLeaves] = useState(0);
   const [anomalyCount, setAnomalyCount] = useState(0);
+  const { lastEvent } = useNotificationsContext();
 
-  useEffect(() => {
+  const refetchPending = useCallback(() => {
     fetch("/api/leaves?status=PENDING")
-      .then((r) => r.ok ? r.json() : [])
+      .then((r) => (r.ok ? r.json() : []))
       .then((data: unknown[]) => setPendingLeaves(data.length))
       .catch(() => {});
-    if (isAdmin) {
-      fetch("/api/anomalies/count")
-        .then((r) => r.ok ? r.json() : { count: 0 })
-        .then((data: { count: number }) => setAnomalyCount(data.count))
-        .catch(() => {});
+  }, []);
+
+  const refetchAnomalies = useCallback(() => {
+    if (!isAdmin) return;
+    fetch("/api/anomalies/count")
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((data: { count: number }) => setAnomalyCount(data.count))
+      .catch(() => {});
+  }, [isAdmin]);
+
+  useEffect(() => {
+    refetchPending();
+    refetchAnomalies();
+  }, [pathname, refetchPending, refetchAnomalies]);
+
+  // Reazione real-time a nuovi eventi sul bus WS.
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (lastEvent.action.startsWith("LEAVE_")) {
+      refetchPending();
+    } else if (
+      lastEvent.action === "RECORD_CREATED" ||
+      lastEvent.action === "RECORD_UPDATED" ||
+      lastEvent.action === "RECORD_DELETED" ||
+      lastEvent.action === "ENTRY" ||
+      lastEvent.action === "EXIT" ||
+      lastEvent.action === "PAUSE_START" ||
+      lastEvent.action === "PAUSE_END" ||
+      lastEvent.action === "ANOMALY_RESOLVED"
+    ) {
+      refetchAnomalies();
     }
-  }, [pathname, isAdmin]);
+  }, [lastEvent, refetchPending, refetchAnomalies]);
 
   return (
     <aside

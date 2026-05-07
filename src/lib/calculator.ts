@@ -276,9 +276,8 @@ export function calculateDailyStats(
     }
   }
 
-  // Subtract pauses from hours worked
-  totalMinutesWorked = Math.max(0, totalMinutesWorked - totalPauseMinutes);
-  totalMinutesWorkedMsg = Math.max(0, totalMinutesWorkedMsg - totalPauseMinutes);
+  // Pauses are contractually mandated and are NOT subtracted from worked hours.
+  // hoursWorked = full ENTRY→EXIT span (pause time included).
 
   const hoursWorked = Math.round((totalMinutesWorked / 60) * 100) / 100;
   const hoursWorkedMsg = Math.round((totalMinutesWorkedMsg / 60) * 100) / 100;

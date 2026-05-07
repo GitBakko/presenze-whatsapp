@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
+import { notificationsBus } from "@/lib/notifications-bus";
 
 interface ResolveAction {
   /**
@@ -136,6 +137,23 @@ export async function PUT(
           resolvedAt: resolved ? new Date() : null,
         },
       });
+
+      // Auto-resolve tutte le altre anomalie aperte dello stesso dipendente/giorno
+      if (resolved) {
+        await tx.anomaly.updateMany({
+          where: {
+            employeeId: anomaly.employeeId,
+            date: anomaly.date,
+            resolved: false,
+            id: { not: id },
+          },
+          data: {
+            resolved: true,
+            resolution: "Risolta automaticamente (collegata ad altra anomalia)",
+            resolvedAt: new Date(),
+          },
+        });
+      }
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -151,6 +169,15 @@ export async function PUT(
   const updated = await prisma.anomaly.findUnique({
     where: { id },
     include: { employee: true, resolvedBy: true },
+  });
+
+  // Notifica real-time per aggiornare i badge nella sidebar
+  notificationsBus.publish({
+    action: "ANOMALY_RESOLVED",
+    employeeId: updated!.employeeId,
+    employeeName: updated!.employee.displayName || updated!.employee.name,
+    date: updated!.date,
+    time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }),
   });
 
   return NextResponse.json({

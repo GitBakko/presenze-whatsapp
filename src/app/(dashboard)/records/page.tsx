@@ -6,6 +6,7 @@ import { Clock, Trash2, Pencil, Filter, Nfc, MessageCircle, RefreshCw, Save, X }
 import { formatDate } from "@/lib/formatTime";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useNotificationsContext } from "@/components/NotificationsProvider";
 
 interface Employee {
   id: string;
@@ -83,6 +84,7 @@ export default function RecordsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editType, setEditType] = useState("");
   const [editTime, setEditTime] = useState("");
+  const [editDate, setEditDate] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -132,16 +134,43 @@ export default function RecordsPage() {
     setPage(0);
   }, [from, to, employeeId, type, source]);
 
+  // Reattività real-time: quando arriva un evento WS che rispetta gli
+  // scope correnti (periodo + dipendente) ricarico silenziosamente la
+  // tabella. Eventi fuori filtro vengono ignorati per evitare refresh
+  // inutili. Il filtro type/source non viene controllato client-side:
+  // se il fetch non restituisce l'evento perché filtrato, la UI non
+  // cambia — accettabile.
+  const { lastEvent } = useNotificationsContext();
+  useEffect(() => {
+    if (!lastEvent) return;
+    const RECORD_ACTIONS: ReadonlySet<string> = new Set([
+      "ENTRY",
+      "EXIT",
+      "PAUSE_START",
+      "PAUSE_END",
+      "RECORD_CREATED",
+      "RECORD_UPDATED",
+      "RECORD_DELETED",
+    ]);
+    if (!RECORD_ACTIONS.has(lastEvent.action)) return;
+    if (from && lastEvent.date < from) return;
+    if (to && lastEvent.date > to) return;
+    if (employeeId && lastEvent.employeeId !== employeeId) return;
+    load();
+  }, [lastEvent, from, to, employeeId, load]);
+
   const startEdit = (r: Record) => {
     setEditingId(r.id);
     setEditType(r.type);
     setEditTime(r.declaredTime);
+    setEditDate(r.date);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditType("");
     setEditTime("");
+    setEditDate("");
   };
 
   const saveEdit = async (r: Record) => {
@@ -149,12 +178,16 @@ export default function RecordsPage() {
       toast.error("Orario non valido (HH:MM)");
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(editDate)) {
+      toast.error("Data non valida");
+      return;
+    }
     setBusyId(r.id);
     try {
       const res = await fetch(`/api/records/${r.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: editType, declaredTime: editTime }),
+        body: JSON.stringify({ type: editType, declaredTime: editTime, date: editDate }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -341,7 +374,18 @@ export default function RecordsPage() {
                       key={r.id}
                       className="border-b border-surface-container transition-colors hover:bg-surface-container-low/50"
                     >
-                      <td className="px-4 py-3 tabular-nums text-on-surface-variant">{formatDate(r.date)}</td>
+                      <td className="px-4 py-3 tabular-nums text-on-surface-variant">
+                        {editing ? (
+                          <input
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="w-36 rounded border-0 bg-surface-container-highest px-2 py-1 text-sm focus:ring-1 focus:ring-primary/40"
+                          />
+                        ) : (
+                          formatDate(r.date)
+                        )}
+                      </td>
                       <td className="px-4 py-3 tabular-nums">
                         {editing ? (
                           <input

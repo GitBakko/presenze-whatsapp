@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAuth, checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
+import { notificationsBus } from "@/lib/notifications-bus";
 
 export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -127,6 +128,19 @@ export async function POST(request: NextRequest) {
       isManual: true,
     },
   });
+
+  try {
+    notificationsBus.publish({
+      employeeId,
+      employeeName: employee.displayName || employee.name,
+      action: "RECORD_CREATED",
+      time: declaredTime,
+      date,
+      details: { recordId: record.id, recordType: type },
+    });
+  } catch (err) {
+    console.error("[records/POST] bus publish failed:", err);
+  }
 
   return NextResponse.json(record, { status: 201 });
 }

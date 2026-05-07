@@ -1,22 +1,48 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, CalendarPlus, LogIn, LogOut, Pause, Play } from "lucide-react";
+import {
+  Ban,
+  Bell,
+  CalendarCheck,
+  CalendarPlus,
+  CalendarX,
+  LogIn,
+  LogOut,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useNotificationsContext } from "./NotificationsProvider";
 import { ACTION_LABELS, type NotificationAction } from "@/lib/useNotifications";
 
 function actionIcon(action: NotificationAction) {
+  const cls = "h-3.5 w-3.5";
   switch (action) {
     case "ENTRY":
-      return <LogIn className="h-3.5 w-3.5 text-emerald-600" />;
+      return <LogIn className={`${cls} text-emerald-600`} />;
     case "EXIT":
-      return <LogOut className="h-3.5 w-3.5 text-rose-600" />;
+      return <LogOut className={`${cls} text-rose-600`} />;
     case "PAUSE_START":
-      return <Pause className="h-3.5 w-3.5 text-amber-600" />;
+      return <Pause className={`${cls} text-amber-600`} />;
     case "PAUSE_END":
-      return <Play className="h-3.5 w-3.5 text-blue-600" />;
+      return <Play className={`${cls} text-blue-600`} />;
     case "LEAVE_PENDING":
-      return <CalendarPlus className="h-3.5 w-3.5 text-primary" />;
+      return <CalendarPlus className={`${cls} text-primary`} />;
+    case "LEAVE_APPROVED":
+      return <CalendarCheck className={`${cls} text-emerald-600`} />;
+    case "LEAVE_REJECTED":
+      return <CalendarX className={`${cls} text-rose-600`} />;
+    case "LEAVE_CANCELLED":
+      return <Ban className={`${cls} text-on-surface-variant`} />;
+    case "RECORD_CREATED":
+      return <Plus className={`${cls} text-emerald-600`} />;
+    case "RECORD_UPDATED":
+      return <Pencil className={`${cls} text-amber-600`} />;
+    case "RECORD_DELETED":
+      return <Trash2 className={`${cls} text-rose-600`} />;
   }
 }
 
@@ -106,11 +132,17 @@ export function NotificationBell() {
                         <span className="text-on-surface-variant">
                           {evt.action === "LEAVE_PENDING"
                             ? `ha richiesto ${evt.time}`
+                            : evt.action === "LEAVE_APPROVED"
+                            ? `${evt.time} approvata`
+                            : evt.action === "LEAVE_REJECTED"
+                            ? `${evt.time} rifiutata`
+                            : evt.action === "LEAVE_CANCELLED"
+                            ? `${evt.time} annullata`
                             : ACTION_LABELS[evt.action]}
                         </span>
                       </div>
                       <div className="text-[11px] text-on-surface-variant">
-                        {evt.action === "LEAVE_PENDING"
+                        {evt.action.startsWith("LEAVE_")
                           ? `${evt.date} — ${relativeTime(evt.ts)}`
                           : `${evt.time} — ${relativeTime(evt.ts)}`}
                       </div>

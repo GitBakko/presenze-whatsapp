@@ -16,7 +16,30 @@
  * target di questa applicazione e' LAN single-server.
  */
 
-export type NotificationAction = "ENTRY" | "EXIT" | "PAUSE_START" | "PAUSE_END" | "LEAVE_PENDING";
+export type NotificationAction =
+  | "ENTRY"
+  | "EXIT"
+  | "PAUSE_START"
+  | "PAUSE_END"
+  | "LEAVE_PENDING"
+  | "LEAVE_APPROVED"
+  | "LEAVE_REJECTED"
+  | "LEAVE_CANCELLED"
+  | "RECORD_CREATED"
+  | "RECORD_UPDATED"
+  | "RECORD_DELETED"
+  | "ANOMALY_RESOLVED";
+
+/**
+ * Sottoinsieme di azioni che un dipendente può legittimamente vedere
+ * per sé stesso (notifiche sulla propria richiesta ferie). Tutte le
+ * altre azioni sono admin-only.
+ */
+export const EMPLOYEE_SELF_ACTIONS: ReadonlySet<NotificationAction> = new Set<NotificationAction>([
+  "LEAVE_APPROVED",
+  "LEAVE_REJECTED",
+  "LEAVE_CANCELLED",
+]);
 
 export interface NotificationEvent {
   id: string;          // unique, monotonically increasing
@@ -26,6 +49,17 @@ export interface NotificationEvent {
   action: NotificationAction;
   time: string;        // HH:MM (locale Europe/Rome) — server-side
   date: string;        // YYYY-MM-DD
+  // Contesto opzionale per permettere ai client reattivi (pagine ferie
+  // e timbrature) di decidere se un evento è in scope rispetto ai
+  // filtri correnti. Non necessario per la campanella/toast.
+  details?: {
+    leaveId?: string;
+    leaveType?: string;
+    leaveStartDate?: string;
+    leaveEndDate?: string;
+    recordId?: string;
+    recordType?: string;
+  };
 }
 
 const MAX_BUFFER = 50;

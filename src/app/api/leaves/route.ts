@@ -4,6 +4,7 @@ import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import { notifyAdminsOfPendingLeave } from "@/lib/leave-notifications";
+import { notificationsBus } from "@/lib/notifications-bus";
 
 export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -137,17 +138,40 @@ export async function POST(request: NextRequest) {
       include: { employee: true },
     });
 
+    const employeeName = leave.employee.displayName || leave.employee.name;
+    const typeLabel = LEAVE_TYPES[leave.type as LeaveType]?.label ?? leave.type;
+
     // Notify admins of pending leave (fire-and-forget)
     if (!isAdmin) {
       void notifyAdminsOfPendingLeave({
         employeeId: leave.employeeId,
-        employeeName: leave.employee.displayName || leave.employee.name,
+        employeeName,
         type: leave.type,
         startDate: leave.startDate,
         endDate: leave.endDate,
         hours: leave.hours,
         notes: leave.notes,
       });
+    } else {
+      // Admin ha creato la richiesta → già approvata. Pubblica sul bus
+      // così i client reattivi (calendario ferie, sidebar) si aggiornano.
+      try {
+        notificationsBus.publish({
+          employeeId: leave.employeeId,
+          employeeName,
+          action: "LEAVE_APPROVED",
+          time: typeLabel,
+          date: leave.startDate,
+          details: {
+            leaveId: leave.id,
+            leaveType: leave.type,
+            leaveStartDate: leave.startDate,
+            leaveEndDate: leave.endDate,
+          },
+        });
+      } catch (err) {
+        console.error("[leaves/POST] bus publish failed:", err);
+      }
     }
 
     return NextResponse.json({

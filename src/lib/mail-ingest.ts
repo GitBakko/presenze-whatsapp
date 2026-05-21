@@ -23,7 +23,8 @@
 
 import { createHash } from "crypto";
 import { prisma } from "./db";
-import { parseLeaveDates } from "./leave-date-parser";
+import { parseLeaveDates } from "./leaves/validation";
+import { todayRome } from "./tz";
 import { sendMail } from "./mail-send";
 import {
   replyUnknownSender,
@@ -222,25 +223,18 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
   }
 
   // 5. Parse delle date
-  const parsed = parseLeaveDates(body);
-  if (!parsed) {
+  const parsed = parseLeaveDates(body, todayRome());
+  if (!parsed.ok) {
+    // PAST_DATE: per ora ricade nello stesso ramo di errore parse; template
+    //            dedicato in T10 (refactor completo type-detection email).
+    const detail =
+      parsed.reason === "PAST_DATE"
+        ? `data passata oltre tolleranza (${parsed.detail ?? ""})`
+        : parsed.reason === "INVALID_RANGE"
+          ? `endDate < startDate (${parsed.detail ?? ""})`
+          : "DAL/AL non riconosciuti";
     stats.parseError++;
-    await logIngest(messageId, fromAddr, subject, "PARSE_ERROR", "DAL/AL non riconosciuti", null);
-    const reply = replyParseError(subject);
-    await sendMail({
-      to: fromAddr,
-      subject: reply.subject,
-      text: reply.text,
-      html: reply.html,
-      replyToMessageId: msg.id,
-    });
-    await markMessageRead(msg.id);
-    return;
-  }
-
-  if (parsed.startDate > parsed.endDate) {
-    stats.parseError++;
-    await logIngest(messageId, fromAddr, subject, "PARSE_ERROR", "endDate < startDate", null);
+    await logIngest(messageId, fromAddr, subject, "PARSE_ERROR", detail, null);
     const reply = replyParseError(subject);
     await sendMail({
       to: fromAddr,

@@ -28,7 +28,8 @@ import { syncAnomalies } from "./anomaly-sync";
 import { notificationsBus, type NotificationAction } from "./notifications-bus";
 import { getTelegramBot, type TelegramMessage, type TelegramUpdate } from "./telegram-bot";
 import { PUNCH_KEYBOARD, BUTTON_ENTRY, BUTTON_EXIT, BUTTON_PAUSE_START, BUTTON_PAUSE_END } from "./telegram-keyboards";
-import { parseLeaveDates, formatItDate } from "./leave-date-parser";
+import { parseLeaveDates } from "./leaves/validation";
+import { formatItDate } from "./leaves/format";
 
 const DEBOUNCE_SECONDS = 10;
 
@@ -284,17 +285,32 @@ const handleStorico: CommandHandler = async (ctx, args) => {
     fromDate = toDate = todayRome();
     label = "oggi";
   } else {
-    const parsed = parseLeaveDates(args);
-    if (parsed) {
+    // /storico è una query consultiva su date passate, quindi PAST_DATE qui
+    // è il caso d'uso normale: estraiamo comunque le date dal parser e
+    // ignoriamo solo PARSE_ERROR/INVALID_RANGE.
+    const parsed = parseLeaveDates(args, todayRome());
+    if (parsed.ok) {
       fromDate = parsed.startDate;
       toDate = parsed.endDate;
-      label = fromDate === toDate
-        ? formatItDate(fromDate)
-        : `dal ${formatItDate(fromDate)} al ${formatItDate(toDate)}`;
+    } else if (parsed.reason === "PAST_DATE") {
+      // Reparse senza tolleranza past-date: usiamo un refDate molto futuro
+      // così la stessa stringa supera il PAST_DATE check, mantenendo la
+      // semantica originale del comando.
+      const r2 = parseLeaveDates(args, "2999-12-31");
+      if (r2.ok) {
+        fromDate = r2.startDate;
+        toDate = r2.endDate;
+      } else {
+        await reply(ctx.chatId, `❌ Formato non riconosciuto.\n\nUsa:\n<code>/storico</code> (oggi)\n<code>/storico 15/04</code>\n<code>/storico DAL 10/04 AL 15/04</code>`);
+        return;
+      }
     } else {
       await reply(ctx.chatId, `❌ Formato non riconosciuto.\n\nUsa:\n<code>/storico</code> (oggi)\n<code>/storico 15/04</code>\n<code>/storico DAL 10/04 AL 15/04</code>`);
       return;
     }
+    label = fromDate === toDate
+      ? formatItDate(fromDate)
+      : `dal ${formatItDate(fromDate)} al ${formatItDate(toDate)}`;
   }
 
   const records = await prisma.attendanceRecord.findMany({
@@ -346,16 +362,17 @@ oppure singolo giorno:
 <code>/ferie 15/04</code>`;
 
 const handleFerie: CommandHandler = async (ctx, args) => {
-  const parsed = parseLeaveDates(args);
-  if (!parsed) {
+  const parsed = parseLeaveDates(args, todayRome());
+  if (!parsed.ok) {
+    if (parsed.reason === "INVALID_RANGE") {
+      await reply(ctx.chatId, `❌ La data di fine deve essere maggiore o uguale a quella di inizio.`);
+      return;
+    }
+    // PAST_DATE viene gestito come PARSE_ERROR per ora (template dedicato in T10).
     await reply(ctx.chatId, `❌ Formato non riconosciuto.\n\n${FERIE_HELP}`);
     return;
   }
   const { startDate, endDate } = parsed;
-  if (startDate > endDate) {
-    await reply(ctx.chatId, `❌ La data di fine deve essere maggiore o uguale a quella di inizio.`);
-    return;
-  }
 
   try {
     await prisma.leaveRequest.create({
@@ -402,8 +419,8 @@ const handlePermesso: CommandHandler = async (ctx, args) => {
     const timeTo = tsMatch[3];
 
     // Parse la data
-    const parsed = parseLeaveDates(datePart);
-    if (!parsed) {
+    const parsed = parseLeaveDates(datePart, todayRome());
+    if (!parsed.ok) {
       await reply(ctx.chatId, `❌ Data non valida.\n\n${PERMESSO_HELP}`);
       return;
     }
@@ -442,13 +459,13 @@ const handlePermesso: CommandHandler = async (ctx, args) => {
   }
 
   // Pattern 2: "DAL gg/mm AL gg/mm" o "gg/mm" (senza fascia oraria → ROL giornata)
-  const parsed = parseLeaveDates(args);
-  if (!parsed) {
+  const parsed = parseLeaveDates(args, todayRome());
+  if (!parsed.ok) {
+    if (parsed.reason === "INVALID_RANGE") {
+      await reply(ctx.chatId, `❌ La data di fine deve essere >= quella di inizio.`);
+      return;
+    }
     await reply(ctx.chatId, `❌ Formato non riconosciuto.\n\n${PERMESSO_HELP}`);
-    return;
-  }
-  if (parsed.startDate > parsed.endDate) {
-    await reply(ctx.chatId, `❌ La data di fine deve essere >= quella di inizio.`);
     return;
   }
 

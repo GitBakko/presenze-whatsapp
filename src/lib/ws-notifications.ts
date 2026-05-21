@@ -43,10 +43,11 @@ export function startWsNotificationServer(): void {
 
   const port = parseInt(process.env.WS_PORT || "3101", 10);
 
-  const wss = new WebSocketServer({ port, host: "0.0.0.0" });
+  const host = process.env.WS_HOST ?? "127.0.0.1";
+  const wss = new WebSocketServer({ port, host });
 
   wss.on("listening", () => {
-    console.log(`[ws-notifications] WebSocket server listening on port ${port}`);
+    console.log(`[ws-notifications] WebSocket server listening on ${host}:${port}`);
   });
 
   wss.on("error", (err) => {

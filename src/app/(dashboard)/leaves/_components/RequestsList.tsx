@@ -1,8 +1,9 @@
 "use client";
 
-import { CalendarX2, CheckCircle, XCircle, Trash2, Pencil } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarX2, CheckCircle, XCircle, Trash2, Pencil, Search, X } from "lucide-react";
 import type { LeaveRequest } from "./types";
-import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS } from "./types";
+import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS, LEAVE_TYPE_OPTIONS } from "./types";
 
 export function RequestsList({
   requests,
@@ -25,9 +26,34 @@ export function RequestsList({
   onSelectEmployee: (id: string) => void;
   isAdmin?: boolean;
 }) {
+  const [typeFilter, setTypeFilter] = useState<string>("ALL");
+  const [employeeQuery, setEmployeeQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = employeeQuery.trim().toLowerCase();
+    return requests.filter((r) => {
+      if (typeFilter !== "ALL" && r.type !== typeFilter) return false;
+      if (q && !r.employeeName.toLowerCase().includes(q)) return false;
+      // Period overlap with [dateFrom, dateTo] if either bound set.
+      if (dateFrom && r.endDate < dateFrom) return false;
+      if (dateTo && r.startDate > dateTo) return false;
+      return true;
+    });
+  }, [requests, typeFilter, employeeQuery, dateFrom, dateTo]);
+
+  const hasExtraFilters = typeFilter !== "ALL" || employeeQuery !== "" || dateFrom !== "" || dateTo !== "";
+  function resetFilters() {
+    setTypeFilter("ALL");
+    setEmployeeQuery("");
+    setDateFrom("");
+    setDateTo("");
+  }
+
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Status pills */}
       <div className="flex gap-2">
         {["ALL", "PENDING", "APPROVED", "REJECTED"].map((s) => (
           <button
@@ -40,8 +66,69 @@ export function RequestsList({
         ))}
       </div>
 
+      {/* Advanced filters */}
+      <div className="grid grid-cols-1 gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
+        <label className="flex flex-col gap-1 text-xs font-semibold text-on-surface-variant">
+          Tipo
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-md border border-outline-variant/50 bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface focus:border-primary focus:outline-none"
+          >
+            <option value="ALL">Tutti i tipi</option>
+            {LEAVE_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs font-semibold text-on-surface-variant sm:col-span-1 lg:col-span-2">
+          Dipendente
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-outline-variant" />
+            <input
+              type="text"
+              value={employeeQuery}
+              onChange={(e) => setEmployeeQuery(e.target.value)}
+              placeholder="Cerca per nome…"
+              className="w-full rounded-md border border-outline-variant/50 bg-surface-container-lowest pl-7 pr-2 py-1.5 text-sm text-on-surface placeholder:text-outline-variant focus:border-primary focus:outline-none"
+            />
+          </div>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs font-semibold text-on-surface-variant">
+          Da
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="rounded-md border border-outline-variant/50 bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface focus:border-primary focus:outline-none"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs font-semibold text-on-surface-variant">
+          A
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-md border border-outline-variant/50 bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface focus:border-primary focus:outline-none"
+          />
+        </label>
+
+        {hasExtraFilters && (
+          <button
+            onClick={resetFilters}
+            className="self-end inline-flex items-center justify-center gap-1 rounded-md bg-surface-container px-2 py-1.5 text-xs font-semibold text-on-surface-variant hover:bg-surface-container-high sm:col-span-2 lg:col-span-5 lg:justify-self-end lg:px-3"
+          >
+            <X className="h-3.5 w-3.5" />
+            Azzera filtri ({filtered.length} di {requests.length})
+          </button>
+        )}
+      </div>
+
       {/* Table */}
-      {requests.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-16 text-center">
           <CalendarX2 className="mb-3 h-12 w-12 text-outline-variant" />
           <p className="text-sm text-on-surface-variant">Nessuna richiesta trovata</p>
@@ -61,7 +148,7 @@ export function RequestsList({
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-container-low">
-              {requests.map((r) => (
+              {filtered.map((r) => (
                 <tr key={r.id} className="transition-colors hover:bg-surface-container-low/50">
                   <td className="px-4 py-3">
                     <button onClick={() => onSelectEmployee(r.employeeId)} className="font-semibold text-primary hover:underline">

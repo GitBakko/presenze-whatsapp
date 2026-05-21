@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getShortName } from "@/lib/avatar-utils";
+import { todayRome } from "@/lib/tz";
 import type { CalendarDay } from "./types";
 import { TYPE_COLORS } from "./types";
 
@@ -166,7 +167,7 @@ export function GanttCalendar({
           {workingDays.map((day) => {
             const dayNum = parseInt(day.date.split("-")[2]);
             const dowLabel = new Date(day.date).toLocaleDateString("it-IT", { weekday: "short" });
-            const isToday = day.date === new Date().toISOString().split("T")[0];
+            const isToday = day.date === todayRome();
             const blocks = resolveBlocks(day);
 
             return (

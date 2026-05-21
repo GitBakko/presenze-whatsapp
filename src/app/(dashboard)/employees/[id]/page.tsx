@@ -13,6 +13,7 @@ import {
   Pencil, Save, Trash2, Plus,
 } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { todayRome } from "@/lib/tz";
 import type { ReactNode } from "react";
 
 interface DailyStat {
@@ -151,7 +152,7 @@ export default function EmployeeDetailPage() {
 
   const firstWeekday = getFirstDayOfWeek(y, m);
   const totalDays = getDaysInMonth(y, m);
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayRome();
 
   // Build calendar grid
   const calendarCells = useMemo<(number | null)[]>(() => {

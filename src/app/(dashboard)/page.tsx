@@ -16,6 +16,7 @@ import { TodayLeavesBox } from "@/components/dashboard/TodayLeavesBox";
 import { UpcomingLeavesBox } from "@/components/dashboard/UpcomingLeavesBox";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
 import { InfoBanner } from "@/components/InfoBanner";
+import { todayRome } from "@/lib/tz";
 import type { DashboardPeriod, DashboardStatsResponse } from "@/types/dashboard";
 
 // warning/primary tokens (hex) — used for recharts which requires actual hex values
@@ -163,8 +164,8 @@ export default function DashboardPage() {
           {/* SEZIONE A+ — Dettaglio ferie & permessi oggi + prossimi 14 giorni (solo admin) */}
           {isAdmin && (data.todayLeaves.length > 0 || data.upcomingLeaves.length > 0) && (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <TodayLeavesBox leaves={data.todayLeaves} today={new Date().toISOString().split("T")[0]} />
-              <UpcomingLeavesBox leaves={data.upcomingLeaves} today={new Date().toISOString().split("T")[0]} />
+              <TodayLeavesBox leaves={data.todayLeaves} today={todayRome()} />
+              <UpcomingLeavesBox leaves={data.upcomingLeaves} today={todayRome()} />
             </div>
           )}
 

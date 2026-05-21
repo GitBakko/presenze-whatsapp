@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { todayRome } from "@/lib/tz";
 
 interface Anomaly {
   id: string;
@@ -102,11 +103,11 @@ const TYPE_LABELS: Record<string, string> = {
 function monthAgoStr() {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
-  return d.toISOString().split("T")[0];
+  return todayRome(d);
 }
 
 function todayStr() {
-  return new Date().toISOString().split("T")[0];
+  return todayRome();
 }
 
 export default function AnomaliesPage() {

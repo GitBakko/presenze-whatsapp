@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AlertTriangle, HelpCircle, RefreshCw } from "lucide-react";
+import { todayRome } from "@/lib/tz";
 import type { AnomalyRecent } from "@/types/dashboard";
 
 const SEVERITY_STYLE: Record<number, { bg: string; text: string }> = {
@@ -11,11 +12,11 @@ const SEVERITY_STYLE: Record<number, { bg: string; text: string }> = {
 };
 
 function relativeDate(dateStr: string): string {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayRome();
   if (dateStr === today) return "oggi";
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  if (dateStr === yesterday.toISOString().split("T")[0]) return "ieri";
+  if (dateStr === todayRome(yesterday)) return "ieri";
   const [, m, d] = dateStr.split("-");
   return `${parseInt(d)}/${parseInt(m)}`;
 }

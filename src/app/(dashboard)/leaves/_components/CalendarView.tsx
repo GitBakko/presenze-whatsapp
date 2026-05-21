@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Hourglass, Pencil, X } from "lucide-react";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { getShortName } from "@/lib/avatar-utils";
+import { todayRome } from "@/lib/tz";
 import type { CalendarDay, CalendarEvent } from "./types";
 import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS } from "./types";
 
@@ -26,7 +27,7 @@ export function CalendarView({
   onEdit?: (event: CalendarEvent) => void;
 }) {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayRome();
 
   // Collect all employee names for homonym disambiguation
   const allNames = useMemo(() => {

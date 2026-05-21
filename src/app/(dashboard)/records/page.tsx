@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/formatTime";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
+import { todayRome } from "@/lib/tz";
 
 interface Employee {
   id: string;
@@ -62,7 +63,7 @@ const SOURCE_LABELS: { [k: string]: string } = {
 const PAGE_SIZE = 50;
 
 function todayStr() {
-  return new Date().toISOString().split("T")[0];
+  return todayRome();
 }
 
 export default function RecordsPage() {

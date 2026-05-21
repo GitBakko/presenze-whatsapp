@@ -297,6 +297,60 @@ Stato attuale: ${args.status}.
   return { subject, text, html };
 }
 
+/** Risposta quando il subject non contiene un tipo di assenza riconoscibile. */
+export function replyTypeUnknown(): MailReply {
+  const subject = "Richiesta non riconosciuta";
+  const text =
+    "La tua richiesta non ha un tipo riconoscibile.\n" +
+    "L'oggetto deve contenere una di queste parole: ferie, ROL, permesso, malattia, lutto, matrimonio, visita medica, 104." +
+    FOOTER;
+  const html = renderEmailHtml(
+    `<p>La tua richiesta non ha un tipo riconoscibile.</p>` +
+    `<p>L'oggetto deve contenere una di queste parole: <strong>ferie, ROL, permesso, malattia, lutto, matrimonio, visita medica, 104</strong>.</p>`
+  );
+  return { subject, text, html };
+}
+
+/** Risposta quando la data richiesta e' nel passato oltre la tolleranza. */
+export function replyPastDate(detail: string): MailReply {
+  const subject = "Data nel passato";
+  const text =
+    "La data indicata è nel passato e non può essere accettata automaticamente.\n" +
+    `${detail}\n` +
+    "Se intendi richiedere per l'anno successivo, includi l'anno nel formato gg/mm/aaaa." +
+    FOOTER;
+  const html = renderEmailHtml(
+    `<p>La data indicata è nel passato e non può essere accettata automaticamente.</p>` +
+    `<p>${detail}</p>` +
+    `<p>Se intendi richiedere per l'anno successivo, includi l'anno nel formato <code>gg/mm/aaaa</code>.</p>`
+  );
+  return { subject, text, html };
+}
+
+/** Risposta quando la richiesta entra in conflitto con una esistente. */
+export function replyOverlap(
+  conflicts: Array<{ type: string; startDate: string; endDate: string }>
+): MailReply {
+  const listText = conflicts
+    .map(c => `- ${c.type} dal ${formatItDate(c.startDate)} al ${formatItDate(c.endDate)}`)
+    .join("\n");
+  const listHtml = conflicts
+    .map(c => `<li>${c.type} dal ${formatItDate(c.startDate)} al ${formatItDate(c.endDate)}</li>`)
+    .join("");
+  const subject = "Richiesta in conflitto con un'altra esistente";
+  const text =
+    "La richiesta è in conflitto con una richiesta esistente:\n" +
+    `${listText}\n` +
+    "Contatta l'amministratore per gestire il conflitto." +
+    FOOTER;
+  const html = renderEmailHtml(
+    `<p>La richiesta è in conflitto con una richiesta esistente:</p>` +
+    `<ul>${listHtml}</ul>` +
+    `<p>Contatta l'amministratore per gestire il conflitto.</p>`
+  );
+  return { subject, text, html };
+}
+
 /** Notifica agli admin quando un dipendente crea una richiesta in PENDING. */
 export function newPendingLeaveNotification(args: {
   employeeName: string;

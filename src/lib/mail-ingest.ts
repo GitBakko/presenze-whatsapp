@@ -1,5 +1,5 @@
 /**
- * Poller Microsoft Graph per le richieste ferie via email.
+ * Poller Microsoft Graph per le richieste di assenza via email.
  *
  * Si connette periodicamente alla mailbox configurata via
  * MAIL_MAILBOX, lista i messaggi non letti nella folder MAIL_FOLDER
@@ -7,11 +7,16 @@
  *   1. check idempotency via EmailIngestLog.messageId
  *   2. lookup Employee per mittente (case insensitive sul from.address)
  *      → se non trovato: log + reply "non autorizzato" + UnrecognizedEmail
- *   3. validazione subject (deve essere "ferie")
- *   4. parse body con parseLeaveDates
- *      → se fallisce: reply errore
- *   5. crea LeaveRequest PENDING + reply conferma
- *   6. marca messaggio come letto via PATCH
+ *   3. detectLeaveTypeFromSubject (ferie / ROL / permesso / malattia /
+ *      lutto / matrimonio / visita medica / 104)
+ *      → se nessun tipo riconosciuto: reply TYPE_UNKNOWN
+ *   4. parse body con parseLeaveDates(body, todayRome())
+ *      → PAST_DATE: reply dedicata
+ *      → INVALID_RANGE / PARSE_ERROR: reply generico
+ *   5. checkOverlap contro le richieste esistenti
+ *      → BLOCK: reply conflitto, niente create
+ *   6. crea LeaveRequest PENDING con il tipo rilevato + reply conferma
+ *   7. marca messaggio come letto via PATCH
  *
  * Tutto il flusso e' protetto da try/catch granulari: una mail rotta
  * non blocca le altre.
@@ -23,13 +28,17 @@
 
 import { createHash } from "crypto";
 import { prisma } from "./db";
-import { parseLeaveDates } from "./leaves/validation";
+import { parseLeaveDates, detectLeaveTypeFromSubject } from "./leaves/validation";
+import { checkOverlap } from "./leaves/overlap";
 import { todayRome } from "./tz";
 import { sendMail } from "./mail-send";
 import {
   replyUnknownSender,
   replyParseError,
   replyRequestAccepted,
+  replyTypeUnknown,
+  replyPastDate,
+  replyOverlap,
 } from "./mail-templates";
 import {
   isMailGraphConfigured,
@@ -49,6 +58,9 @@ interface IngestStats {
   duplicate: number;
   internalError: number;
   wrongSubject: number;
+  typeUnknown: number;
+  pastDate: number;
+  overlapBlock: number;
 }
 
 let _running = false;
@@ -104,6 +116,9 @@ export async function runOnce(): Promise<IngestStats> {
     duplicate: 0,
     internalError: 0,
     wrongSubject: 0,
+    typeUnknown: 0,
+    pastDate: 0,
+    overlapBlock: 0,
   };
   if (!isMailIngestConfigured()) return stats;
 
@@ -152,26 +167,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
   const fromAddr = msg.from?.emailAddress?.address?.toLowerCase() || "";
   const fromName = msg.from?.emailAddress?.name || "";
 
-  // 1. Filtro subject (deve essere "ferie" dopo aver tolto Re:/Fwd:)
-  const subjectClean = subject
-    .replace(/^(?:re:|fwd?:|r:)\s*/gi, "")
-    .trim()
-    .toLowerCase();
-  if (subjectClean !== "ferie") {
-    // Non destinata al nostro sistema. Marchiamo come letta per non
-    // riscansionare ad ogni ciclo. Se una mail finisce nella cartella
-    // "Ferie" senza avere subject corretto, e' stata messa li' a mano
-    // oppure esisteva prima della regola M365: va comunque ignorata.
-    stats.wrongSubject++;
-    try {
-      await markMessageRead(msg.id);
-    } catch (err) {
-      console.error("[mail-ingest] markMessageRead (wrongSubject) failed:", err);
-    }
-    return;
-  }
-
-  // 2. Idempotency: gia' processata?
+  // 1. Idempotency: gia' processata?
   const existingLog = await prisma.emailIngestLog.findUnique({
     where: { messageId },
   });
@@ -181,7 +177,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
     return;
   }
 
-  // 3. Body testuale (Graph gia' ci da' text o html gia' parsato)
+  // 2. Body testuale (Graph gia' ci da' text o html gia' parsato)
   const body = extractBodyText(msg);
 
   if (!fromAddr) {
@@ -190,7 +186,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
     return;
   }
 
-  // 4. Lookup employee per mittente
+  // 3. Lookup employee per mittente
   const employee = await prisma.employee.findUnique({ where: { email: fromAddr } });
   if (!employee) {
     stats.unknownSender++;
@@ -222,17 +218,44 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
     return;
   }
 
+  // 4. Type detection dal subject (sostituisce il vecchio filtro "ferie" hardcoded)
+  const type = detectLeaveTypeFromSubject(subject);
+  if (!type) {
+    stats.typeUnknown++;
+    await logIngest(messageId, fromAddr, subject, "TYPE_UNKNOWN", null, null);
+    const reply = replyTypeUnknown();
+    await sendMail({
+      to: fromAddr,
+      subject: reply.subject,
+      text: reply.text,
+      html: reply.html,
+      replyToMessageId: msg.id,
+    });
+    await markMessageRead(msg.id);
+    return;
+  }
+
   // 5. Parse delle date
   const parsed = parseLeaveDates(body, todayRome());
   if (!parsed.ok) {
-    // PAST_DATE: per ora ricade nello stesso ramo di errore parse; template
-    //            dedicato in T10 (refactor completo type-detection email).
+    if (parsed.reason === "PAST_DATE") {
+      stats.pastDate++;
+      await logIngest(messageId, fromAddr, subject, "PAST_DATE", parsed.detail ?? null, null);
+      const reply = replyPastDate(parsed.detail ?? "");
+      await sendMail({
+        to: fromAddr,
+        subject: reply.subject,
+        text: reply.text,
+        html: reply.html,
+        replyToMessageId: msg.id,
+      });
+      await markMessageRead(msg.id);
+      return;
+    }
     const detail =
-      parsed.reason === "PAST_DATE"
-        ? `data passata oltre tolleranza (${parsed.detail ?? ""})`
-        : parsed.reason === "INVALID_RANGE"
-          ? `endDate < startDate (${parsed.detail ?? ""})`
-          : "DAL/AL non riconosciuti";
+      parsed.reason === "INVALID_RANGE"
+        ? `endDate < startDate (${parsed.detail ?? ""})`
+        : "DAL/AL non riconosciuti";
     stats.parseError++;
     await logIngest(messageId, fromAddr, subject, "PARSE_ERROR", detail, null);
     const reply = replyParseError(subject);
@@ -247,11 +270,45 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
     return;
   }
 
-  // 6. Crea LeaveRequest PENDING
+  // 6. Overlap check con richieste esistenti
+  const overlap = await checkOverlap(employee.id, {
+    type,
+    startDate: parsed.startDate,
+    endDate: parsed.endDate,
+  });
+  if (overlap.kind === "BLOCK") {
+    stats.overlapBlock++;
+    await logIngest(
+      messageId,
+      fromAddr,
+      subject,
+      "OVERLAP_BLOCK",
+      overlap.reason ?? null,
+      null
+    );
+    const reply = replyOverlap(
+      overlap.conflicts.map(c => ({
+        type: c.type,
+        startDate: c.startDate,
+        endDate: c.endDate,
+      }))
+    );
+    await sendMail({
+      to: fromAddr,
+      subject: reply.subject,
+      text: reply.text,
+      html: reply.html,
+      replyToMessageId: msg.id,
+    });
+    await markMessageRead(msg.id);
+    return;
+  }
+
+  // 7. Crea LeaveRequest PENDING
   const leave = await prisma.leaveRequest.create({
     data: {
       employeeId: employee.id,
-      type: "VACATION",
+      type,
       startDate: parsed.startDate,
       endDate: parsed.endDate,
       status: "PENDING",
@@ -263,7 +320,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
   stats.ok++;
   await logIngest(messageId, fromAddr, subject, "OK", null, leave.id);
 
-  // 7. Reply conferma
+  // 8. Reply conferma
   const reply = replyRequestAccepted({
     originalSubject: subject,
     startDate: parsed.startDate,
@@ -278,7 +335,7 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
     replyToMessageId: msg.id,
   });
 
-  // 8. Marca come letta
+  // 9. Marca come letta
   await markMessageRead(msg.id);
 }
 

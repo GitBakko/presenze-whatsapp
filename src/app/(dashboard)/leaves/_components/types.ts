@@ -29,11 +29,13 @@ export interface CalendarEvent {
   startDate: string;
   endDate: string;
   timeSlots: { from: string; to: string }[] | null;
+  sickProtocol: string | null;
   notes: string | null;
   source: string;
   approvedBy: string | null;
   approvedAt: string | null;
   createdAt: string;
+  version: number;
 }
 
 export interface CalendarDay {

@@ -320,6 +320,7 @@ export default function LeavesPage() {
           onChangeMonth={changeMonth}
           onSelectEmployee={setSelectedEmployee}
           onGanttMode={() => setGanttMode(true)}
+          onEdit={isLeavesAdmin ? (ev) => setEditingRequest(ev as unknown as LeaveRequest) : undefined}
         />
       )}
 

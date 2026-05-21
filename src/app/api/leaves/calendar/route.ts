@@ -45,11 +45,13 @@ export async function GET(request: NextRequest) {
         startDate: string;
         endDate: string;
         timeSlots: { from: string; to: string }[] | null;
+        sickProtocol: string | null;
         notes: string | null;
         source: string;
         approvedBy: string | null;
         approvedAt: string | null;
         createdAt: string;
+        version: number;
       }[];
     }[] = [];
 
@@ -68,11 +70,13 @@ export async function GET(request: NextRequest) {
           startDate: l.startDate,
           endDate: l.endDate,
           timeSlots: l.timeSlots ? JSON.parse(l.timeSlots) as { from: string; to: string }[] : null,
+          sickProtocol: l.sickProtocol,
           notes: l.notes,
           source: l.source,
           approvedBy: l.approvedBy?.name ?? null,
           approvedAt: l.approvedAt?.toISOString() ?? null,
           createdAt: l.createdAt.toISOString(),
+          version: l.version,
         }));
 
       calendar.push({ date: dateStr, events });

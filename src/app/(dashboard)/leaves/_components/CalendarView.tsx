@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Hourglass, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hourglass, Pencil, X } from "lucide-react";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { getShortName } from "@/lib/avatar-utils";
 import type { CalendarDay, CalendarEvent } from "./types";
@@ -14,6 +14,7 @@ export function CalendarView({
   firstDay,
   onChangeMonth,
   onGanttMode,
+  onEdit,
 }: {
   calendarDays: CalendarDay[];
   calendarMonth: string;
@@ -22,6 +23,7 @@ export function CalendarView({
   onChangeMonth: (delta: number) => void;
   onSelectEmployee: (id: string) => void;
   onGanttMode?: () => void;
+  onEdit?: (event: CalendarEvent) => void;
 }) {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
   const today = new Date().toISOString().split("T")[0];
@@ -153,6 +155,7 @@ export function CalendarView({
           onClose={closeEventPopup}
           formatDate={formatDate}
           sourceLabels={SOURCE_LABELS}
+          onEdit={onEdit ? (ev) => { closeEventPopup(); onEdit(ev); } : undefined}
         />
       )}
     </div>
@@ -164,11 +167,13 @@ function EventDetailPopup({
   onClose,
   formatDate,
   sourceLabels,
+  onEdit,
 }: {
   event: CalendarEvent;
   onClose: () => void;
   formatDate: (d: string) => string;
   sourceLabels: Record<string, string>;
+  onEdit?: (event: CalendarEvent) => void;
 }) {
   const modalContentRef = useRef<HTMLDivElement>(null);
   useModalA11y(modalContentRef, onClose);
@@ -273,7 +278,16 @@ function EventDetailPopup({
           )}
         </div>
 
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex justify-end gap-2">
+          {onEdit && (event.status === "APPROVED" || event.status === "PENDING") && (
+            <button
+              onClick={() => onEdit(event)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-container"
+            >
+              <Pencil className="h-4 w-4" />
+              Modifica
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-md bg-surface-container px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high"

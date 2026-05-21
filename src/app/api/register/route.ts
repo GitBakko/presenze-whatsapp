@@ -1,84 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-
-/**
- * POST /api/register
- *
- * Due modalità di registrazione:
- *
- * 1. Admin: passa `systemPassword` = SYSTEM_REGISTRATION_SECRET →
- *    crea utente con role="ADMIN", active=true. Usata per bootstrap
- *    iniziale o per creare admin aggiuntivi.
- *
- * 2. Dipendente: senza `systemPassword`, email deve terminare con
- *    uno dei domini consentiti (default @epartner.it) → crea utente
- *    con role="EMPLOYEE", active=false. L'admin dovrà attivarlo e
- *    associarlo a un dipendente dalla pagina Impostazioni → Utenti.
- */
+import { constantTimeEquals } from "@/lib/crypto-utils";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const ALLOWED_DOMAINS = ["epartner.it"];
 
+const RegisterSchema = z.object({
+  email: z.string().email().max(200),
+  name: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[\p{L}\p{N}\s'.-]+$/u, "name contains invalid characters"),
+  password: z.string().min(8).max(128),
+  systemPassword: z.string().max(200).optional(),
+});
+
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { email, name, password, systemPassword } = body;
-
-  if (!email || !name || !password) {
+  // Rate limit by IP, 5 req / 15 min
+  const ip = getClientIp(request);
+  const rl = rateLimit({ key: `register:${ip}`, max: 5, windowMs: 15 * 60_000 });
+  if (!rl.ok) {
+    const retryAfter = Math.max(1, Math.ceil((rl.resetAt - Date.now()) / 1000));
     return NextResponse.json(
-      { error: "Tutti i campi sono obbligatori (email, name, password)" },
-      { status: 400 }
+      { error: "rate_limited", retryAfter },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
     );
   }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "bad request" }, { status: 400 });
+  }
+
+  const parsed = RegisterSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Formato email non valido" },
+      { error: "validation_failed", issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })) },
       { status: 400 }
     );
   }
+  const { email, name, password, systemPassword } = parsed.data;
 
-  if (typeof password !== "string" || password.length < 8) {
-    return NextResponse.json(
-      { error: "La password deve contenere almeno 8 caratteri" },
-      { status: 400 }
-    );
-  }
-
-  // Determina il tipo di registrazione
+  // Admin path: systemPassword present and matches (constant-time)
+  const expectedAdminSecret = process.env.SYSTEM_REGISTRATION_SECRET ?? "";
   const isAdminRegistration =
-    systemPassword && systemPassword === process.env.SYSTEM_REGISTRATION_SECRET;
+    !!systemPassword &&
+    expectedAdminSecret.length > 0 &&
+    constantTimeEquals(systemPassword, expectedAdminSecret);
 
   if (systemPassword && !isAdminRegistration) {
-    return NextResponse.json(
-      { error: "Password di sistema non valida" },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: "Password di sistema non valida" }, { status: 403 });
   }
 
-  // Per registrazioni dipendente: verifica dominio email
+  // Employee path: enforce allowed domain
   if (!isAdminRegistration) {
-    const domain = email.split("@")[1]?.toLowerCase();
+    const domain = email.split("@")[1]?.toLowerCase() ?? "";
     if (!ALLOWED_DOMAINS.includes(domain)) {
       return NextResponse.json(
-        {
-          error: `La registrazione è consentita solo per indirizzi @${ALLOWED_DOMAINS.join(", @")}`,
-        },
+        { error: `La registrazione è consentita solo per indirizzi @${ALLOWED_DOMAINS.join(", @")}` },
         { status: 403 }
       );
     }
   }
 
-  // Check se esiste già
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+
+  // Admin path: real 409 on duplicate (caller is already authenticated by secret)
+  if (isAdminRegistration && existing) {
+    return NextResponse.json({ error: "Un utente con questa email esiste già" }, { status: 409 });
+  }
+
+  // Employee path: mask both "exists" and "created" with uniform 202 to prevent enumeration
+  if (!isAdminRegistration && existing) {
     return NextResponse.json(
-      { error: "Un utente con questa email esiste già" },
-      { status: 409 }
+      { status: "accepted", message: "Registrazione ricevuta. Se l'indirizzo è valido riceverai una conferma." },
+      { status: 202 }
     );
   }
 
   const passwordHash = await hash(password, 12);
-
   const user = await prisma.user.create({
     data: {
       email,
@@ -96,17 +101,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Registrazione dipendente: messaggio di attesa
   return NextResponse.json(
-    {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      active: false,
-      message:
-        "Registrazione completata. Il tuo account sarà attivato dall'amministratore.",
-    },
-    { status: 201 }
+    { status: "accepted", message: "Registrazione ricevuta. Se l'indirizzo è valido riceverai una conferma." },
+    { status: 202 }
   );
 }

@@ -1,20 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleTelegramUpdate } from "@/lib/telegram-handlers";
+import { constantTimeEquals } from "@/lib/crypto-utils";
 import type { TelegramUpdate } from "@/lib/telegram-bot";
-
-/**
- * POST /api/telegram/webhook/[secret]
- *
- * Endpoint pubblico chiamato da Telegram per ogni update (messaggi, comandi,
- * tap di bottoni). La sicurezza si basa su DUE controlli:
- *   1. Il path contiene un segreto (TELEGRAM_WEBHOOK_SECRET) che solo
- *      Telegram conosce — l'admin lo configura via /api/telegram/setup.
- *   2. Telegram invia anche l'header X-Telegram-Bot-Api-Secret-Token con
- *      lo stesso valore se passato a setWebhook(secret_token).
- *
- * Verifichiamo entrambi quando possibile (l'header e' presente solo se
- * setWebhook e' stato chiamato con secret_token, vedi /api/telegram/setup).
- */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,11 +17,14 @@ export async function POST(
   }
 
   const { secret } = await params;
-  if (secret !== expected) {
+  if (!constantTimeEquals(secret, expected)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+
+  // Strict header mode: Telegram MUST send the secret_token header.
+  // setWebhook is configured with secret_token (see /api/telegram/setup).
   const headerSecret = request.headers.get("x-telegram-bot-api-secret-token");
-  if (headerSecret && headerSecret !== expected) {
+  if (!headerSecret || !constantTimeEquals(headerSecret, expected)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -45,14 +35,10 @@ export async function POST(
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
 
-  // Telegram si aspetta una risposta veloce. Eseguiamo l'handler in modo
-  // sincrono ma proteggiamo l'endpoint dagli errori imprevisti per evitare
-  // che Telegram ci ritenti l'update all'infinito.
   try {
     await handleTelegramUpdate(update);
   } catch (err) {
     console.error("[telegram/webhook] handler error:", err);
-    // 200 OK comunque per non far retry infinito a Telegram
   }
 
   return NextResponse.json({ ok: true });

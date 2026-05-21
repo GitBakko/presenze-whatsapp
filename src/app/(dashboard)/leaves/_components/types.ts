@@ -15,6 +15,7 @@ export interface LeaveRequest {
   createdAt: string;
   approvedBy: string | null;
   approvedAt: string | null;
+  version: number;
 }
 
 export interface CalendarEvent {

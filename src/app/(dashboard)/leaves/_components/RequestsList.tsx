@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarX2, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { CalendarX2, CheckCircle, XCircle, Trash2, Pencil } from "lucide-react";
 import type { LeaveRequest } from "./types";
 import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS } from "./types";
 
@@ -11,6 +11,7 @@ export function RequestsList({
   onApprove,
   onReject,
   onDelete,
+  onEdit,
   onSelectEmployee,
   isAdmin = true,
 }: {
@@ -20,6 +21,7 @@ export function RequestsList({
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onDelete: (r: LeaveRequest) => void;
+  onEdit: (r: LeaveRequest) => void;
   onSelectEmployee: (id: string) => void;
   isAdmin?: boolean;
 }) {
@@ -97,6 +99,11 @@ export function RequestsList({
                             <XCircle className="h-5 w-5" />
                           </button>
                         </>
+                      )}
+                      {(r.status === "APPROVED" || r.status === "PENDING") && (
+                        <button onClick={() => onEdit(r)} aria-label="Modifica" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-outline-variant hover:bg-surface-container-high hover:text-primary" title="Modifica">
+                          <Pencil className="h-5 w-5" />
+                        </button>
                       )}
                       <button onClick={() => onDelete(r)} aria-label="Elimina" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-outline-variant hover:bg-surface-container-high hover:text-error" title="Elimina">
                         <Trash2 className="h-5 w-5" />

@@ -17,6 +17,7 @@ import { RequestsList } from "./_components/RequestsList";
 import { ByEmployeeView } from "./_components/ByEmployeeView";
 import { GanttCalendar } from "./_components/GanttCalendar";
 import { CreateLeaveModal } from "./_components/CreateLeaveModal";
+import { EditLeaveModal } from "./_components/EditLeaveModal";
 
 export default function LeavesPage() {
   const confirm = useConfirm();
@@ -40,6 +41,7 @@ export default function LeavesPage() {
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
   const [byEmployee, setByEmployee] = useState<ByEmployeeCard[]>([]);
   const [byEmployeeLoading, setByEmployeeLoading] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null);
 
   // ── Fetch data ──
 
@@ -338,6 +340,7 @@ export default function LeavesPage() {
           onApprove={handleApprove}
           onReject={handleReject}
           onDelete={handleDelete}
+          onEdit={setEditingRequest}
           onSelectEmployee={setSelectedEmployee}
           isAdmin={isLeavesAdmin}
         />
@@ -363,6 +366,20 @@ export default function LeavesPage() {
           }}
           loading={loading}
           setLoading={setLoading}
+        />
+      )}
+
+      {/* Edit form modal */}
+      {editingRequest && (
+        <EditLeaveModal
+          request={editingRequest}
+          onClose={() => setEditingRequest(null)}
+          onSaved={() => {
+            fetchRequests();
+            fetchCalendar();
+            if (tab === "byEmployee") fetchByEmployee();
+            if (selectedEmployee) fetchBalance(selectedEmployee);
+          }}
         />
       )}
     </div>

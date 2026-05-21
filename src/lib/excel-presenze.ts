@@ -428,6 +428,7 @@ export async function buildPresenzeMonthData(
     const cur = new Date(start);
     const endDate = new Date(end);
     while (cur <= endDate) {
+      // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
       const dateStr = cur.toISOString().split("T")[0];
       const key = `${l.employeeId}|${dateStr}`;
       if (!leaveMap.has(key)) {

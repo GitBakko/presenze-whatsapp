@@ -428,6 +428,7 @@ export async function GET(request: NextRequest) {
         const cur = new Date(s);
         const end = new Date(e);
         while (cur <= end) {
+          // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
           periodMorningRol.set(`${l.employeeId}|${cur.toISOString().split("T")[0]}`, 999);
           cur.setDate(cur.getDate() + 1);
         }
@@ -445,6 +446,7 @@ export async function GET(request: NextRequest) {
               const cur = new Date(s);
               const end = new Date(e);
               while (cur <= end) {
+                // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
                 const key = `${l.employeeId}|${cur.toISOString().split("T")[0]}`;
                 periodMorningRol.set(key, (periodMorningRol.get(key) ?? 0) + mins);
                 cur.setDate(cur.getDate() + 1);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
+import { todayRome } from "@/lib/tz";
 
 export async function GET(request: NextRequest) {
   const denied = await checkAuth();
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
         id: created.id,
         name: created.name,
         displayName: created.displayName,
-        hireDate: created.hireDate?.toISOString().split("T")[0] ?? null,
+        hireDate: created.hireDate ? todayRome(created.hireDate) : null,
         contractType: created.contractType,
       },
       { status: 201 }

@@ -66,6 +66,7 @@ export function countWorkDays(from: string, to: string): number {
   const cur = new Date(from);
   const end = new Date(to);
   while (cur <= end) {
+    // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
     const dateStr = cur.toISOString().split("T")[0];
     if (!isNonWorkingDay(dateStr)) count++;
     cur.setDate(cur.getDate() + 1);
@@ -118,6 +119,7 @@ export function computeKpis(
               const cur = new Date(s);
               const end = new Date(e);
               while (cur <= end) {
+                // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
                 const dateStr = cur.toISOString().split("T")[0];
                 const key = `${l.employeeId}|${dateStr}`;
                 morningRolMinutes.set(key, (morningRolMinutes.get(key) ?? 0) + mins);

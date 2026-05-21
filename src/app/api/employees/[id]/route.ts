@@ -5,6 +5,7 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { randomBytes } from "crypto";
 import { checkAuth, checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
+import { todayRome } from "@/lib/tz";
 
 /** Normalizza un UID NFC: hex uppercase, niente separatori. Stringa vuota se input non valido. */
 function normalizeNfcUid(raw: string): string {
@@ -42,7 +43,7 @@ export async function GET(
     displayName: employee.displayName,
     avatarUrl: employee.avatarUrl,
     aliases: JSON.parse(employee.aliases) as string[],
-    hireDate: employee.hireDate?.toISOString().split("T")[0] ?? null,
+    hireDate: employee.hireDate ? todayRome(employee.hireDate) : null,
     contractType: employee.contractType,
     nfcUid: employee.nfcUid,
     telegramChatId: employee.telegramChatId,
@@ -278,7 +279,7 @@ export async function PUT(
     displayName: updated.displayName,
     avatarUrl: updated.avatarUrl,
     aliases: JSON.parse(updated.aliases) as string[],
-    hireDate: updated.hireDate?.toISOString().split("T")[0] ?? null,
+    hireDate: updated.hireDate ? todayRome(updated.hireDate) : null,
     contractType: updated.contractType,
     nfcUid: updated.nfcUid,
     telegramChatId: updated.telegramChatId,

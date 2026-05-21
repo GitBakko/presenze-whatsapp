@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
       createdAt: l.createdAt.toISOString(),
       approvedBy: l.approvedBy?.name ?? null,
       approvedAt: l.approvedAt?.toISOString() ?? null,
+      version: l.version,
     }));
 
     return NextResponse.json(result);
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
       status: leave.status,
       source: leave.source,
       createdAt: leave.createdAt.toISOString(),
+      version: leave.version,
     }, { status: 201 });
   } catch (err) {
     console.error("Leave creation error:", err);

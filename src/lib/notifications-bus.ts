@@ -25,6 +25,7 @@ export type NotificationAction =
   | "LEAVE_APPROVED"
   | "LEAVE_REJECTED"
   | "LEAVE_CANCELLED"
+  | "LEAVE_EDITED"
   | "RECORD_CREATED"
   | "RECORD_UPDATED"
   | "RECORD_DELETED"
@@ -39,6 +40,7 @@ export const EMPLOYEE_SELF_ACTIONS: ReadonlySet<NotificationAction> = new Set<No
   "LEAVE_APPROVED",
   "LEAVE_REJECTED",
   "LEAVE_CANCELLED",
+  "LEAVE_EDITED",
 ]);
 
 export interface NotificationEvent {
@@ -57,6 +59,7 @@ export interface NotificationEvent {
     leaveType?: string;
     leaveStartDate?: string;
     leaveEndDate?: string;
+    changedFields?: string[];
     recordId?: string;
     recordType?: string;
   };

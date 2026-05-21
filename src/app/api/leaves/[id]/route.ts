@@ -7,6 +7,8 @@ import { notifyLeaveDecision, notifyLeaveCancellation } from "@/lib/telegram-han
 import { sendMail } from "@/lib/mail-send";
 import { leaveDecisionNotification, leaveCancellationNotification } from "@/lib/mail-templates";
 import { notificationsBus } from "@/lib/notifications-bus";
+import { editLeaveSchema } from "@/lib/leaves/validation";
+import { editLeaveRequest, LeaveEditError } from "@/lib/leaves/edit-service";
 
 export async function GET(
   _request: NextRequest,
@@ -42,6 +44,7 @@ export async function GET(
     createdAt: leave.createdAt.toISOString(),
     approvedBy: leave.approvedBy?.name ?? null,
     approvedAt: leave.approvedAt?.toISOString() ?? null,
+    version: leave.version,
   });
 }
 
@@ -61,108 +64,163 @@ export async function PUT(
     return NextResponse.json({ error: "Richiesta non trovata" }, { status: 404 });
   }
 
-  const { status, notes } = body as { status?: string; notes?: string };
+  // Branch A: status-only body → approve/reject (existing flow preserved).
+  if (typeof body.status === "string") {
+    const { status, notes } = body as { status: string; notes?: string };
 
-  const data: Record<string, unknown> = {};
-
-  if (status && ["APPROVED", "REJECTED"].includes(status)) {
-    data.status = status;
-    data.approvedAt = new Date();
-    // Verifica che l'user della sessione esista ancora in DB (difesa contro
-    // cookie stale dopo reset del db in dev). Se non esiste, approve senza
-    // riferimento all'utente invece di fallire con P2003.
-    const sessionUserId = session?.user?.id;
-    if (sessionUserId) {
-      const existingUser = await prisma.user.findUnique({
-        where: { id: sessionUserId },
-        select: { id: true },
-      });
-      data.approvedById = existingUser ? sessionUserId : null;
-    } else {
-      data.approvedById = null;
+    const data: Record<string, unknown> = {};
+    if (["APPROVED", "REJECTED"].includes(status)) {
+      data.status = status;
+      data.approvedAt = new Date();
+      const sessionUserId = session?.user?.id;
+      if (sessionUserId) {
+        const existingUser = await prisma.user.findUnique({
+          where: { id: sessionUserId },
+          select: { id: true },
+        });
+        data.approvedById = existingUser ? sessionUserId : null;
+      } else {
+        data.approvedById = null;
+      }
     }
-  }
-  if (notes !== undefined) {
-    data.notes = notes;
-  }
+    if (notes !== undefined) data.notes = notes;
+    data.version = { increment: 1 };
 
-  const updated = await prisma.leaveRequest.update({
-    where: { id },
-    data,
-    include: { employee: true, approvedBy: true },
-  });
+    const updated = await prisma.leaveRequest.update({
+      where: { id },
+      data,
+      include: { employee: true, approvedBy: true },
+    });
 
-  // Notifiche al dipendente (Telegram + email) su APPROVED/REJECTED.
-  // Errori loggati ma non bloccano la response.
-  if (status === "APPROVED" || status === "REJECTED") {
-    try {
-      await notifyLeaveDecision({
-        employeeChatId: updated.employee.telegramChatId,
-        status: status as "APPROVED" | "REJECTED",
-        startDate: updated.startDate,
-        endDate: updated.endDate,
-        type: updated.type,
-        notes: updated.notes,
-      });
-    } catch (err) {
-      console.error("[leaves/PUT] notifyLeaveDecision failed:", err);
-    }
-
-    if (updated.employee.email) {
+    if (status === "APPROVED" || status === "REJECTED") {
       try {
-        const reply = leaveDecisionNotification({
+        await notifyLeaveDecision({
+          employeeChatId: updated.employee.telegramChatId,
           status: status as "APPROVED" | "REJECTED",
           startDate: updated.startDate,
           endDate: updated.endDate,
-          employeeName: updated.employee.displayName || updated.employee.name,
+          type: updated.type,
           notes: updated.notes,
         });
-        await sendMail({
-          to: updated.employee.email,
-          subject: reply.subject,
-          text: reply.text,
-          html: reply.html,
+      } catch (err) {
+        console.error("[leaves/PUT] notifyLeaveDecision failed:", err);
+      }
+      if (updated.employee.email) {
+        try {
+          const reply = leaveDecisionNotification({
+            status: status as "APPROVED" | "REJECTED",
+            startDate: updated.startDate,
+            endDate: updated.endDate,
+            employeeName: updated.employee.displayName || updated.employee.name,
+            notes: updated.notes,
+          });
+          await sendMail({
+            to: updated.employee.email,
+            subject: reply.subject,
+            text: reply.text,
+            html: reply.html,
+          });
+        } catch (err) {
+          console.error("[leaves/PUT] sendMail decision failed:", err);
+        }
+      }
+      try {
+        notificationsBus.publish({
+          employeeId: updated.employeeId,
+          employeeName: updated.employee.displayName || updated.employee.name,
+          action: status === "APPROVED" ? "LEAVE_APPROVED" : "LEAVE_REJECTED",
+          time: LEAVE_TYPES[updated.type as LeaveType]?.label ?? updated.type,
+          date: updated.startDate,
+          details: {
+            leaveId: updated.id,
+            leaveType: updated.type,
+            leaveStartDate: updated.startDate,
+            leaveEndDate: updated.endDate,
+          },
         });
       } catch (err) {
-        console.error("[leaves/PUT] sendMail decision failed:", err);
+        console.error("[leaves/PUT] bus publish failed:", err);
       }
     }
 
-    // Pubblica sul bus per far reagire sidebar (contatore pending) e
-    // pagina ferie (calendario / lista).
-    try {
-      notificationsBus.publish({
-        employeeId: updated.employeeId,
-        employeeName: updated.employee.displayName || updated.employee.name,
-        action: status === "APPROVED" ? "LEAVE_APPROVED" : "LEAVE_REJECTED",
-        time: LEAVE_TYPES[updated.type as LeaveType]?.label ?? updated.type,
-        date: updated.startDate,
-        details: {
-          leaveId: updated.id,
-          leaveType: updated.type,
-          leaveStartDate: updated.startDate,
-          leaveEndDate: updated.endDate,
-        },
-      });
-    } catch (err) {
-      console.error("[leaves/PUT] bus publish failed:", err);
-    }
+    return NextResponse.json({
+      id: updated.id,
+      employeeId: updated.employeeId,
+      employeeName: updated.employee.displayName || updated.employee.name,
+      type: updated.type,
+      typeLabel: LEAVE_TYPES[updated.type as LeaveType]?.label ?? updated.type,
+      startDate: updated.startDate,
+      endDate: updated.endDate,
+      hours: updated.hours,
+      status: updated.status,
+      source: updated.source,
+      approvedBy: updated.approvedBy?.name ?? null,
+      approvedAt: updated.approvedAt?.toISOString() ?? null,
+      version: updated.version,
+    });
   }
 
-  return NextResponse.json({
-    id: updated.id,
-    employeeId: updated.employeeId,
-    employeeName: updated.employee.displayName || updated.employee.name,
-    type: updated.type,
-    typeLabel: LEAVE_TYPES[updated.type as LeaveType]?.label ?? updated.type,
-    startDate: updated.startDate,
-    endDate: updated.endDate,
-    hours: updated.hours,
-    status: updated.status,
-    source: updated.source,
-    approvedBy: updated.approvedBy?.name ?? null,
-    approvedAt: updated.approvedAt?.toISOString() ?? null,
-  });
+  // Branch B: edit. Admin only enforced by checkAuth above.
+  const parsed = editLeaveSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "VALIDATION_FAILED", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const editorUserId = session?.user?.id;
+  if (!editorUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const result = await editLeaveRequest(id, editorUserId, parsed.data);
+
+    if (result.changedFields.length > 0 && result.leaveRequest) {
+      try {
+        notificationsBus.publish({
+          employeeId: result.leaveRequest.employeeId,
+          employeeName: "",
+          action: "LEAVE_EDITED",
+          time: LEAVE_TYPES[result.leaveRequest.type as LeaveType]?.label ?? result.leaveRequest.type,
+          date: result.leaveRequest.startDate,
+          details: {
+            leaveId: result.leaveRequest.id,
+            leaveType: result.leaveRequest.type,
+            leaveStartDate: result.leaveRequest.startDate,
+            leaveEndDate: result.leaveRequest.endDate,
+            changedFields: result.changedFields,
+          },
+        });
+      } catch (err) {
+        console.error("[leaves/PUT] bus publish edit failed:", err);
+      }
+    }
+
+    return NextResponse.json({
+      id: result.leaveRequest?.id,
+      changedFields: result.changedFields,
+      version: result.leaveRequest?.version,
+    });
+  } catch (err) {
+    if (err instanceof LeaveEditError) {
+      const statusMap: Record<string, number> = {
+        EDIT_NOT_ALLOWED_REJECTED: 403,
+        STALE_STATE: 409,
+        OVERLAP_BLOCK: 409,
+        OVERLAP_REQUIRES_CONFIRM: 409,
+        INVALID_RANGE: 400,
+        NOT_FOUND: 404,
+      };
+      return NextResponse.json(
+        { error: err.code, message: err.message },
+        { status: statusMap[err.code] ?? 500 }
+      );
+    }
+    console.error("[leaves/PUT] edit error:", err);
+    return NextResponse.json({ error: "Errore interno" }, { status: 500 });
+  }
 }
 
 export async function DELETE(

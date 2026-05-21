@@ -52,3 +52,16 @@ presenze-hr-deploy*.zip
 
 graphify-out/
 graphify-out/
+
+# ── Ruflo / claude-flow runtime ──
+.claude-flow/
+.swarm/
+.ruflo-init-backup/
+
+# ── GSD planning state ──
+.planning/
+
+# ── Local DB snapshots (prod imports, manual backups) ──
+prod_db/
+prisma/dev.db.before-*
+prisma/dev.db.local-backup-*

@@ -45,6 +45,35 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login?error=inactive", req.url));
   }
 
+  // CSRF same-origin check on mutating requests.
+  // Public routes (kiosk, external, telegram webhook, employee-portal, register,
+  // NextAuth) are already excluded by config.matcher.
+  const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+  if (MUTATING_METHODS.has(req.method)) {
+    const host = req.headers.get("host");
+    const origin = req.headers.get("origin");
+    const referer = req.headers.get("referer");
+
+    let allowed = false;
+    if (origin) {
+      try {
+        allowed = new URL(origin).host === host;
+      } catch {
+        allowed = false;
+      }
+    } else if (referer) {
+      try {
+        allowed = new URL(referer).host === host;
+      } catch {
+        allowed = false;
+      }
+    }
+
+    if (!allowed) {
+      return NextResponse.json({ error: "CSRF blocked" }, { status: 403 });
+    }
+  }
+
   return NextResponse.next();
 });
 

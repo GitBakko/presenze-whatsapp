@@ -20,6 +20,7 @@ model User {
   createdAt      DateTime       @default(now())
   anomalies      Anomaly[]      @relation("ResolvedBy")
   approvedLeaves LeaveRequest[] @relation("ApprovedLeaves")
+  leaveEdits     LeaveRequestEdit[] @relation("UserLeaveEdits")
   payrollImports PayrollImport[] @relation("PayrollImports")
   employee       Employee?      @relation("UserEmployee", fields: [employeeId], references: [id])
 }
@@ -131,9 +132,11 @@ model LeaveRequest {
   createdAt    DateTime  @default(now())
   approvedById String?
   approvedAt   DateTime?
+  version      Int       @default(0)  // optimistic-lock counter, incremented on every update
 
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   approvedBy User?    @relation("ApprovedLeaves", fields: [approvedById], references: [id])
+  edits      LeaveRequestEdit[]
 
   @@index([employeeId, startDate])
   @@index([employeeId, endDate])
@@ -261,4 +264,40 @@ model PayrollImport {
 model AppSetting {
   key   String @id
   value String
+}
+
+model LeaveRequestEdit {
+  id          String   @id @default(cuid())
+  leaveId     String
+  editedById  String
+  editedAt    DateTime @default(now())
+
+  // Snapshot pre-edit (only fields we allow to edit)
+  oldType         String?
+  oldStartDate    String?
+  oldEndDate      String?
+  oldHours        Float?
+  oldTimeSlots    String?
+  oldSickProtocol String?
+  oldNotes        String?
+  oldStatus       String?
+
+  // Snapshot post-edit
+  newType         String?
+  newStartDate    String?
+  newEndDate      String?
+  newHours        Float?
+  newTimeSlots    String?
+  newSickProtocol String?
+  newNotes        String?
+  newStatus       String?
+
+  reason        String?
+  changedFields String   // JSON array, denormalized for query speed
+
+  leave    LeaveRequest @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+  editedBy User         @relation("UserLeaveEdits", fields: [editedById], references: [id])
+
+  @@index([leaveId, editedAt])
+  @@index([editedById])
 }

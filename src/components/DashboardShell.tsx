@@ -22,8 +22,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const userName = session?.user?.name ?? "Utente";
   const userEmail = session?.user?.email ?? "";
-  const userRole = (session?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
-  const userEmployeeId = (session?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
+  const userRole = session?.user?.role ?? "EMPLOYEE";
+  const userEmployeeId = session?.user?.employeeId ?? null;
   const initials = getInitials(userName);
 
   // User dropdown

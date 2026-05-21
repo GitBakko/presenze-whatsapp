@@ -23,7 +23,7 @@ export default function LeavesPage() {
   const confirm = useConfirm();
   const confirmWithPrompt = useConfirmWithPrompt();
   const { data: leavesSession } = useSession();
-  const leavesRole = (leavesSession?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
+  const leavesRole = leavesSession?.user?.role ?? "EMPLOYEE";
   const isLeavesAdmin = leavesRole === "ADMIN";
   const [tab, setTab] = useState<"calendar" | "requests" | "byEmployee">("calendar");
   const [ganttMode, setGanttMode] = useState(false);

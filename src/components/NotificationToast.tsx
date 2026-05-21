@@ -156,7 +156,7 @@ function ToastItem({
 export function NotificationToast() {
   const { lastEvent } = useNotificationsContext();
   const { data: session } = useSession();
-  const myEmployeeId = (session?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
+  const myEmployeeId = session?.user?.employeeId ?? null;
   const [stack, setStack] = useState<ToastEntry[]>([]);
 
   useEffect(() => {

@@ -40,7 +40,7 @@ interface SidebarProps {
 export function Sidebar({ open, onClose: _onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const role = (session?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
+  const role = session?.user?.role ?? "EMPLOYEE";
   const isAdmin = role === "ADMIN";
   const [pendingLeaves, setPendingLeaves] = useState(0);
   const [anomalyCount, setAnomalyCount] = useState(0);

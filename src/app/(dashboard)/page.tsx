@@ -24,7 +24,7 @@ const CHART_COLOR_PRIMARY = "#3b82f6";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+  const isAdmin = session?.user?.role === "ADMIN";
   const [period, setPeriod] = useState<DashboardPeriod>("month");
   const [data, setData] = useState<DashboardStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);

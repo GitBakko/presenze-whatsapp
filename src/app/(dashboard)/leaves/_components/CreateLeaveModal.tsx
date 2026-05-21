@@ -30,8 +30,8 @@ export function CreateLeaveModal({
   const confirm = useConfirm();
 
   const { data: modalSession } = useSession();
-  const modalRole = (modalSession?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
-  const modalEmployeeId = (modalSession?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
+  const modalRole = modalSession?.user?.role ?? "EMPLOYEE";
+  const modalEmployeeId = modalSession?.user?.employeeId ?? null;
   const isModalAdmin = modalRole === "ADMIN";
 
   const [employeeId, setEmployeeId] = useState("");

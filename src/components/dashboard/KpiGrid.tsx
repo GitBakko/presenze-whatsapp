@@ -6,7 +6,7 @@ import type { DashboardStatsResponse } from "@/types/dashboard";
 
 export function KpiGrid({ kpi }: { kpi: DashboardStatsResponse["kpi"] }) {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+  const isAdmin = session?.user?.role === "ADMIN";
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

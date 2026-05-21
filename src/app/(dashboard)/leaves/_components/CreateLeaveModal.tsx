@@ -1,10 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { X } from "lucide-react";
 import { hmToMinutes } from "@/lib/date-utils";
+import { formatItDate } from "@/lib/leaves/format";
 import type { Employee } from "./types";
 import { LEAVE_TYPE_OPTIONS } from "./types";
 
@@ -24,6 +27,8 @@ export function CreateLeaveModal({
   const modalContentRef = useRef<HTMLDivElement>(null);
   useModalA11y(modalContentRef, onClose);
 
+  const confirm = useConfirm();
+
   const { data: modalSession } = useSession();
   const modalRole = (modalSession?.user as { role?: string } | undefined)?.role ?? "EMPLOYEE";
   const modalEmployeeId = (modalSession?.user as { employeeId?: string | null } | undefined)?.employeeId ?? null;
@@ -39,10 +44,56 @@ export function CreateLeaveModal({
   const [sickProtocol, setSickProtocol] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState<null | {
+    effectiveDays: number | null;
+    breakdown?: Array<{ date: string; working: boolean; reason?: string }>;
+    hoursMode?: boolean;
+  }>(null);
 
   const needsHours = ["ROL", "BEREAVEMENT", "MARRIAGE", "LAW_104", "MEDICAL_VISIT"].includes(type);
   const isSick = type === "SICK";
   const isHalfDay = type === "VACATION_HALF_AM" || type === "VACATION_HALF_PM";
+
+  // Resolved employee id for the preview (admin picks, employee uses own).
+  const previewEmployeeId = isModalAdmin ? employeeId : (modalEmployeeId ?? "");
+  // For half-day requests endDate is implicitly startDate; for normal ranges
+  // we want a preview as soon as both dates are filled.
+  const previewEndDate = isHalfDay ? startDate : endDate;
+
+  useEffect(() => {
+    if (!previewEmployeeId || !startDate || !previewEndDate || !type) {
+      setPreview(null);
+      return;
+    }
+    if (startDate > previewEndDate) {
+      setPreview(null);
+      return;
+    }
+
+    const handle = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/leaves/preview-days", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employeeId: previewEmployeeId,
+            startDate,
+            endDate: previewEndDate,
+            type,
+          }),
+        });
+        if (!res.ok) {
+          setPreview(null);
+          return;
+        }
+        const data = await res.json();
+        setPreview(data);
+      } catch {
+        setPreview(null);
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [previewEmployeeId, startDate, previewEndDate, type]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,36 +105,62 @@ export function CreateLeaveModal({
       return;
     }
 
+    const payload = {
+      employeeId: resolvedEmpId,
+      type,
+      startDate,
+      endDate: isHalfDay ? startDate : (endDate || startDate),
+      hours: needsHours
+        ? (timeFrom && timeTo
+            ? Math.round(((hmToMinutes(timeTo) - hmToMinutes(timeFrom)) / 60) * 10) / 10
+            : parseFloat(hours) || null)
+        : null,
+      timeSlots: needsHours && timeFrom && timeTo
+        ? [{ from: timeFrom, to: timeTo }]
+        : null,
+      sickProtocol: isSick ? sickProtocol || null : null,
+      notes: notes || null,
+    };
+
     setLoading(true);
     try {
       const res = await fetch("/api/leaves", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeId: resolvedEmpId,
-          type,
-          startDate,
-          endDate: isHalfDay ? startDate : (endDate || startDate),
-          hours: needsHours ? (
-            timeFrom && timeTo
-              ? Math.round(((hmToMinutes(timeTo) - hmToMinutes(timeFrom)) / 60) * 10) / 10
-              : parseFloat(hours) || null
-          ) : null,
-          timeSlots: needsHours && timeFrom && timeTo
-            ? [{ from: timeFrom, to: timeTo }]
-            : null,
-          sickProtocol: isSick ? sickProtocol || null : null,
-          notes: notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        try {
-          const data = await res.json();
-          setError(data.error || "Errore nella creazione");
-        } catch {
-          setError("Errore nella creazione");
+        const errBody = await res.json().catch(() => ({} as { error?: string; reason?: string }));
+        if (errBody.error === "OVERLAP_BLOCK") {
+          toast.error(`Conflitto: ${errBody.reason ?? "richiesta sovrapposta"}`);
+          return;
         }
+        if (errBody.error === "OVERLAP_REQUIRES_CONFIRM") {
+          const proceed = await confirm({
+            title: "Conflitto rilevato",
+            message: "Esiste una richiesta in conflitto. Procedere comunque?",
+            confirmLabel: "Conferma e crea",
+          });
+          if (!proceed) return;
+          const retry = await fetch("/api/leaves", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, confirmOverride: true }),
+          });
+          if (!retry.ok) {
+            const retryErr = await retry.json().catch(() => ({} as { error?: string }));
+            toast.error(retryErr.error ?? "Impossibile creare la richiesta");
+            return;
+          }
+          onCreated();
+          return;
+        }
+        if (errBody.error === "VALIDATION_FAILED") {
+          toast.error("Dati non validi: verifica i campi obbligatori");
+          return;
+        }
+        toast.error(errBody.error ?? "Errore creazione richiesta");
         return;
       }
 
@@ -160,6 +237,22 @@ export function CreateLeaveModal({
               </div>
             )}
           </div>
+
+          {/* Working-days preview */}
+          {preview && preview.effectiveDays !== null && !preview.hoursMode && (
+            <div className="mt-2 rounded border border-outline-variant/30 bg-surface-container px-3 py-2 text-sm">
+              <strong>Userai {preview.effectiveDays} giorni lavorativi.</strong>
+              {preview.breakdown && preview.breakdown.filter((b) => !b.working).length > 0 && (
+                <div className="mt-1 text-xs text-on-surface-variant">
+                  Giorni non lavorativi esclusi:{" "}
+                  {preview.breakdown
+                    .filter((b) => !b.working)
+                    .map((b) => `${formatItDate(b.date)} (${b.reason ?? ""})`)
+                    .join(", ")}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Hours (for ROL-type) */}
           {needsHours && (

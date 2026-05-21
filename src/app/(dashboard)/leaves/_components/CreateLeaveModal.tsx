@@ -70,6 +70,7 @@ export function CreateLeaveModal({
       return;
     }
 
+    let cancelled = false;
     const handle = setTimeout(async () => {
       try {
         const res = await fetch("/api/leaves/preview-days", {
@@ -82,17 +83,22 @@ export function CreateLeaveModal({
             type,
           }),
         });
+        if (cancelled) return;
         if (!res.ok) {
           setPreview(null);
           return;
         }
         const data = await res.json();
+        if (cancelled) return;
         setPreview(data);
       } catch {
-        setPreview(null);
+        if (!cancelled) setPreview(null);
       }
     }, 300);
-    return () => clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
   }, [previewEmployeeId, startDate, previewEndDate, type]);
 
   async function handleSubmit(e: React.FormEvent) {

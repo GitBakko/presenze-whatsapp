@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
+import { createLeaveSchema } from "@/lib/leaves/validation";
+import { checkOverlap } from "@/lib/leaves/overlap";
 import { notifyAdminsOfPendingLeave } from "@/lib/leave-notifications";
 import { notificationsBus } from "@/lib/notifications-bus";
 
@@ -74,62 +76,61 @@ export async function POST(request: NextRequest) {
 
   try {
     const session = await auth();
-    const body = await request.json();
+    const rawBody = await request.json();
 
-    let { employeeId } = body as { employeeId?: string };
-    const { type, startDate, endDate, hours, timeSlots, sickProtocol, notes } = body as {
-      type: string;
-      startDate: string;
-      endDate: string;
-      hours?: number;
-      timeSlots?: { from: string; to: string }[];
-      sickProtocol?: string;
-      notes?: string;
-    };
-
-    // Dipendenti possono creare solo per se stessi
+    let resolvedEmployeeId: string | undefined = rawBody.employeeId;
     if (authResult.role === "EMPLOYEE") {
-      employeeId = (await resolveEmployeeId(authResult)) ?? undefined;
+      resolvedEmployeeId = (await resolveEmployeeId(authResult)) ?? undefined;
     }
+    const bodyForValidation = { ...rawBody, employeeId: resolvedEmployeeId };
 
-    if (!employeeId || !type || !startDate || !endDate) {
+    const parsed = createLeaveSchema.safeParse(bodyForValidation);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Campi obbligatori: employeeId, type, startDate, endDate" },
+        { error: "VALIDATION_FAILED", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
 
-    if (!(type in LEAVE_TYPES)) {
-      return NextResponse.json({ error: "Tipo permesso non valido" }, { status: 400 });
-    }
+    const body = parsed.data;
+    const isAdmin = authResult.role === "ADMIN";
 
-    // Validate date format
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
-      return NextResponse.json({ error: "Formato data non valido (YYYY-MM-DD)" }, { status: 400 });
-    }
-
-    if (startDate > endDate) {
-      return NextResponse.json({ error: "La data di fine deve essere >= la data di inizio" }, { status: 400 });
-    }
-
-    // Verify employee exists
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    const employee = await prisma.employee.findUnique({ where: { id: body.employeeId } });
     if (!employee) {
       return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
     }
 
-    // Admin-created → auto-approved; employee-created → PENDING
-    const isAdmin = authResult.role === "ADMIN";
+    const overlap = await checkOverlap(body.employeeId, {
+      type: body.type,
+      startDate: body.startDate,
+      endDate: body.endDate,
+      hours: body.hours ?? null,
+      timeSlots: body.timeSlots ? JSON.stringify(body.timeSlots) : null,
+    });
+
+    if (overlap.kind === "BLOCK") {
+      return NextResponse.json(
+        { error: "OVERLAP_BLOCK", conflicts: overlap.conflicts, reason: overlap.reason },
+        { status: 409 }
+      );
+    }
+    if (overlap.kind === "REQUIRES_CONFIRM" && !(isAdmin && body.confirmOverride)) {
+      return NextResponse.json(
+        { error: "OVERLAP_REQUIRES_CONFIRM", conflicts: overlap.conflicts },
+        { status: 409 }
+      );
+    }
+
     const leave = await prisma.leaveRequest.create({
       data: {
-        employeeId,
-        type,
-        startDate,
-        endDate,
-        hours: hours ?? null,
-        timeSlots: timeSlots ? JSON.stringify(timeSlots) : null,
-        sickProtocol: sickProtocol ?? null,
-        notes: notes ?? null,
+        employeeId: body.employeeId,
+        type: body.type,
+        startDate: body.startDate,
+        endDate: body.endDate,
+        hours: body.hours ?? null,
+        timeSlots: body.timeSlots ? JSON.stringify(body.timeSlots) : null,
+        sickProtocol: body.sickProtocol ?? null,
+        notes: body.notes ?? null,
         status: isAdmin ? "APPROVED" : "PENDING",
         source: isAdmin ? "MANAGER" : "EXTERNAL_API",
         approvedById: isAdmin ? (session?.user?.id ?? null) : null,
@@ -141,7 +142,6 @@ export async function POST(request: NextRequest) {
     const employeeName = leave.employee.displayName || leave.employee.name;
     const typeLabel = LEAVE_TYPES[leave.type as LeaveType]?.label ?? leave.type;
 
-    // Notify admins of pending leave (fire-and-forget)
     if (!isAdmin) {
       void notifyAdminsOfPendingLeave({
         employeeId: leave.employeeId,
@@ -153,8 +153,6 @@ export async function POST(request: NextRequest) {
         notes: leave.notes,
       });
     } else {
-      // Admin ha creato la richiesta → già approvata. Pubblica sul bus
-      // così i client reattivi (calendario ferie, sidebar) si aggiornano.
       try {
         notificationsBus.publish({
           employeeId: leave.employeeId,
@@ -177,9 +175,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: leave.id,
       employeeId: leave.employeeId,
-      employeeName: leave.employee.displayName || leave.employee.name,
+      employeeName,
       type: leave.type,
-      typeLabel: LEAVE_TYPES[leave.type as LeaveType]?.label ?? leave.type,
+      typeLabel,
       startDate: leave.startDate,
       endDate: leave.endDate,
       hours: leave.hours,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
+import { checkOverlap } from "@/lib/leaves/overlap";
 import { validateApiKey } from "@/lib/api-key-auth";
 
 export async function POST(request: NextRequest) {
@@ -10,9 +11,11 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { employeeId, employeeName, type, startDate, endDate, hours, timeSlots, sickProtocol, notes } = body as {
+  const { employeeId, employeeName, payrollId, employeeEmail, type, startDate, endDate, hours, timeSlots, sickProtocol, notes } = body as {
     employeeId?: string;
     employeeName?: string;
+    payrollId?: string;
+    employeeEmail?: string;
     type: string;
     startDate: string;
     endDate: string;
@@ -37,23 +40,49 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Formato data non valido (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  // Find employee by ID or name
-  let employee;
+  // Find employee — precedence: employeeId > payrollId > employeeEmail > employeeName (unique match required)
+  let employee = null;
   if (employeeId) {
     employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-  } else if (employeeName) {
-    employee = await prisma.employee.findFirst({
-      where: {
-        OR: [
-          { name: employeeName },
-          { displayName: employeeName },
-        ],
-      },
-    });
   }
-
+  if (!employee && payrollId) {
+    employee = await prisma.employee.findUnique({ where: { payrollId } });
+  }
+  if (!employee && employeeEmail) {
+    employee = await prisma.employee.findUnique({ where: { email: employeeEmail } });
+  }
+  if (!employee && employeeName) {
+    const matches = await prisma.employee.findMany({
+      where: { OR: [{ name: employeeName }, { displayName: employeeName }] },
+    });
+    if (matches.length > 1) {
+      return NextResponse.json(
+        { error: "AMBIGUOUS_EMPLOYEE", count: matches.length },
+        { status: 409 }
+      );
+    }
+    employee = matches[0] ?? null;
+  }
   if (!employee) {
     return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
+  }
+
+  // Overlap detection
+  const overlap = await checkOverlap(employee.id, {
+    type,
+    startDate,
+    endDate,
+    hours: hours ?? null,
+    timeSlots: timeSlots ? JSON.stringify(timeSlots) : null,
+  });
+  if (overlap.kind !== "OK") {
+    return NextResponse.json(
+      {
+        error: overlap.kind === "BLOCK" ? "OVERLAP_BLOCK" : "OVERLAP_REQUIRES_CONFIRM",
+        conflicts: overlap.conflicts,
+      },
+      { status: 409 }
+    );
   }
 
   // External requests → PENDING approval

@@ -8,3 +8,4 @@ export * from "./working-days";
 export * from "./holidays";
 export * from "./validation";
 export * from "./format";
+export * from "./overlap";

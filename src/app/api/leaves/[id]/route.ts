@@ -9,6 +9,8 @@ import { leaveDecisionNotification, leaveCancellationNotification } from "@/lib/
 import { notificationsBus } from "@/lib/notifications-bus";
 import { editLeaveSchema } from "@/lib/leaves/validation";
 import { editLeaveRequest, LeaveEditError } from "@/lib/leaves/edit-service";
+import { notifyLeaveEdited } from "@/lib/leave-notifications";
+import { computeDiff, formatDiffForNotification } from "@/lib/leaves/audit";
 
 export async function GET(
   _request: NextRequest,
@@ -177,19 +179,69 @@ export async function PUT(
   try {
     const result = await editLeaveRequest(id, editorUserId, parsed.data);
 
-    if (result.changedFields.length > 0 && result.leaveRequest) {
+    // Load employee + editor names for notification and bus payload.
+    const fullLeave = result.leaveRequest
+      ? await prisma.leaveRequest.findUnique({
+          where: { id: result.leaveRequest.id },
+          include: { employee: true },
+        })
+      : null;
+    const editor = await prisma.user.findUnique({
+      where: { id: editorUserId },
+      select: { name: true },
+    });
+
+    if (fullLeave && result.changedFields.length > 0) {
+      // Reconstruct prev/next snapshots from audit row + current leave.
+      const prevSnapshot = {
+        type: result.audit?.oldType ?? null,
+        startDate: result.audit?.oldStartDate ?? null,
+        endDate: result.audit?.oldEndDate ?? null,
+        hours: result.audit?.oldHours ?? null,
+        timeSlots: result.audit?.oldTimeSlots ?? null,
+        sickProtocol: result.audit?.oldSickProtocol ?? null,
+        notes: result.audit?.oldNotes ?? null,
+        status: result.audit?.oldStatus ?? null,
+      };
+      const nextSnapshot = {
+        type: fullLeave.type,
+        startDate: fullLeave.startDate,
+        endDate: fullLeave.endDate,
+        hours: fullLeave.hours,
+        timeSlots: fullLeave.timeSlots,
+        sickProtocol: fullLeave.sickProtocol,
+        notes: fullLeave.notes,
+        status: fullLeave.status,
+      };
+      const diff = computeDiff(prevSnapshot, nextSnapshot);
+      const formatted = formatDiffForNotification(diff, "it");
+      const employeeName = fullLeave.employee.displayName || fullLeave.employee.name;
+
+      // Fire-and-forget email + Telegram (does not block the response).
+      void notifyLeaveEdited({
+        employeeEmail: fullLeave.employee.email,
+        employeeName,
+        employeeChatId: fullLeave.employee.telegramChatId,
+        adminName: editor?.name ?? "Admin",
+        createdAt: fullLeave.createdAt.toISOString(),
+        diffBody: formatted.body,
+        telegramBody: formatted.telegramBody,
+        reason: parsed.data.reason ?? null,
+        status: fullLeave.status,
+      });
+
       try {
         notificationsBus.publish({
-          employeeId: result.leaveRequest.employeeId,
-          employeeName: "",
+          employeeId: fullLeave.employeeId,
+          employeeName: fullLeave.employee.displayName || fullLeave.employee.name,
           action: "LEAVE_EDITED",
-          time: LEAVE_TYPES[result.leaveRequest.type as LeaveType]?.label ?? result.leaveRequest.type,
-          date: result.leaveRequest.startDate,
+          time: LEAVE_TYPES[fullLeave.type as LeaveType]?.label ?? fullLeave.type,
+          date: fullLeave.startDate,
           details: {
-            leaveId: result.leaveRequest.id,
-            leaveType: result.leaveRequest.type,
-            leaveStartDate: result.leaveRequest.startDate,
-            leaveEndDate: result.leaveRequest.endDate,
+            leaveId: fullLeave.id,
+            leaveType: fullLeave.type,
+            leaveStartDate: fullLeave.startDate,
+            leaveEndDate: fullLeave.endDate,
             changedFields: result.changedFields,
           },
         });

@@ -265,6 +265,38 @@ export function monthlyReportEmail(args: {
   return { subject, text, html };
 }
 
+export interface LeaveEditedNotificationArgs {
+  employeeName: string;
+  adminName: string;
+  createdAt: string; // ISO date
+  diffBody: string;  // pre-rendered "- Field: old → new" lines
+  reason?: string | null;
+  status: string;
+}
+
+/** Notifica al dipendente quando un admin modifica una richiesta esistente. */
+export function leaveEditedNotification(args: LeaveEditedNotificationArgs): MailReply {
+  const createdAtIt = formatItDate(args.createdAt.slice(0, 10));
+  const subject = `La tua richiesta è stata modificata`;
+  const text = `Ciao ${args.employeeName},
+l'admin ${args.adminName} ha modificato la tua richiesta inviata il ${createdAtIt}.
+
+Modifiche:
+${args.diffBody}
+
+Motivo: ${args.reason ?? "non specificato"}
+
+Stato attuale: ${args.status}.
+`;
+  const html = `<p>Ciao ${args.employeeName},</p>
+<p>l'admin <strong>${args.adminName}</strong> ha modificato la tua richiesta inviata il ${createdAtIt}.</p>
+<p><strong>Modifiche:</strong></p>
+<pre>${args.diffBody.replace(/</g, "&lt;")}</pre>
+<p><strong>Motivo:</strong> ${args.reason ?? "non specificato"}</p>
+<p>Stato attuale: <strong>${args.status}</strong>.</p>`;
+  return { subject, text, html };
+}
+
 /** Notifica agli admin quando un dipendente crea una richiesta in PENDING. */
 export function newPendingLeaveNotification(args: {
   employeeName: string;

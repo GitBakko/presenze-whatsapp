@@ -1,8 +1,9 @@
 import { prisma } from "./db";
 import { sendMail } from "./mail-send";
-import { newPendingLeaveNotification } from "./mail-templates";
+import { newPendingLeaveNotification, leaveEditedNotification } from "./mail-templates";
 import { LEAVE_TYPES } from "./leaves";
 import { notificationsBus } from "./notifications-bus";
+import { getTelegramBot } from "./telegram-bot";
 
 export async function notifyAdminsOfPendingLeave(leave: {
   employeeId: string;
@@ -56,5 +57,61 @@ export async function notifyAdminsOfPendingLeave(leave: {
     });
   } catch (err) {
     console.error("[leave-notifications] bus publish failed:", err);
+  }
+}
+
+export interface NotifyLeaveEditedArgs {
+  employeeEmail: string | null;
+  employeeName: string;
+  employeeChatId: string | null;
+  adminName: string;
+  createdAt: string;
+  diffBody: string;
+  telegramBody: string;
+  reason?: string | null;
+  status: string;
+}
+
+/**
+ * Notifica al dipendente quando un admin modifica una sua richiesta.
+ * Best-effort: email + Telegram falliscono in silenzio (loggati).
+ */
+export async function notifyLeaveEdited(args: NotifyLeaveEditedArgs): Promise<void> {
+  // Email (best-effort)
+  if (args.employeeEmail) {
+    try {
+      const reply = leaveEditedNotification({
+        employeeName: args.employeeName,
+        adminName: args.adminName,
+        createdAt: args.createdAt,
+        diffBody: args.diffBody,
+        reason: args.reason,
+        status: args.status,
+      });
+      await sendMail({
+        to: args.employeeEmail,
+        subject: reply.subject,
+        text: reply.text,
+        html: reply.html,
+      });
+    } catch (err) {
+      console.error("[notifyLeaveEdited] email failed:", err);
+    }
+  }
+
+  // Telegram (best-effort). telegram-bot non espone un helper top-level:
+  // usiamo direttamente getTelegramBot().sendMessage come fa telegram-handlers.
+  if (args.employeeChatId) {
+    const bot = getTelegramBot();
+    if (bot) {
+      try {
+        await bot.sendMessage({
+          chat_id: args.employeeChatId,
+          text: args.telegramBody,
+        });
+      } catch (err) {
+        console.error("[notifyLeaveEdited] telegram failed:", err);
+      }
+    }
   }
 }

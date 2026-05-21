@@ -1,11 +1,7 @@
+import type { Session } from "next-auth";
 import { auth } from "./auth";
 
-export interface AuthUser {
-  id: string;
-  role: "ADMIN" | "EMPLOYEE";
-  active: boolean;
-  employeeId: string | null;
-}
+export type AuthUser = Session["user"];
 
 /**
  * Verifica che l'utente sia loggato E sia admin attivo.

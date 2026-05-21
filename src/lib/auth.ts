@@ -27,12 +27,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!isValid) return null;
 
-        // Includiamo role, active, employeeId nel token JWT
+        // Includiamo role, active, employeeId nel token JWT.
+        // Prisma User.role è String per schema, ma il dominio è chiuso
+        // (ADMIN | EMPLOYEE) — il default schema garantisce solo questi valori.
         return {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role,
+          role: user.role === "ADMIN" ? "ADMIN" : "EMPLOYEE",
           active: user.active,
           employeeId: user.employeeId,
         };
@@ -47,22 +49,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const u = user as any;
-        token.role = (u.role as string) ?? "EMPLOYEE";
-        token.active = (u.active as boolean) ?? false;
-        token.employeeId = (u.employeeId as string | null) ?? null;
+        token.role = user.role;
+        token.active = user.active;
+        token.employeeId = user.employeeId;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const su = session.user as any;
-        su.id = token.id;
-        su.role = token.role;
-        su.active = token.active;
-        su.employeeId = token.employeeId;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.active = token.active;
+        session.user.employeeId = token.employeeId;
       }
       return session;
     },

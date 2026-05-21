@@ -7,6 +7,7 @@
 
 import { isNonWorkingDay } from "@/lib/holidays-it";
 import { hmToMinutes } from "@/lib/date-utils";
+import { todayRome } from "./tz";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import type { DailyStats } from "@/lib/calculator";
 import type {
@@ -20,7 +21,7 @@ import type {
 export function computeRanges(period: "today" | "month" | "quarter", now: Date) {
   const y = now.getFullYear();
   const m = now.getMonth(); // 0-based
-  const today = now.toISOString().split("T")[0];
+  const today = todayRome(now);
 
   if (period === "today") {
     const yesterday = new Date(now);
@@ -28,8 +29,8 @@ export function computeRanges(period: "today" | "month" | "quarter", now: Date) 
     return {
       from: today,
       to: today,
-      prevFrom: yesterday.toISOString().split("T")[0],
-      prevTo: yesterday.toISOString().split("T")[0],
+      prevFrom: todayRome(yesterday),
+      prevTo: todayRome(yesterday),
     };
   }
 

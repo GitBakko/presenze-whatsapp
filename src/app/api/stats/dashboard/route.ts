@@ -10,6 +10,7 @@ import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { computeLeaveBalance } from "@/lib/leaves";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
 import { getDayOfWeek, hmToMinutes } from "@/lib/date-utils";
+import { todayRome } from "@/lib/tz";
 import {
   computeRanges,
   computeKpis,
@@ -54,8 +55,8 @@ export async function GET(request: NextRequest) {
   const chartMonths = parseInt(searchParams.get("months") || "8", 10);
 
   const now = new Date();
-  const today = now.toISOString().split("T")[0];
-  const today14 = new Date(now.getTime() + 14 * 86400000).toISOString().split("T")[0];
+  const today = todayRome(now);
+  const today14 = todayRome(new Date(now.getTime() + 14 * 86400000));
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-based
 

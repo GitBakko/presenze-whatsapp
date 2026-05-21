@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
+import { todayRome } from "@/lib/tz";
 
 export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   } else if (from && to) {
     whereDate = { date: { gte: from, lte: to } };
   } else {
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayRome();
     whereDate = { date: today };
   }
 

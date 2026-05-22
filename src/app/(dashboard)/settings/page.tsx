@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Ban, Calendar, CalendarCog, FileSpreadsheet, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from "lucide-react";
+import { Activity, Ban, Calendar, CalendarCog, FileSpreadsheet, KeyRound, Mail, MessageCircle, Nfc, Upload, Users } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -111,6 +111,19 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2"><CalendarCog className="h-4 w-4 text-primary" /> Report automatico</h2>
           <p className="mt-2 text-sm text-on-surface-variant">
             Invio mensile del foglio presenze agli amministratori.
+          </p>
+        </Link>
+
+        <Link
+          href="/settings/system-health"
+          className="rounded-lg bg-surface-container-lowest shadow-card p-6 transition-shadow hover:shadow-elevated"
+        >
+          <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" /> Stato sistema
+          </h2>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Health check workers (mail-ingest, monthly-report, ws-notifications) + database.
+            Auto-refresh ogni 30 secondi.
           </p>
         </Link>
       </div>

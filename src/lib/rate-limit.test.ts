@@ -39,6 +39,14 @@ describe("rateLimit", () => {
     expect(blockedA.ok).toBe(false);
     expect(okB.ok).toBe(true);
   });
+
+  it.each([0, -1, NaN, Infinity])("throws RangeError when max is %s", (max) => {
+    expect(() => rateLimit({ key: "bad", max, windowMs: 1000 })).toThrow(RangeError);
+  });
+
+  it.each([0, -1, NaN, Infinity])("throws RangeError when windowMs is %s", (windowMs) => {
+    expect(() => rateLimit({ key: "bad", max: 1, windowMs })).toThrow(RangeError);
+  });
 });
 
 describe("getClientIp", () => {

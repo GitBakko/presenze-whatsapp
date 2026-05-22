@@ -15,6 +15,12 @@ export interface RateLimitResult {
 }
 
 export function rateLimit(opts: RateLimitOpts): RateLimitResult {
+  if (!Number.isFinite(opts.max) || opts.max <= 0) {
+    throw new RangeError(`rateLimit: max must be > 0 (got ${opts.max})`);
+  }
+  if (!Number.isFinite(opts.windowMs) || opts.windowMs <= 0) {
+    throw new RangeError(`rateLimit: windowMs must be > 0 (got ${opts.windowMs})`);
+  }
   const now = Date.now();
   let bucket = buckets.get(opts.key);
   if (!bucket || bucket.resetAt <= now) {

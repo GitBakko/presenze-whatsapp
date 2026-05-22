@@ -68,6 +68,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Hash unconditionally BEFORE existence check so the existing-employee 202
+  // branch pays the same bcrypt cost as the newly-created branch. Without this
+  // a remote attacker could distinguish "exists" vs "created" by response time
+  // (bcrypt cost 12 ≈ 250ms dominates the insert cost) and enumerate accounts.
+  const passwordHash = await hash(password, 12);
+
   const existing = await prisma.user.findUnique({ where: { email } });
 
   // Admin path: real 409 on duplicate (caller is already authenticated by secret)
@@ -83,7 +89,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const passwordHash = await hash(password, 12);
   const user = await prisma.user.create({
     data: {
       email,

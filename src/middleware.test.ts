@@ -13,10 +13,12 @@ function mkReq(opts: {
   origin?: string;
   referer?: string;
   host?: string;
+  forwardedHost?: string;
   auth?: unknown;
 }) {
   const host = opts.host ?? "hr.epartner.it";
   const headers = new Headers({ host });
+  if (opts.forwardedHost) headers.set("x-forwarded-host", opts.forwardedHost);
   if (opts.origin) headers.set("origin", opts.origin);
   if (opts.referer) headers.set("referer", opts.referer);
   const url = `https://${host}${opts.path}`;
@@ -71,5 +73,28 @@ describe("CSRF middleware", () => {
       path: "/api/leaves",
     }) as never);
     expect((res as Response).status).not.toBe(403);
+  });
+
+  it("uses X-Forwarded-Host when behind reverse-proxy (Host is internal)", async () => {
+    // Simulate IIS ARR: Host = upstream internal, XFH = real public, Origin = real public
+    const res = await middleware(mkReq({
+      method: "POST",
+      path: "/api/leaves",
+      host: "127.0.0.1:3100",
+      forwardedHost: "hr.epartner.it",
+      origin: "https://hr.epartner.it",
+    }) as never);
+    expect((res as Response).status).not.toBe(403);
+  });
+
+  it("blocks cross-origin even with matching X-Forwarded-Host check", async () => {
+    const res = await middleware(mkReq({
+      method: "POST",
+      path: "/api/leaves",
+      host: "127.0.0.1:3100",
+      forwardedHost: "hr.epartner.it",
+      origin: "https://evil.com",
+    }) as never);
+    expect((res as Response).status).toBe(403);
   });
 });

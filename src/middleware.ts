@@ -48,9 +48,11 @@ export default auth((req) => {
   // CSRF same-origin check on mutating requests.
   // Public routes (kiosk, external, telegram webhook, employee-portal, register,
   // NextAuth) are already excluded by config.matcher.
+  // Behind IIS ARR reverse-proxy: prefer X-Forwarded-Host (real public host)
+  // over Host (which may be the upstream internal host like 127.0.0.1:3100).
   const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
   if (MUTATING_METHODS.has(req.method)) {
-    const host = req.headers.get("host");
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
     const origin = req.headers.get("origin");
     const referer = req.headers.get("referer");
 

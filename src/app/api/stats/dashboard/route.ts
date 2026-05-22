@@ -650,13 +650,40 @@ async function computeOreChart(
   const now = new Date();
   const points: OreChartPoint[] = [];
 
+  // Range = first day of (now - (months-1) months) → last day of current month
+  const earliestMonthFirst = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+  const latestMonthLast = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const rangeFrom =
+    `${earliestMonthFirst.getFullYear()}-` +
+    `${String(earliestMonthFirst.getMonth() + 1).padStart(2, "0")}-01`;
+  const rangeTo =
+    `${latestMonthLast.getFullYear()}-` +
+    `${String(latestMonthLast.getMonth() + 1).padStart(2, "0")}-` +
+    `${String(latestMonthLast.getDate()).padStart(2, "0")}`;
+
+  const recordsWhere: Record<string, unknown> = { date: { gte: rangeFrom, lte: rangeTo } };
+  if (filterEmployeeId) recordsWhere.employeeId = filterEmployeeId;
+
+  const allRecords = await prisma.attendanceRecord.findMany({
+    where: recordsWhere,
+    include: { employee: true },
+    orderBy: [{ date: "asc" }, { declaredTime: "asc" }],
+  });
+
+  const recordsByMonth = new Map<string, typeof allRecords>();
+  for (const r of allRecords) {
+    const ym = r.date.slice(0, 7); // 'YYYY-MM'
+    const arr = recordsByMonth.get(ym) ?? [];
+    arr.push(r);
+    recordsByMonth.set(ym, arr);
+  }
+
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const y = d.getFullYear();
     const m = d.getMonth() + 1;
-    const mFrom = `${y}-${String(m).padStart(2, "0")}-01`;
     const lastDay = new Date(y, m, 0).getDate();
-    const mTo = `${y}-${String(m).padStart(2, "0")}-${lastDay}`;
+    const ymKey = `${y}-${String(m).padStart(2, "0")}`;
 
     // Ore contratto: somma delle ore giornaliere di ogni dipendente per i giorni lavorativi del mese
     let contratto = 0;
@@ -685,17 +712,11 @@ async function computeOreChart(
       }
     }
 
-    // Ore lavorate
-    const recordsWhere: Record<string, unknown> = { date: { gte: mFrom, lte: mTo } };
-    if (filterEmployeeId) recordsWhere.employeeId = filterEmployeeId;
-    const records = await prisma.attendanceRecord.findMany({
-      where: recordsWhere,
-      include: { employee: true },
-      orderBy: [{ date: "asc" }, { declaredTime: "asc" }],
-    });
+    // Ore lavorate: read from the in-memory map (was a per-month query before)
+    const monthRecords = recordsByMonth.get(ymKey) ?? [];
 
     const grouped = new Map<string, DailyRecord>();
-    for (const r of records) {
+    for (const r of monthRecords) {
       const key = `${r.employeeId}-${r.date}`;
       if (!grouped.has(key)) {
         grouped.set(key, {

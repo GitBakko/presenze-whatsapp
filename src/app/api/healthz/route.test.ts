@@ -12,7 +12,7 @@ vi.mock("@/lib/db", () => ({
 
 import { checkAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db";
-import { _resetForTest, recordRunning, recordTick, recordWsListening } from "@/lib/worker-metrics";
+import { _resetForTest, recordRunning, recordTick, recordWsListening, setStartedAt } from "@/lib/worker-metrics";
 
 describe("GET /api/healthz", () => {
   beforeEach(async () => {
@@ -82,6 +82,19 @@ describe("GET /api/healthz", () => {
     recordTick("mail-ingest", { ok: true });
     await new Promise((r) => setTimeout(r, 10));
     recordTick("mail-ingest", { ok: false, errorMessage: "graph 503" });
+    recordWsListening(true);
+
+    const { GET } = await import("./route");
+    const res = await GET();
+    const body = await res.json();
+    expect(body.status).toBe("degraded");
+  });
+
+  it("returns degraded when a worker that was started is no longer running", async () => {
+    vi.mocked(checkAuth).mockResolvedValue(null);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ ok: 1 }]);
+    setStartedAt("mail-ingest");
+    recordRunning("mail-ingest", false);
     recordWsListening(true);
 
     const { GET } = await import("./route");

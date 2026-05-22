@@ -8,16 +8,20 @@ const DB_PING_TIMEOUT_MS = 2000;
 
 async function pingDb(): Promise<{ ok: boolean; latencyMs: number }> {
   const started = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("db ping timeout")), DB_PING_TIMEOUT_MS);
+    });
     await Promise.race([
       prisma.$queryRaw`SELECT 1`,
-      new Promise((_resolve, reject) =>
-        setTimeout(() => reject(new Error("db ping timeout")), DB_PING_TIMEOUT_MS)
-      ),
+      timeout,
     ]);
     return { ok: true, latencyMs: Date.now() - started };
   } catch {
     return { ok: false, latencyMs: Date.now() - started };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -28,6 +32,7 @@ function deriveStatus(
   if (!db.ok) return "down";
   for (const [name, w] of Object.entries(workers)) {
     if (name === "ws-notifications" && w.listening === false) return "degraded";
+    if (w.startedAt && w.running === false) return "degraded";
     if (w.lastErrorAt && (!w.lastSuccessAt || w.lastErrorAt > w.lastSuccessAt)) {
       return "degraded";
     }

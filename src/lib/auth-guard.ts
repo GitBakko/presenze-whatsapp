@@ -15,7 +15,7 @@ export async function checkAuth(): Promise<Response | null> {
   if (!session?.user) {
     return Response.json({ error: "Non autorizzato" }, { status: 401 });
   }
-  const user = session.user as AuthUser;
+  const user = session.user;
   if (!user.active) {
     return Response.json({ error: "Account non attivato" }, { status: 403 });
   }
@@ -36,7 +36,7 @@ export async function checkAuthAny(): Promise<AuthUser | Response> {
   if (!session?.user) {
     return Response.json({ error: "Non autorizzato" }, { status: 401 });
   }
-  const user = session.user as AuthUser;
+  const user = session.user;
   if (!user.active) {
     return Response.json({ error: "Account non attivato" }, { status: 403 });
   }

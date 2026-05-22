@@ -37,7 +37,7 @@ export default auth((req) => {
   }
 
   // Inactive account → 403 (API) or redirect to login with message (pages)
-  const user = req.auth.user as { active?: boolean } | undefined;
+  const user = req.auth.user;
   if (user && user.active === false) {
     if (isApi) {
       return NextResponse.json({ error: "Account non attivato" }, { status: 403 });

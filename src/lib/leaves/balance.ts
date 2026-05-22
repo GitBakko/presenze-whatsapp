@@ -110,6 +110,144 @@ export interface LeaveBalanceSummary {
   contractType: string;
 }
 
+export interface EmployeeForBalance {
+  id: string;
+  hireDate: Date | null;
+  contractType: string;
+  schedule: Array<ScheduleBlock & { dayOfWeek: number }>;
+}
+
+export interface BalanceAdjustments {
+  vacationCarryOver: number;
+  rolCarryOver: number;
+  vacationAccrualAdjust: number;
+  rolAccrualAdjust: number;
+}
+
+export interface ApprovedLeaveRow {
+  type: string;
+  startDate: string;
+  endDate: string;
+  hours: number | null;
+  timeSlots: string | null;
+}
+
+/**
+ * Pure (no DB) compute of the leave balance from already-fetched data.
+ * Use this when you have many employees' data in memory and want to
+ * avoid the per-employee query waterfall. The `now` argument is
+ * injectable for deterministic tests.
+ */
+export function computeLeaveBalanceFromData(
+  employee: EmployeeForBalance,
+  balance: BalanceAdjustments | null,
+  approvedLeaves: ApprovedLeaveRow[],
+  year: number,
+  now: Date = new Date(),
+): LeaveBalanceSummary {
+  const weeklyHours = employee.schedule.length > 0
+    ? calcWeeklyHours(employee.schedule)
+    : (employee.contractType === "FULL_TIME" ? FULL_TIME_WEEKLY_HOURS : 0);
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  let monthsAccrued: number;
+  const hireDate = employee.hireDate ? new Date(employee.hireDate) : null;
+
+  if (hireDate && hireDate.getFullYear() === year) {
+    const hireMonth = hireDate.getMonth();
+    if (year === currentYear) {
+      monthsAccrued = currentMonth - hireMonth + 1;
+    } else if (year < currentYear) {
+      monthsAccrued = 12 - hireMonth;
+    } else {
+      monthsAccrued = 0;
+    }
+  } else if (hireDate && hireDate.getFullYear() > year) {
+    monthsAccrued = 0;
+  } else {
+    if (year === currentYear) {
+      monthsAccrued = currentMonth + 1;
+    } else if (year < currentYear) {
+      monthsAccrued = 12;
+    } else {
+      monthsAccrued = 0;
+    }
+  }
+
+  monthsAccrued = Math.max(0, Math.min(12, monthsAccrued));
+
+  const vacationAccrued = Math.round(monthsAccrued * monthlyVacationAccrual(weeklyHours) * 100) / 100;
+  const rolAccrued = Math.round(monthsAccrued * monthlyRolAccrual(weeklyHours) * 100) / 100;
+
+  const vacationCarryOver = balance?.vacationCarryOver ?? 0;
+  const rolCarryOver = balance?.rolCarryOver ?? 0;
+  const vacationAccrualAdjust = balance?.vacationAccrualAdjust ?? 0;
+  const rolAccrualAdjust = balance?.rolAccrualAdjust ?? 0;
+
+  const monthStart = `${year}-${String(currentMonth + 1).padStart(2, "0")}-01`;
+  const monthEnd = `${year}-${String(currentMonth + 1).padStart(2, "0")}-31`;
+
+  const scheduleMap = new Map<number, ScheduleBlock>();
+  for (const s of employee.schedule) {
+    scheduleMap.set(s.dayOfWeek, s);
+  }
+
+  let vacationUsed = 0;
+  let vacationUsedThisMonth = 0;
+  let rolUsed = 0;
+  let rolUsedThisMonth = 0;
+  let sickDays = 0;
+  let sickDaysThisMonth = 0;
+
+  for (const leave of approvedLeaves) {
+    const type = leave.type as LeaveType;
+    const isThisMonth = leave.startDate >= monthStart && leave.startDate <= monthEnd;
+
+    if (type === "VACATION") {
+      const days = countWorkDays(leave.startDate, leave.endDate, scheduleMap);
+      vacationUsed += days;
+      if (isThisMonth) vacationUsedThisMonth += days;
+    } else if (type === "VACATION_HALF_AM" || type === "VACATION_HALF_PM") {
+      vacationUsed += 0.5;
+      if (isThisMonth) vacationUsedThisMonth += 0.5;
+    } else if (type === "SICK") {
+      const days = countCalendarDays(leave.startDate, leave.endDate);
+      sickDays += days;
+      if (isThisMonth) sickDaysThisMonth += days;
+    } else {
+      const hours = leave.hours ?? 0;
+      rolUsed += hours;
+      if (isThisMonth) rolUsedThisMonth += hours;
+    }
+  }
+
+  return {
+    vacationAccrued,
+    vacationAccrualAdjust,
+    vacationUsed: Math.round(vacationUsed * 100) / 100,
+    vacationCarryOver,
+    vacationRemaining:
+      Math.round(
+        (vacationCarryOver + vacationAccrued + vacationAccrualAdjust - vacationUsed) * 100
+      ) / 100,
+    vacationUsedThisMonth: Math.round(vacationUsedThisMonth * 100) / 100,
+    rolAccrued,
+    rolAccrualAdjust,
+    rolUsed: Math.round(rolUsed * 100) / 100,
+    rolCarryOver,
+    rolRemaining:
+      Math.round(
+        (rolCarryOver + rolAccrued + rolAccrualAdjust - rolUsed) * 100
+      ) / 100,
+    rolUsedThisMonth: Math.round(rolUsedThisMonth * 100) / 100,
+    sickDays,
+    sickDaysThisMonth,
+    weeklyHours,
+    contractType: employee.contractType,
+  };
+}
+
 /**
  * Compute the full leave balance for an employee for a given year.
  * Calculates accrual based on hireDate and schedule, then subtracts used from approved requests.

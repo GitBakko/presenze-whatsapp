@@ -1,21 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-type WorkerSnapshot = {
-  running: boolean;
-  startedAt: string | null;
-  lastTickAt: string | null;
-  lastSuccessAt: string | null;
-  lastErrorAt: string | null;
-  lastErrorMessage: string | null;
-  totalCycles: number;
-  totalErrors: number;
-  recentDurationsMs: number[];
-  listening?: boolean;
-  clients?: number;
-  totalConnections?: number;
-};
+import type { WorkerSnapshot } from "@/lib/worker-metrics";
 
 type Healthz = {
   status: "ok" | "degraded" | "down";

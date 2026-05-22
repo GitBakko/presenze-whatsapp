@@ -59,6 +59,11 @@ export function startWsNotificationServer(): void {
 
   wss.on("listening", () => {
     recordWsListening(true);
+    // Record a success tick so a later wss.on("error") tick doesn't leave the
+    // worker in permanent "degraded" state (deriveStatus flags any error with
+    // no prior success as degraded). Once the server is listening we consider
+    // the boot phase healthy.
+    recordTick(WORKER, { ok: true });
     logger.info({ worker: WORKER, host, port }, "WebSocket server listening");
   });
 

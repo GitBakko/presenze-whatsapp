@@ -265,135 +265,33 @@ export async function computeLeaveBalance(
     throw new Error("Dipendente non trovato");
   }
 
-  // NOTE: fallback to 0 for PART_TIME employees without schedule rows means all
-  // accrual is zeroed out for those employees — known limitation, not fixed here.
-  const weeklyHours = employee.schedule.length > 0
-    ? calcWeeklyHours(employee.schedule)
-    : (employee.contractType === "FULL_TIME" ? FULL_TIME_WEEKLY_HOURS : 0);
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-based
-
-  // How many months accrued this year
-  let monthsAccrued: number;
-  const hireDate = employee.hireDate ? new Date(employee.hireDate) : null;
-
-  if (hireDate && hireDate.getFullYear() === year) {
-    // Hired this year — accrue from hire month
-    const hireMonth = hireDate.getMonth();
-    if (year === currentYear) {
-      monthsAccrued = currentMonth - hireMonth + 1;
-    } else if (year < currentYear) {
-      monthsAccrued = 12 - hireMonth;
-    } else {
-      monthsAccrued = 0;
-    }
-  } else if (hireDate && hireDate.getFullYear() > year) {
-    monthsAccrued = 0; // not yet hired
-  } else {
-    // Hired before this year or no hire date
-    if (year === currentYear) {
-      monthsAccrued = currentMonth + 1; // Jan=1, Feb=2...
-    } else if (year < currentYear) {
-      monthsAccrued = 12;
-    } else {
-      monthsAccrued = 0;
-    }
-  }
-
-  monthsAccrued = Math.max(0, Math.min(12, monthsAccrued));
-
-  const vacationAccrued = Math.round(monthsAccrued * monthlyVacationAccrual(weeklyHours) * 100) / 100;
-  const rolAccrued = Math.round(monthsAccrued * monthlyRolAccrual(weeklyHours) * 100) / 100;
-
-  // Get carry-over and accrual adjustments from DB (or 0).
-  // Carry-over = riporto manuale dell'anno precedente.
-  // AccrualAdjust = rettifica manuale ai maturati per riallinearsi alla
-  // busta paga (positivo = il sistema ne calcola troppo pochi).
-  const balance = await prisma.leaveBalance.findUnique({
-    where: { employeeId_year: { employeeId, year } },
-  });
-  const vacationCarryOver = balance?.vacationCarryOver ?? 0;
-  const rolCarryOver = balance?.rolCarryOver ?? 0;
-  const vacationAccrualAdjust = balance?.vacationAccrualAdjust ?? 0;
-  const rolAccrualAdjust = balance?.rolAccrualAdjust ?? 0;
-
-  // Calculate used from approved leave requests this year
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
-  const monthStart = `${year}-${String(currentMonth + 1).padStart(2, "0")}-01`;
-  const monthEnd = `${year}-${String(currentMonth + 1).padStart(2, "0")}-31`;
 
-  const approvedLeaves = await prisma.leaveRequest.findMany({
-    where: {
-      employeeId,
-      status: "APPROVED",
-      startDate: { gte: yearStart, lte: yearEnd },
+  const [balance, approvedLeaves] = await Promise.all([
+    prisma.leaveBalance.findUnique({
+      where: { employeeId_year: { employeeId, year } },
+    }),
+    prisma.leaveRequest.findMany({
+      where: {
+        employeeId,
+        status: "APPROVED",
+        startDate: { gte: yearStart, lte: yearEnd },
+      },
+    }),
+  ]);
+
+  return computeLeaveBalanceFromData(
+    {
+      id: employee.id,
+      hireDate: employee.hireDate,
+      contractType: employee.contractType,
+      schedule: employee.schedule,
     },
-  });
-
-  // Build schedule map for daily hours calculation
-  const scheduleMap = new Map<number, ScheduleBlock>();
-  for (const s of employee.schedule) {
-    scheduleMap.set(s.dayOfWeek, s);
-  }
-
-  let vacationUsed = 0;
-  let vacationUsedThisMonth = 0;
-  let rolUsed = 0;
-  let rolUsedThisMonth = 0;
-  let sickDays = 0;
-  let sickDaysThisMonth = 0;
-
-  for (const leave of approvedLeaves) {
-    const type = leave.type as LeaveType;
-    const isThisMonth = leave.startDate >= monthStart && leave.startDate <= monthEnd;
-
-    if (type === "VACATION") {
-      const days = countWorkDays(leave.startDate, leave.endDate, scheduleMap);
-      vacationUsed += days;
-      if (isThisMonth) vacationUsedThisMonth += days;
-    } else if (type === "VACATION_HALF_AM" || type === "VACATION_HALF_PM") {
-      vacationUsed += 0.5;
-      if (isThisMonth) vacationUsedThisMonth += 0.5;
-    } else if (type === "SICK") {
-      const days = countCalendarDays(leave.startDate, leave.endDate);
-      sickDays += days;
-      if (isThisMonth) sickDaysThisMonth += days;
-    } else {
-      // ROL and special permits — all scale from ROL hours
-      const hours = leave.hours ?? 0;
-      rolUsed += hours;
-      if (isThisMonth) rolUsedThisMonth += hours;
-    }
-  }
-
-  // Formula:
-  //   remaining = carryOver + (accrued + accrualAdjust) - used
-  return {
-    vacationAccrued,
-    vacationAccrualAdjust,
-    vacationUsed: Math.round(vacationUsed * 100) / 100,
-    vacationCarryOver,
-    vacationRemaining:
-      Math.round(
-        (vacationCarryOver + vacationAccrued + vacationAccrualAdjust - vacationUsed) * 100
-      ) / 100,
-    vacationUsedThisMonth: Math.round(vacationUsedThisMonth * 100) / 100,
-    rolAccrued,
-    rolAccrualAdjust,
-    rolUsed: Math.round(rolUsed * 100) / 100,
-    rolCarryOver,
-    rolRemaining:
-      Math.round(
-        (rolCarryOver + rolAccrued + rolAccrualAdjust - rolUsed) * 100
-      ) / 100,
-    rolUsedThisMonth: Math.round(rolUsedThisMonth * 100) / 100,
-    sickDays,
-    sickDaysThisMonth,
-    weeklyHours,
-    contractType: employee.contractType,
-  };
+    balance,
+    approvedLeaves,
+    year,
+  );
 }
 
 // ── Helpers ──

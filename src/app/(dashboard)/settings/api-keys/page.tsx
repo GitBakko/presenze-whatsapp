@@ -7,6 +7,7 @@ import { KeyRound, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { InfoBanner } from "@/components/InfoBanner";
 import { StatusBadge } from "@/components/StatusBadge";
+import { formatDateIsoIt } from "@/lib/date-utils";
 
 interface ApiKeyItem {
   id: string;
@@ -136,7 +137,7 @@ export default function ApiKeysPage() {
                 <tr key={k.id} className="transition-colors hover:bg-surface-container-low/50">
                   <td className="px-4 py-3 font-semibold text-on-surface">{k.name}</td>
                   <td className="px-4 py-3 text-xs text-on-surface-variant">
-                    {new Date(k.createdAt).toLocaleDateString("it-IT")}
+                    {formatDateIsoIt(k.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge kind={k.active ? "success" : "error"}>

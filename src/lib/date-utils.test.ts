@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getDayOfWeek, hmToMinutes, formatDateIt, formatDateTimeIt } from "./date-utils";
+import { getDayOfWeek, hmToMinutes, formatDateIt, formatDateIsoIt, formatDateTimeIt } from "./date-utils";
 
 describe("getDayOfWeek", () => {
   it("returns 1 for Monday", () => {
@@ -37,6 +37,21 @@ describe("formatDateIt", () => {
 
   it("handles single-digit day/month correctly", () => {
     expect(formatDateIt("2025-01-05")).toBe("05/01/2025");
+  });
+});
+
+describe("formatDateIsoIt", () => {
+  it("formats ISO date to DD/MM/YYYY", () => {
+    expect(formatDateIsoIt("2025-04-14T09:30:00.000Z")).toBe("14/04/2025");
+  });
+
+  it("preserves Europe/Rome calendar day at midnight UTC", () => {
+    // 2025-04-14T23:30Z is 2025-04-15 01:30 in Europe/Rome
+    expect(formatDateIsoIt("2025-04-14T23:30:00.000Z")).toBe("15/04/2025");
+  });
+
+  it("returns input on parse failure", () => {
+    expect(formatDateIsoIt("not-a-date")).toBe("not-a-date");
   });
 });
 

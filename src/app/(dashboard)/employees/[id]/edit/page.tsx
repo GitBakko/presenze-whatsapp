@@ -10,6 +10,7 @@ import { KeyRound, Copy, Check } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InfoBanner } from "@/components/InfoBanner";
+import { formatDateIsoIt } from "@/lib/date-utils";
 
 interface EmployeeProfile {
   id: string;
@@ -532,7 +533,7 @@ export default function EmployeeEditPage() {
                     {apiKeyState.active ? "Attiva" : "Disattivata"}
                   </StatusBadge>
                   <span className="text-outline-variant">
-                    Creata il {apiKeyState.createdAt ? new Date(apiKeyState.createdAt).toLocaleDateString("it-IT") : "—"}
+                    Creata il {apiKeyState.createdAt ? formatDateIsoIt(apiKeyState.createdAt) : "—"}
                   </span>
                 </div>
 

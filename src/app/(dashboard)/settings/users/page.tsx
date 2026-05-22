@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Users, UserCheck, UserX, RefreshCw } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge } from "@/components/StatusBadge";
+import { formatDateIsoIt } from "@/lib/date-utils";
 
 interface PendingUser {
   id: string;
@@ -257,7 +258,7 @@ export default function UsersSettingsPage() {
                         <td className="px-4 py-3 font-mono text-xs">{u.email}</td>
                         <td className="px-4 py-3 font-medium">{u.name}</td>
                         <td className="px-4 py-3 text-xs text-on-surface-variant">
-                          {new Date(u.createdAt).toLocaleDateString("it-IT")}
+                          {formatDateIsoIt(u.createdAt)}
                         </td>
                         <td className="px-4 py-3">
                           <select

@@ -15,7 +15,17 @@ export type WorkerSnapshot = {
   totalConnections?: number;
 };
 
-const _state = new Map<string, WorkerSnapshot>();
+// Anchor the registry on globalThis so it survives Next.js bundle dual-loading
+// (the instrumentation hook and the route handler may end up in separate chunks
+// and would otherwise hold independent Map instances, making writes from the
+// workers invisible to /api/healthz reads).
+const STATE_KEY = "__hr_worker_metrics_state__";
+type GlobalWithMetrics = typeof globalThis & {
+  [STATE_KEY]?: Map<string, WorkerSnapshot>;
+};
+const _g = globalThis as GlobalWithMetrics;
+const _state: Map<string, WorkerSnapshot> =
+  _g[STATE_KEY] ?? (_g[STATE_KEY] = new Map<string, WorkerSnapshot>());
 
 function ensureSlot(worker: string): WorkerSnapshot {
   let slot = _state.get(worker);

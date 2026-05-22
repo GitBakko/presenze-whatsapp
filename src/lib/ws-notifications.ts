@@ -27,8 +27,17 @@ import {
   type NotificationEvent,
 } from "./notifications-bus";
 import { authenticateWsRequest, type WsAuthUser } from "./ws-auth";
+import { logger } from "./logger";
+import {
+  recordRunning,
+  recordTick,
+  recordWsConnection,
+  recordWsListening,
+  setStartedAt,
+} from "./worker-metrics";
 
 let _started = false;
+const WORKER = "ws-notifications";
 
 function shouldDeliverTo(evt: NotificationEvent, user: WsAuthUser): boolean {
   if (user.role === "ADMIN") return true;
@@ -42,16 +51,25 @@ export function startWsNotificationServer(): void {
   _started = true;
 
   const port = parseInt(process.env.WS_PORT || "3101", 10);
-
   const host = process.env.WS_HOST ?? "127.0.0.1";
   const wss = new WebSocketServer({ port, host });
 
+  setStartedAt(WORKER);
+  recordRunning(WORKER, true);
+
   wss.on("listening", () => {
-    console.log(`[ws-notifications] WebSocket server listening on ${host}:${port}`);
+    recordWsListening(true);
+    logger.info({ worker: WORKER, host, port }, "WebSocket server listening");
   });
 
   wss.on("error", (err) => {
-    console.error("[ws-notifications] WebSocket server error:", err);
+    logger.error({ worker: WORKER, err: String(err) }, "WebSocket server error");
+    recordTick(WORKER, { ok: false, errorMessage: String(err) });
+  });
+
+  wss.on("close", () => {
+    recordWsListening(false);
+    recordRunning(WORKER, false);
   });
 
   wss.on("connection", async (ws, req) => {
@@ -65,6 +83,8 @@ export function startWsNotificationServer(): void {
       return;
     }
 
+    recordWsConnection(1);
+
     // Catch-up: solo eventi che il ruolo può vedere
     const recent = notificationsBus
       .recent()
@@ -77,7 +97,6 @@ export function startWsNotificationServer(): void {
       }
     }
 
-    // Registra il subscriber con filtro per-utente
     const unsubscribe = notificationsBus.subscribe((evt: NotificationEvent) => {
       if (!shouldDeliverTo(evt, user)) return;
       if (ws.readyState === WebSocket.OPEN) {
@@ -91,6 +110,7 @@ export function startWsNotificationServer(): void {
 
     ws.on("close", () => {
       unsubscribe();
+      recordWsConnection(-1);
     });
 
     ws.on("error", () => {

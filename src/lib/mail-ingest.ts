@@ -47,8 +47,11 @@ import {
   markMessageRead,
   type GraphMessage,
 } from "./mail-graph";
+import { logger } from "./logger";
+import { recordRunning, recordTick, setStartedAt } from "./worker-metrics";
 
 const MAX_PER_CYCLE = 50;
+const WORKER = "mail-ingest";
 
 interface IngestStats {
   scanned: number;
@@ -74,16 +77,19 @@ export function isMailIngestConfigured(): boolean {
 export function ensureMailPollerStarted() {
   if (_running) return;
   if (!isMailIngestConfigured()) {
-    console.log("[mail-ingest] Graph non configurato, poller disattivato");
+    logger.info({ worker: WORKER }, "graph not configured, poller disabled");
     return;
   }
   _running = true;
-  console.log("[mail-ingest] poller avviato (Graph API)");
+  setStartedAt(WORKER);
+  recordRunning(WORKER, true);
+  logger.info({ worker: WORKER }, "poller started (Graph API)");
   scheduleNext(0);
 }
 
 export function stopMailPoller() {
   _running = false;
+  recordRunning(WORKER, false);
   if (_timer) {
     clearTimeout(_timer);
     _timer = null;
@@ -93,11 +99,17 @@ export function stopMailPoller() {
 function scheduleNext(delayMs: number) {
   if (!_running) return;
   _timer = setTimeout(async () => {
+    const started = Date.now();
+    let ok = true;
+    let errorMessage: string | undefined;
     try {
       await runOnce();
     } catch (err) {
-      console.error("[mail-ingest] cycle error:", err);
+      ok = false;
+      errorMessage = String(err);
+      logger.error({ worker: WORKER, err: String(err) }, "cycle error");
     }
+    recordTick(WORKER, { ok, durationMs: Date.now() - started, errorMessage });
     const intervalSec = parseInt(process.env.MAIL_POLL_INTERVAL_SEC || "120", 10);
     scheduleNext(intervalSec * 1000);
   }, delayMs);
@@ -129,11 +141,11 @@ export async function runOnce(): Promise<IngestStats> {
   try {
     folderId = await findFolderIdByName(folderName);
   } catch (err) {
-    console.error("[mail-ingest] findFolderIdByName failed:", err);
+    logger.error({ worker: WORKER, err: String(err) }, "findFolderIdByName failed");
     throw err;
   }
   if (!folderId) {
-    console.warn(`[mail-ingest] folder "${folderName}" non trovata nella mailbox`);
+    logger.warn({ worker: WORKER, folder: folderName }, "folder not found in mailbox");
     return stats;
   }
 
@@ -147,7 +159,7 @@ export async function runOnce(): Promise<IngestStats> {
       await processOne(msg, stats);
     } catch (err) {
       stats.internalError++;
-      console.error("[mail-ingest] processOne failed for message", msg.id, err);
+      logger.error({ worker: WORKER, msgId: msg.id, err: String(err) }, "processOne failed");
       // Marca come letta comunque per evitare loop su mail problematica
       try {
         await markMessageRead(msg.id);
@@ -157,7 +169,7 @@ export async function runOnce(): Promise<IngestStats> {
     }
   }
 
-  console.log("[mail-ingest] cycle done:", stats);
+  logger.info({ worker: WORKER, ...stats }, "cycle done");
   return stats;
 }
 
@@ -363,7 +375,7 @@ async function logIngest(
       update: {},
     });
   } catch (err) {
-    console.error("[mail-ingest] logIngest failed:", err);
+    logger.error({ worker: WORKER, err: String(err) }, "logIngest failed");
   }
 }
 

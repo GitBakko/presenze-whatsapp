@@ -66,10 +66,10 @@ export function countWorkDays(from: string, to: string): number {
   const cur = new Date(from);
   const end = new Date(to);
   while (cur <= end) {
-    // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
+    // eslint-disable-next-line local/no-iso-split -- UTC day stream is intentional: cur stays at UTC midnight (setUTCDate) so the ISO key matches `LeaveRequest.startDate` (stored UTC midnight) used by callers
     const dateStr = cur.toISOString().split("T")[0];
     if (!isNonWorkingDay(dateStr)) count++;
-    cur.setDate(cur.getDate() + 1);
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return count;
 }
@@ -119,11 +119,11 @@ export function computeKpis(
               const cur = new Date(s);
               const end = new Date(e);
               while (cur <= end) {
-                // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
+                // eslint-disable-next-line local/no-iso-split -- UTC day key matches LeaveRequest.startDate (UTC midnight) and consumer rolKey built from DailyStats.date
                 const dateStr = cur.toISOString().split("T")[0];
                 const key = `${l.employeeId}|${dateStr}`;
                 morningRolMinutes.set(key, (morningRolMinutes.get(key) ?? 0) + mins);
-                cur.setDate(cur.getDate() + 1);
+                cur.setUTCDate(cur.getUTCDate() + 1);
               }
             }
           }

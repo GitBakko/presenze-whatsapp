@@ -428,9 +428,9 @@ export async function GET(request: NextRequest) {
         const cur = new Date(s);
         const end = new Date(e);
         while (cur <= end) {
-          // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
+          // eslint-disable-next-line local/no-iso-split -- UTC day key matches LeaveRequest.startDate (UTC midnight) and DailyStats.date used downstream
           periodMorningRol.set(`${l.employeeId}|${cur.toISOString().split("T")[0]}`, 999);
-          cur.setDate(cur.getDate() + 1);
+          cur.setUTCDate(cur.getUTCDate() + 1);
         }
         continue;
       }
@@ -446,10 +446,10 @@ export async function GET(request: NextRequest) {
               const cur = new Date(s);
               const end = new Date(e);
               while (cur <= end) {
-                // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
+                // eslint-disable-next-line local/no-iso-split -- UTC day key matches LeaveRequest.startDate (UTC midnight) and DailyStats.date used downstream
                 const key = `${l.employeeId}|${cur.toISOString().split("T")[0]}`;
                 periodMorningRol.set(key, (periodMorningRol.get(key) ?? 0) + mins);
-                cur.setDate(cur.getDate() + 1);
+                cur.setUTCDate(cur.getUTCDate() + 1);
               }
             }
           }

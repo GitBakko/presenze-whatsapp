@@ -428,13 +428,13 @@ export async function buildPresenzeMonthData(
     const cur = new Date(start);
     const endDate = new Date(end);
     while (cur <= endDate) {
-      // eslint-disable-next-line local/no-iso-split -- TODO(C1-LOOPS-DEFERRED): verify UTC-midnight cur is intentional
+      // eslint-disable-next-line local/no-iso-split -- UTC day key matches LeaveRequest.startDate (UTC midnight) used by `${r.employeeId}-${r.date}` lookups
       const dateStr = cur.toISOString().split("T")[0];
       const key = `${l.employeeId}|${dateStr}`;
       if (!leaveMap.has(key)) {
         leaveMap.set(key, { type: l.type, hours: l.hours ?? null });
       }
-      cur.setDate(cur.getDate() + 1);
+      cur.setUTCDate(cur.getUTCDate() + 1);
     }
   }
 

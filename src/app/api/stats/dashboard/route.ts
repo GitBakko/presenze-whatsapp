@@ -7,7 +7,7 @@ import {
   type EmployeeScheduleDay,
 } from "@/lib/calculator";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
-import { computeLeaveBalance } from "@/lib/leaves";
+import { computeLeaveBalanceFromData } from "@/lib/leaves";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
 import { getDayOfWeek, hmToMinutes } from "@/lib/date-utils";
 import { todayRome } from "@/lib/tz";
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     dismissedAnomalies,
   ] = await Promise.all([
     prisma.employee.findMany({
-      select: { id: true, name: true, displayName: true, avatarUrl: true, contractType: true },
+      select: { id: true, name: true, displayName: true, avatarUrl: true, contractType: true, hireDate: true },
     }),
     prisma.employeeSchedule.findMany(),
     // Records di oggi (per sezione A + D)
@@ -153,6 +153,14 @@ export async function GET(request: NextRequest) {
       block1Start: s.block1Start, block1End: s.block1End,
       block2Start: s.block2Start, block2End: s.block2End,
     });
+  }
+
+  // Flat per-employee schedule rows (with dayOfWeek) for computeLeaveBalanceFromData
+  const scheduleRowsByEmp = new Map<string, typeof schedules>();
+  for (const s of schedules) {
+    const arr = scheduleRowsByEmp.get(s.employeeId) ?? [];
+    arr.push(s);
+    scheduleRowsByEmp.set(s.employeeId, arr);
   }
 
   const dismissedSet = new Set(
@@ -376,10 +384,46 @@ export async function GET(request: NextRequest) {
 
   // ── SEZIONE E — Saldi ferie/ROL ────────────────────────────────────
   const leaveBalances: LeaveBalanceRow[] = [];
-  const isH2 = currentMonth >= 6; // luglio in poi
+  const isH2 = currentMonth >= 6;
+
+  const empIds = allEmployees.map((e) => e.id);
+  const yearStartIso = `${currentYear}-01-01`;
+  const yearEndIso = `${currentYear}-12-31`;
+
+  const [balanceRows, approvedLeavesAllYear] = await Promise.all([
+    prisma.leaveBalance.findMany({
+      where: { employeeId: { in: empIds }, year: currentYear },
+    }),
+    prisma.leaveRequest.findMany({
+      where: {
+        employeeId: { in: empIds },
+        status: "APPROVED",
+        startDate: { gte: yearStartIso, lte: yearEndIso },
+      },
+    }),
+  ]);
+
+  const balanceByEmp = new Map(balanceRows.map((b) => [b.employeeId, b]));
+  const leavesByEmp = new Map<string, typeof approvedLeavesAllYear>();
+  for (const l of approvedLeavesAllYear) {
+    const arr = leavesByEmp.get(l.employeeId) ?? [];
+    arr.push(l);
+    leavesByEmp.set(l.employeeId, arr);
+  }
+
   for (const emp of allEmployees) {
     try {
-      const bal = await computeLeaveBalance(emp.id, currentYear);
+      const bal = computeLeaveBalanceFromData(
+        {
+          id: emp.id,
+          hireDate: emp.hireDate,
+          contractType: emp.contractType,
+          schedule: scheduleRowsByEmp.get(emp.id) ?? [],
+        },
+        balanceByEmp.get(emp.id) ?? null,
+        leavesByEmp.get(emp.id) ?? [],
+        currentYear,
+      );
       const vacTotal = bal.vacationCarryOver + bal.vacationAccrued + bal.vacationAccrualAdjust;
       const vacPercent = vacTotal > 0 ? (bal.vacationUsed / vacTotal) * 100 : 0;
       leaveBalances.push({

@@ -84,6 +84,20 @@ export async function PUT(request: NextRequest) {
           });
         }
       }
+      // Two-phase update so a same-type time swap (r1 09:00<->r3 14:00) never
+      // transiently violates @@unique([employeeId,date,type,declaredTime]).
+      // SQLite enforces UNIQUE per-statement (not deferred), so applying the
+      // final values directly in sequence would 409 on a legitimate swap.
+      // Phase 1: park every updated row on a unique sentinel declaredTime that
+      // can never match a real "HH:MM" value or another sentinel.
+      for (let i = 0; i < plan.toUpdate.length; i++) {
+        const u = plan.toUpdate[i];
+        await tx.attendanceRecord.update({
+          where: { id: u.id },
+          data: { declaredTime: `__tmp_${i}__` },
+        });
+      }
+      // Phase 2: set final values and write the audit trail.
       for (const u of plan.toUpdate) {
         const cur = existingById.get(u.id)!;
         await tx.attendanceRecord.update({

@@ -4,6 +4,7 @@ import { parseWhatsAppExport } from "@/lib/parser";
 import { checkAuth } from "@/lib/auth-guard";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
 import { syncAnomalies } from "@/lib/anomaly-sync";
+import { isTerminatedOnDate } from "@/lib/employees/termination";
 
 export async function POST(request: NextRequest) {
   const denied = await checkAuth();
@@ -54,6 +55,13 @@ export async function POST(request: NextRequest) {
       employee = await prisma.employee.create({
         data: { name: record.employeeName },
       });
+    }
+
+    // Guard: salta i record datati DOPO la cessazione del dipendente.
+    // I record antecedenti la cessazione restano validi (storia preservata).
+    if (isTerminatedOnDate(employee.terminationDate, record.date)) {
+      skipped++;
+      continue;
     }
 
     // Try to insert (skip duplicates via unique constraint)

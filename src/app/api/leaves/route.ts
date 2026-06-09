@@ -7,6 +7,7 @@ import { createLeaveSchema } from "@/lib/leaves/validation";
 import { checkOverlap } from "@/lib/leaves/overlap";
 import { notifyAdminsOfPendingLeave } from "@/lib/leave-notifications";
 import { notificationsBus } from "@/lib/notifications-bus";
+import { isTerminatedOnDate } from "@/lib/employees/termination";
 
 export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -99,6 +100,14 @@ export async function POST(request: NextRequest) {
     const employee = await prisma.employee.findUnique({ where: { id: body.employeeId } });
     if (!employee) {
       return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
+    }
+
+    // Guard: niente richieste che iniziano dopo la data di cessazione.
+    if (isTerminatedOnDate(employee.terminationDate, body.startDate)) {
+      return NextResponse.json(
+        { error: "Dipendente cessato: impossibile creare richieste dopo la data di cessazione" },
+        { status: 409 },
+      );
     }
 
     const overlap = await checkOverlap(body.employeeId, {

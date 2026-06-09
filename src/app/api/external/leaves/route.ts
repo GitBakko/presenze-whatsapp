@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import { checkOverlap } from "@/lib/leaves/overlap";
 import { validateApiKey } from "@/lib/api-key-auth";
+import { isTerminatedOnDate } from "@/lib/employees/termination";
 
 export async function POST(request: NextRequest) {
   const isValid = await validateApiKey(request);
@@ -65,6 +66,14 @@ export async function POST(request: NextRequest) {
   }
   if (!employee) {
     return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
+  }
+
+  // Guard: niente richieste che iniziano dopo la data di cessazione.
+  if (isTerminatedOnDate(employee.terminationDate, startDate)) {
+    return NextResponse.json(
+      { error: "Dipendente cessato: impossibile creare richieste dopo la data di cessazione" },
+      { status: 409 },
+    );
   }
 
   // Overlap detection

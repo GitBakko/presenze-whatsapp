@@ -7,6 +7,7 @@ import { decideAction } from "@/lib/kiosk-classifier";
 import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
 import { syncAnomalies } from "@/lib/anomaly-sync";
 import { notificationsBus, type NotificationAction } from "@/lib/notifications-bus";
+import { isTerminatedOnDate } from "@/lib/employees/termination";
 
 /**
  * Endpoint chiamato dal servizio Windows del kiosk NFC ad ogni tap.
@@ -74,6 +75,18 @@ export async function POST(request: NextRequest) {
   const now = new Date();
   const date = todayRome(now);
   const declaredTime = nowRomeHHMM(now);
+
+  // Guard: rifiuta timbrature per dipendenti cessati alla data odierna.
+  if (isTerminatedOnDate(employee.terminationDate, date)) {
+    return NextResponse.json(
+      {
+        status: "terminated",
+        error: "Dipendente cessato: timbratura non consentita",
+        employeeName: employee.displayName || employee.name,
+      },
+      { status: 403 },
+    );
+  }
 
   // 2. Debounce server: rifiuta tap consecutivi entro DEBOUNCE_SECONDS
   const debounceCutoff = new Date(now.getTime() - DEBOUNCE_SECONDS * 1000);

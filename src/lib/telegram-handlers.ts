@@ -30,6 +30,7 @@ import { getTelegramBot, type TelegramMessage, type TelegramUpdate } from "./tel
 import { PUNCH_KEYBOARD, BUTTON_ENTRY, BUTTON_EXIT, BUTTON_PAUSE_START, BUTTON_PAUSE_END } from "./telegram-keyboards";
 import { parseLeaveDates } from "./leaves/validation";
 import { formatItDate } from "./leaves/format";
+import { isTerminatedOnDate } from "./employees/termination";
 
 const DEBOUNCE_SECONDS = 10;
 
@@ -132,6 +133,12 @@ async function doPunch(ctx: CommandContext, action: KioskAction): Promise<void> 
   const now = new Date();
   const date = todayRome(now);
   const declaredTime = nowRomeHHMM(now);
+
+  // Guard: i cessati non possono timbrare (i comandi di lettura ferie restano attivi).
+  if (isTerminatedOnDate(employee.terminationDate, date)) {
+    await reply(ctx.chatId, `⛔ Il tuo rapporto risulta cessato: la timbratura non e' consentita.`);
+    return;
+  }
 
   // 1. Debounce server (stesso del kiosk)
   const debounceCutoff = new Date(now.getTime() - DEBOUNCE_SECONDS * 1000);

@@ -48,7 +48,7 @@ describe("calculateDailyStats", () => {
       expect(stats.hoursWorked).toBe(8);
     });
 
-    it("subtracts pause from hours worked", () => {
+    it("tracks pause but does NOT subtract it from hours worked", () => {
       const dr = makeRecord([
         { type: "ENTRY", declaredTime: "09:00" },
         { type: "EXIT", declaredTime: "13:00" },
@@ -56,7 +56,9 @@ describe("calculateDailyStats", () => {
         { type: "PAUSE_END", declaredTime: "10:15" },
       ]);
       const stats = calculateDailyStats(dr, DEFAULT_SCHEDULE);
-      expect(stats.hoursWorked).toBe(3.75); // 4h - 15min
+      // Pauses are contractually mandated → NOT subtracted. hoursWorked is the
+      // full ENTRY→EXIT span (4h); the 15-min pause is tracked separately.
+      expect(stats.hoursWorked).toBe(4);
       expect(stats.pauseMinutes).toBe(15);
       expect(stats.pauses).toHaveLength(1);
     });

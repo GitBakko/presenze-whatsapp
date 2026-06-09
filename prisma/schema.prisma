@@ -23,6 +23,7 @@ model User {
   leaveEdits     LeaveRequestEdit[] @relation("UserLeaveEdits")
   payrollImports PayrollImport[] @relation("PayrollImports")
   employee       Employee?      @relation("UserEmployee", fields: [employeeId], references: [id])
+  terminatedEmployees Employee[] @relation("EmployeeTerminatedBy")
 }
 
 model Employee {
@@ -39,6 +40,10 @@ model Employee {
   email        String?            @unique // email associata per richieste ferie via mail
   payrollId    String?            @unique // matricola from payroll system
   createdAt    DateTime           @default(now())
+  terminationDate   DateTime?     // null = attivo; valorizzato = ultimo giorno lavorativo (incluso)
+  terminationReason String?       // "RESIGNATION" | "DISMISSAL" | "OTHER" (+ nota libera opzionale)
+  terminatedById    String?       // admin che ha eseguito la cessazione (audit)
+  terminatedAt      DateTime?     // quando e' stata eseguita l'azione
   records      AttendanceRecord[]
   employeeApiKey EmployeeApiKey?
   userAccount  User?              @relation("UserEmployee")
@@ -46,6 +51,7 @@ model Employee {
   schedule     EmployeeSchedule[]
   leaves       LeaveRequest[]
   balances     LeaveBalance[]
+  terminatedBy User?              @relation("EmployeeTerminatedBy", fields: [terminatedById], references: [id])
 }
 
 model AttendanceRecord {

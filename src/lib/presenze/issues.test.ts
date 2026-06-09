@@ -7,6 +7,7 @@ function day(partial: Partial<DayClassification>): DayClassification {
   return {
     date: "2026-05-04", status: "ok", scheduledHours: 8, workedHours: 8,
     leaveHours: 0, effectiveHours: 8, anomalies: [], isRed: false, isYellow: false,
+    isReportRed: false, isReportYellow: false,
     ...partial,
   };
 }

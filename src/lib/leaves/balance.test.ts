@@ -157,4 +157,81 @@ describe("computeLeaveBalanceFromData", () => {
     );
     expect(r.vacationUsed).toBe(0.5);
   });
+
+  it("terminated in this year (Aug) → accrual capped at termination month inclusive (8 months)", () => {
+    const r = computeLeaveBalanceFromData(
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: new Date("2026-08-20"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      null,
+      [],
+      2026,
+      new Date("2026-12-31T12:00:00Z"),
+    );
+    // Jan..Aug = 8 months × 2 days = 16
+    expect(r.vacationAccrued).toBe(16);
+    expect(r.rolAccrued).toBe(16);
+  });
+
+  it("year after termination → 0 months accrued", () => {
+    const r = computeLeaveBalanceFromData(
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: new Date("2026-08-20"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      null,
+      [],
+      2027,
+      new Date("2027-12-31T12:00:00Z"),
+    );
+    expect(r.vacationAccrued).toBe(0);
+    expect(r.rolAccrued).toBe(0);
+  });
+
+  it("year before termination → unchanged (full 12 months)", () => {
+    const r = computeLeaveBalanceFromData(
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: new Date("2026-08-20"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      null,
+      [],
+      2025,
+      new Date("2026-12-31T12:00:00Z"),
+    );
+    expect(r.vacationAccrued).toBe(24);
+    expect(r.rolAccrued).toBe(24);
+  });
+
+  it("part-time terminated mid-year → cap AND proportion both apply", () => {
+    // PART_TIME 24h/wk, terminated Aug 2026 → 8 months × (24/40 × 2 days) = 8 × 1.2 = 9.6
+    const r = computeLeaveBalanceFromData(
+      { id: "e2", hireDate: new Date("2020-01-01"), terminationDate: new Date("2026-08-20"), contractType: "PART_TIME", schedule: partTimeSchedule24h() },
+      null,
+      [],
+      2026,
+      new Date("2026-12-31T12:00:00Z"),
+    );
+    expect(r.weeklyHours).toBe(24);
+    expect(r.vacationAccrued).toBeCloseTo(9.6, 2);
+    expect(r.rolAccrued).toBeCloseTo(9.6, 2);
+  });
+
+  it("hired June, terminated August same year → 3 months (Jun,Jul,Aug)", () => {
+    const r = computeLeaveBalanceFromData(
+      { id: "e1", hireDate: new Date("2026-06-15"), terminationDate: new Date("2026-08-20"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      null,
+      [],
+      2026,
+      new Date("2026-12-31T12:00:00Z"),
+    );
+    // Jun..Aug = 3 months × 2 = 6
+    expect(r.vacationAccrued).toBe(6);
+    expect(r.rolAccrued).toBe(6);
+  });
+
+  it("adjust fields still added on top of capped accrual", () => {
+    const r = computeLeaveBalanceFromData(
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: new Date("2026-08-20"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      { vacationCarryOver: 0, rolCarryOver: 0, vacationAccrualAdjust: 2, rolAccrualAdjust: 1 },
+      [],
+      2026,
+      new Date("2026-12-31T12:00:00Z"),
+    );
+    // 16 accrued + 2 adjust − 0 used = 18 remaining
+    expect(r.vacationAccrued).toBe(16);
+    expect(r.vacationRemaining).toBe(18);
+  });
 });

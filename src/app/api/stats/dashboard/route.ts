@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     dismissedAnomalies,
   ] = await Promise.all([
     prisma.employee.findMany({
-      select: { id: true, name: true, displayName: true, avatarUrl: true, contractType: true, hireDate: true },
+      select: { id: true, name: true, displayName: true, avatarUrl: true, contractType: true, hireDate: true, terminationDate: true },
     }),
     prisma.employeeSchedule.findMany(),
     // Records di oggi (per sezione A + D)
@@ -417,6 +417,7 @@ export async function GET(request: NextRequest) {
         {
           id: emp.id,
           hireDate: emp.hireDate,
+          terminationDate: emp.terminationDate,
           contractType: emp.contractType,
           schedule: scheduleRowsByEmp.get(emp.id) ?? [],
         },

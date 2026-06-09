@@ -113,6 +113,7 @@ export interface LeaveBalanceSummary {
 export interface EmployeeForBalance {
   id: string;
   hireDate: Date | null;
+  terminationDate: Date | null;
   contractType: string;
   schedule: Array<ScheduleBlock & { dayOfWeek: number }>;
 }
@@ -172,6 +173,25 @@ export function computeLeaveBalanceFromData(
       monthsAccrued = 12;
     } else {
       monthsAccrued = 0;
+    }
+  }
+
+  // ── Termination ceiling (cap upper month at termination month, inclusive) ──
+  // Uses the SAME local-Date convention as hireDate above
+  // (new Date(...).getFullYear()/getMonth()).
+  if (employee.terminationDate) {
+    const term = new Date(employee.terminationDate);
+    const termYear = term.getFullYear();
+    const termMonth = term.getMonth();
+    if (termYear < year) {
+      monthsAccrued = 0;
+    } else if (termYear === year) {
+      // effectiveEndMonth = the last month currently counted for this year:
+      // currentMonth if computing the running year, else December (11).
+      const effectiveEndMonth = year === currentYear ? currentMonth : 11;
+      if (termMonth < effectiveEndMonth) {
+        monthsAccrued -= effectiveEndMonth - termMonth;
+      }
     }
   }
 
@@ -285,6 +305,7 @@ export async function computeLeaveBalance(
     {
       id: employee.id,
       hireDate: employee.hireDate,
+      terminationDate: employee.terminationDate,
       contractType: employee.contractType,
       schedule: employee.schedule,
     },

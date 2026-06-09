@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 import { todayRome } from "@/lib/tz";
+import { activeOnWhere } from "@/lib/employees/active";
 
 export async function GET(request: NextRequest) {
   const denied = await checkAuth();
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   if (url.searchParams.get("withoutPayrollId") === "1") {
     const list = await prisma.employee.findMany({
-      where: { payrollId: null },
+      where: { AND: [{ payrollId: null }, activeOnWhere(todayRome())] },
       select: { id: true, name: true, displayName: true },
       orderBy: { name: "asc" },
     });
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
       email: emp.email,
       totalDays,
       lastSeen: emp.records[0]?.date || null,
+      terminationDate: emp.terminationDate ? todayRome(emp.terminationDate) : null,
     };
   });
 

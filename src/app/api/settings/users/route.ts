@@ -4,6 +4,8 @@ import { checkAuth } from "@/lib/auth-guard";
 import { sendMail } from "@/lib/mail-send";
 import { notifyLeaveCancellation } from "@/lib/telegram-handlers";
 import { getTelegramBot } from "@/lib/telegram-bot";
+import { activeOnWhere } from "@/lib/employees/active";
+import { todayRome } from "@/lib/tz";
 
 /**
  * GET /api/settings/users
@@ -41,6 +43,7 @@ export async function GET() {
 
   // Per gli utenti in attesa, suggerisci un match employee per email
   const employees = await prisma.employee.findMany({
+    where: activeOnWhere(todayRome()),
     select: { id: true, name: true, displayName: true, email: true },
     orderBy: { name: "asc" },
   });

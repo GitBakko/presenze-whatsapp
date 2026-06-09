@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 import { computeLeaveBalance, LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
+import { activeOnWhere } from "@/lib/employees/active";
+import { todayRome } from "@/lib/tz";
 
 /**
  * GET /api/leaves/by-employee
@@ -24,6 +26,7 @@ export async function GET() {
   const yearEnd = `${year}-12-31`;
 
   const employees = await prisma.employee.findMany({
+    where: activeOnWhere(todayRome()),
     orderBy: { name: "asc" },
   });
 

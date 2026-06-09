@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import type { DailyStats } from "./calculator";
 import { getLeaveForDate } from "./leaves";
+import { todayRome } from "./tz";
 
 /**
  * Check if an employee's date is fully covered by leave (skip all anomalies)
@@ -13,6 +14,15 @@ async function isFullDayLeave(employeeId: string, date: string): Promise<boolean
     return leave.type !== "VACATION_HALF_AM" && leave.type !== "VACATION_HALF_PM";
   }
   return false;
+}
+
+/**
+ * Pure: suppress new anomalies (and stale-cleanup) for days strictly after
+ * the employee's inclusive termination date. termDate at UTC midnight.
+ */
+export function shouldSuppressAnomaly(termDate: Date | null, date: string): boolean {
+  if (!termDate) return false;
+  return date > todayRome(termDate);
 }
 
 /**
@@ -32,10 +42,26 @@ export async function syncAnomalies(
 ): Promise<number> {
   let created = 0;
 
+  // Batch-load termination dates once for all employees we're processing.
+  const empIds = [...new Set(dailyStats.map((s) => s.employeeId))];
+  const terminatedRows = await prisma.employee.findMany({
+    where: { id: { in: empIds }, terminationDate: { not: null } },
+    select: { id: true, terminationDate: true },
+  });
+  const terminationByEmp = new Map<string, Date | null>(
+    terminatedRows.map((e) => [e.id, e.terminationDate]),
+  );
+
   // Collect all employee+date combos we're processing
   const processedKeys = new Set<string>();
 
   for (const ds of dailyStats) {
+    // Skip post-termination days entirely: do NOT create anomalies and do
+    // NOT add to processedKeys (so the stale-cleanup pass leaves them alone).
+    if (shouldSuppressAnomaly(terminationByEmp.get(ds.employeeId) ?? null, ds.date)) {
+      continue;
+    }
+
     processedKeys.add(`${ds.employeeId}|${ds.date}`);
 
     // Skip anomaly creation if date is fully covered by approved leave

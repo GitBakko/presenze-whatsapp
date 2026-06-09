@@ -23,8 +23,16 @@ export interface DayClassification {
   leaveHours: number; // hours covered by approved leave
   effectiveHours: number; // worked + leave, what's compared to scheduled
   anomalies: ClassifiedAnomaly[];
-  isRed: boolean; // status under|absent OR any structural anomaly
-  isYellow: boolean; // status over OR only-possible anomalies (and not red)
+  isRed: boolean; // status under|absent OR any structural anomaly (review-UI signal)
+  isYellow: boolean; // status over OR only-possible anomalies (and not red) (review-UI signal)
+  /**
+   * Report (xlsx) colors. HOURS-ONLY, anomaly-blind: byte-identical to the legacy
+   * inline rule (totale-vs-scheduled). These — NOT isRed/isYellow — drive the emailed
+   * presenze cell fill so the report never changes color because of an anomaly that
+   * the pre-refactor report ignored. isRed/isYellow stay anomaly-aware for the review UI.
+   */
+  isReportRed: boolean; // status under|absent (hours-only)
+  isReportYellow: boolean; // status over (hours-only, and not report-red)
 }
 
 export interface ClassifyDayArgs {
@@ -72,6 +80,8 @@ export function classifyDay(args: ClassifyDayArgs): DayClassification {
       anomalies,
       isRed: false,
       isYellow: false,
+      isReportRed: false,
+      isReportYellow: false,
     };
   }
 
@@ -87,6 +97,8 @@ export function classifyDay(args: ClassifyDayArgs): DayClassification {
       anomalies,
       isRed: true,
       isYellow: false,
+      isReportRed: true, // absent: totale (0) < scheduled -> legacy RED
+      isReportYellow: false,
     };
   }
 
@@ -98,6 +110,11 @@ export function classifyDay(args: ClassifyDayArgs): DayClassification {
   const isRed = status === "under" || hasStructural;
   const isYellow = !isRed && (status === "over" || hasPossible);
 
+  // Report (xlsx) colors: HOURS-ONLY, anomaly-blind — the legacy inline rule
+  // (totale-vs-scheduled). Anomalies must NOT change the emailed report's fill.
+  const isReportRed = status === "under";
+  const isReportYellow = !isReportRed && status === "over";
+
   return {
     date,
     status,
@@ -108,6 +125,8 @@ export function classifyDay(args: ClassifyDayArgs): DayClassification {
     anomalies,
     isRed,
     isYellow,
+    isReportRed,
+    isReportYellow,
   };
 }
 

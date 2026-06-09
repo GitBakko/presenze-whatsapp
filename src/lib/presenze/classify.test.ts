@@ -103,6 +103,9 @@ describe("classifyDay", () => {
     const c = classifyDay({ ...base, dailyStats: stats });
     expect(c.status).toBe("ok");
     expect(c.isRed).toBe(true);
+    // Report color is anomaly-blind: an exact day stays uncolored in the xlsx.
+    expect(c.isReportRed).toBe(false);
+    expect(c.isReportYellow).toBe(false);
     expect(c.anomalies).toEqual([
       { type: "MISSING_EXIT", description: "Entrata senza uscita", severity: "structural" },
     ]);
@@ -117,6 +120,9 @@ describe("classifyDay", () => {
     const c = classifyDay({ ...base, dailyStats: stats });
     expect(c.isRed).toBe(false);
     expect(c.isYellow).toBe(true);
+    // Report color is anomaly-blind: an exact day stays uncolored in the xlsx.
+    expect(c.isReportRed).toBe(false);
+    expect(c.isReportYellow).toBe(false);
     expect(c.anomalies[0].severity).toBe("possible");
   });
 

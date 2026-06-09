@@ -47,7 +47,7 @@ function fixtureEmployee(): PresenzeEmployeeData {
 }
 
 describe("classification matches legacy xlsx colors (regression)", () => {
-  it("isRed/isYellow per day equal the legacy inline rule for the fixture month", async () => {
+  it("isReportRed/isReportYellow per day equal the legacy inline rule for the fixture month", async () => {
     const { classifyEmployeeDays } = await import("./excel-presenze");
     const emp = fixtureEmployee();
     const year = 2026, month = 5;
@@ -58,12 +58,13 @@ describe("classification matches legacy xlsx colors (regression)", () => {
       const dateStr = `${year}-05-${String(d).padStart(2, "0")}`;
       const legacy = legacyColor(emp, d, dateStr);
       const c = classifications.get(d)!;
-      const newColor = c.isRed ? "red" : c.isYellow ? "yellow" : null;
+      // The xlsx fill reads isReportRed/isReportYellow (hours-only, legacy rule).
+      const newColor = c.isReportRed ? "red" : c.isReportYellow ? "yellow" : null;
       expect(newColor, `day ${d} (${dateStr})`).toBe(legacy);
     }
   });
 
-  it("builder path: colors by PRINTED oreOrdinario, NOT raw stats.hoursWorked", async () => {
+  it("builder path: report color uses PRINTED oreOrdinario, NOT raw stats.hoursWorked", async () => {
     // Guards the byte-identity fix: the builder injects real DailyStats, but the
     // color decision must use the printed cell value. A day printed O=6.5 (< 8)
     // must stay RED even if raw stats report hoursWorked 8.1 (would be "ok").
@@ -88,7 +89,70 @@ describe("classification matches legacy xlsx colors (regression)", () => {
     );
     const c = classifications.get(8)!;
     expect(c.effectiveHours).toBe(6.5); // printed, not 8.1
+    expect(c.isReportRed).toBe(true);
+    expect(c.isReportYellow).toBe(false);
+  });
+
+  it("report color IGNORES anomalies: a structural anomaly on an EXACT day stays uncolored", async () => {
+    // Production divergence guard. In production buildPresenzeMonthData feeds a real
+    // statsForDay closure whose stats carry anomalies (MISSING_EXIT, etc.). The legacy
+    // inline rule colored purely on totale-vs-scheduled and NEVER on anomalies. The
+    // xlsx report (isReportRed/isReportYellow) must reproduce that exactly: an exact day
+    // (totale == scheduled) with a structural anomaly stays uncolored in the report,
+    // while the review-UI signal (isRed) flags it.
+    const { classifyEmployeeDays } = await import("./excel-presenze");
+    const emp = fixtureEmployee();
+    // day 5 is exact (O=8, scheduled 8) -> legacy: no fill.
+    const classifications = classifyEmployeeDays(
+      emp,
+      2026,
+      5,
+      () => true,
+      (d) =>
+        d === 5
+          ? ({
+              employeeId: "e", employeeName: "x", date: "2026-05-05",
+              hoursWorked: 8, hoursWorkedMsg: 0, pauseMinutes: 0, pauses: [],
+              morningDelay: 0, afternoonDelay: 0, overtime: 0, overtimeBlocks: [],
+              hasAnomaly: true,
+              anomalies: [{ type: "MISSING_EXIT", description: "Entrata senza uscita" }],
+              entries: [], exits: [],
+            } as unknown as import("@/lib/calculator").DailyStats)
+          : null,
+    );
+    const c = classifications.get(5)!;
+    // Report (xlsx) color: byte-identical to legacy -> uncolored on an exact day.
+    expect(c.isReportRed).toBe(false);
+    expect(c.isReportYellow).toBe(false);
+    // Review-UI signal still flags the structural anomaly as red.
     expect(c.isRed).toBe(true);
-    expect(c.isYellow).toBe(false);
+    expect(c.anomalies.some((a) => a.type === "MISSING_EXIT")).toBe(true);
+  });
+
+  it("report color IGNORES anomalies: a possible anomaly on an OVER day stays YELLOW (not promoted/demoted)", async () => {
+    const { classifyEmployeeDays } = await import("./excel-presenze");
+    const emp = fixtureEmployee();
+    // day 6 is over (O=9, scheduled 8) -> legacy: yellow. A possible anomaly there
+    // must keep the report yellow (legacy never reads anomalies for color).
+    const classifications = classifyEmployeeDays(
+      emp,
+      2026,
+      5,
+      () => true,
+      (d) =>
+        d === 6
+          ? ({
+              employeeId: "e", employeeName: "x", date: "2026-05-06",
+              hoursWorked: 9, hoursWorkedMsg: 0, pauseMinutes: 0, pauses: [],
+              morningDelay: 0, afternoonDelay: 0, overtime: 0, overtimeBlocks: [],
+              hasAnomaly: true,
+              anomalies: [{ type: "TIME_OVERLAP", description: "Uscita prima di entrata" }],
+              entries: [], exits: [],
+            } as unknown as import("@/lib/calculator").DailyStats)
+          : null,
+    );
+    const c = classifications.get(6)!;
+    expect(c.isReportRed).toBe(false);
+    expect(c.isReportYellow).toBe(true);
   });
 });

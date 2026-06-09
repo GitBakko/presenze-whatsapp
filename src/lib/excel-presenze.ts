@@ -312,14 +312,17 @@ export async function generatePresenzeXlsx(
           cellO.value = null;
           cellFP.value = null;
         }
-        // Colore cella: deriva da DayClassification (single source of truth,
-        // stessa logica del report e della pagina di revisione).
+        // Colore cella: deriva da DayClassification.isReportRed/isReportYellow
+        // (HOURS-ONLY, anomaly-blind) — byte-identico alla regola inline legacy
+        // (totale vs ore pianificate). Le anomalie NON cambiano il colore del
+        // report emailato; isRed/isYellow (anomaly-aware) restano per la pagina
+        // di revisione.
         const cls = emp.classifications.get(d);
-        if (cls?.isRed) {
+        if (cls?.isReportRed) {
           const redFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFF0000" } };
           cellO.fill = redFill;
           cellFP.fill = redFill;
-        } else if (cls?.isYellow) {
+        } else if (cls?.isReportYellow) {
           const yellowFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
           cellO.fill = yellowFill;
           cellFP.fill = yellowFill;

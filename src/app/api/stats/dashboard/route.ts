@@ -8,6 +8,7 @@ import {
 } from "@/lib/calculator";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { computeLeaveBalanceFromData } from "@/lib/leaves";
+import { isActiveOn } from "@/lib/employees/active";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
 import { getDayOfWeek, hmToMinutes } from "@/lib/date-utils";
 import { todayRome } from "@/lib/tz";
@@ -202,7 +203,9 @@ export async function GET(request: NextRequest) {
   const currentStats = calcStats(currentRecords);
   const prevStats = calcStats(prevRecords);
 
-  const totalEmployees = allEmployees.length;
+  // Dipendenti attivi OGGI (per conteggi live; lo storico usa isActiveOn per-periodo).
+  const activeTodayEmployees = allEmployees.filter((e) => isActiveOn(e, today));
+  const totalEmployees = activeTodayEmployees.length;
 
   // ── SEZIONE A — Riepilogo Oggi ─────────────────────────────────────
   const todayLeaveMap = new Map<string, string>();
@@ -303,7 +306,7 @@ export async function GET(request: NextRequest) {
   }
 
   // ── SEZIONE D — Dipendenti oggi ────────────────────────────────────
-  const employeesToday: EmployeeTodayStatus[] = allEmployees.map((emp) => {
+  const employeesToday: EmployeeTodayStatus[] = activeTodayEmployees.map((emp) => {
     // Se oggi è non lavorativo, tutti hanno status "nonWorking"
     if (isNonWorkingToday) {
       return {
@@ -644,7 +647,7 @@ export async function GET(request: NextRequest) {
 async function computeOreChart(
   months: number,
   scheduleMap: Map<string, Map<number, EmployeeScheduleDay>>,
-  allEmployees: { id: string; contractType: string }[],
+  allEmployees: { id: string; contractType: string; hireDate: Date | null; terminationDate: Date | null }[],
   dismissedSet: Set<string>,
   filterEmployeeId?: string | null,
 ): Promise<OreChartPoint[]> {
@@ -686,9 +689,13 @@ async function computeOreChart(
     const lastDay = new Date(y, m, 0).getDate();
     const ymKey = `${y}-${String(m).padStart(2, "0")}`;
 
-    // Ore contratto: somma delle ore giornaliere di ogni dipendente per i giorni lavorativi del mese
+    // Ore contratto: somma delle ore giornaliere di ogni dipendente per i giorni lavorativi del mese.
+    // Esclude chi non e' attivo a fine mese (assunto dopo / cessato prima) cosi' i mesi
+    // post-cessazione non gonfiano il denominatore delle ore contratto.
+    const monthEnd = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
     let contratto = 0;
     for (const emp of allEmployees) {
+      if (!isActiveOn(emp, monthEnd)) continue;
       const empSched = scheduleMap.get(emp.id);
       for (let day = 1; day <= lastDay; day++) {
         const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;

@@ -54,8 +54,13 @@ export async function GET(
     rolCarryOver: balance?.rolCarryOver ?? 0,
     vacationAccrualAdjust: balance?.vacationAccrualAdjust ?? 0,
     rolAccrualAdjust: balance?.rolAccrualAdjust ?? 0,
-    terminationDate: employee.terminationDate ? todayRome(employee.terminationDate) : null,
-    terminationReason: employee.terminationReason,
+    // Info cessazione = dato interno admin (il motivo contiene una nota libera
+    // disciplinare). MAI esporlo all'auto-visualizzazione del dipendente.
+    terminationDate:
+      authResult.role === "ADMIN" && employee.terminationDate
+        ? todayRome(employee.terminationDate)
+        : null,
+    terminationReason: authResult.role === "ADMIN" ? employee.terminationReason : null,
   });
 }
 

@@ -17,7 +17,7 @@ import ExcelJS from "exceljs";
 import { isNonWorkingDay } from "./holidays-it";
 import { prisma } from "./db";
 import { getDayOfWeek } from "./date-utils";
-import { activeOnWhere, isActiveOn } from "@/lib/employees/active";
+import { activeInRangeWhere, isActiveOn } from "@/lib/employees/active";
 import {
   calculateDailyStats,
   type DailyRecord,
@@ -458,7 +458,9 @@ export async function buildPresenzeMonthData(
 
   // ── 1. Employees (tutti, anche quelli senza record nel mese) ─────
   const employees = await prisma.employee.findMany({
-    where: activeOnWhere(to), // attivi nel mese: esclude chi e' cessato prima del mese
+    // Attivi in QUALSIASI giorno del mese: include assunti/cessati infra-mese
+    // (i loro giorni fuori finestra sono neutralizzati per-giorno da classifyDay).
+    where: activeInRangeWhere(from, to),
     select: {
       id: true,
       name: true,

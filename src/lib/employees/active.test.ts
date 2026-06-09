@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isActiveOn, activeOnWhere } from "./active";
+import { isActiveOn, activeOnWhere, activeInRangeWhere } from "./active";
 
 // Dates are stored at UTC midnight (new Date("YYYY-MM-DD")), same as hireDate.
 const d = (iso: string) => new Date(iso);
@@ -54,5 +54,43 @@ describe("activeOnWhere", () => {
         { OR: [{ terminationDate: null }, { terminationDate: { gte: new Date("2026-06-09T00:00:00.000Z") } }] },
       ],
     });
+  });
+});
+
+describe("activeInRangeWhere", () => {
+  it("builds hireDate<=rangeEnd AND terminationDate>=rangeStart", () => {
+    expect(activeInRangeWhere("2026-06-01", "2026-06-30")).toEqual({
+      AND: [
+        { OR: [{ hireDate: null }, { hireDate: { lte: new Date("2026-06-30T23:59:59.999Z") } }] },
+        { OR: [{ terminationDate: null }, { terminationDate: { gte: new Date("2026-06-01T00:00:00.000Z") } }] },
+      ],
+    });
+  });
+
+  // Evaluate the declarative where against sample employees to prove the
+  // range-OVERLAP semantics (active on ANY day in the period).
+  function matchesRange(
+    emp: { hireDate: Date | null; terminationDate: Date | null },
+    fromIso: string,
+    toIso: string,
+  ): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [hireGroup, termGroup] = (activeInRangeWhere(fromIso, toIso) as any).AND;
+    const hireOk = emp.hireDate === null || emp.hireDate <= hireGroup.OR[1].hireDate.lte;
+    const termOk = emp.terminationDate === null || emp.terminationDate >= termGroup.OR[1].terminationDate.gte;
+    return hireOk && termOk;
+  }
+
+  it("includes a mid-month leaver (the bug fix): terminated 2026-06-15 still in June", () => {
+    expect(matchesRange({ hireDate: d("2024-01-01"), terminationDate: d("2026-06-15") }, "2026-06-01", "2026-06-30")).toBe(true);
+  });
+  it("includes a mid-month hire: hired 2026-06-20 still in June", () => {
+    expect(matchesRange({ hireDate: d("2026-06-20"), terminationDate: null }, "2026-06-01", "2026-06-30")).toBe(true);
+  });
+  it("excludes an employee terminated before the month start", () => {
+    expect(matchesRange({ hireDate: d("2024-01-01"), terminationDate: d("2026-05-31") }, "2026-06-01", "2026-06-30")).toBe(false);
+  });
+  it("excludes an employee hired after the month end", () => {
+    expect(matchesRange({ hireDate: d("2026-07-01"), terminationDate: null }, "2026-06-01", "2026-06-30")).toBe(false);
   });
 });

@@ -689,16 +689,16 @@ async function computeOreChart(
     const lastDay = new Date(y, m, 0).getDate();
     const ymKey = `${y}-${String(m).padStart(2, "0")}`;
 
-    // Ore contratto: somma delle ore giornaliere di ogni dipendente per i giorni lavorativi del mese.
-    // Esclude chi non e' attivo a fine mese (assunto dopo / cessato prima) cosi' i mesi
-    // post-cessazione non gonfiano il denominatore delle ore contratto.
-    const monthEnd = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    // Ore contratto: somma delle ore giornaliere di ogni dipendente per i giorni
+    // lavorativi del mese, contando SOLO i giorni in cui il dipendente era attivo.
+    // Il gate e' PER-GIORNO (non per-dipendente a fine mese): assunzione/cessazione
+    // infra-mese vengono pro-rata, simmetrico al lato ore lavorate.
     let contratto = 0;
     for (const emp of allEmployees) {
-      if (!isActiveOn(emp, monthEnd)) continue;
       const empSched = scheduleMap.get(emp.id);
       for (let day = 1; day <= lastDay; day++) {
         const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        if (!isActiveOn(emp, dateStr)) continue;
         if (isNonWorkingDay(dateStr)) continue;
         const dow = getDayOfWeek(dateStr);
         const sched = empSched?.get(dow);

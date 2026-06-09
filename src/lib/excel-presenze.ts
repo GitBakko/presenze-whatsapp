@@ -17,12 +17,14 @@ import ExcelJS from "exceljs";
 import { isNonWorkingDay } from "./holidays-it";
 import { prisma } from "./db";
 import { getDayOfWeek } from "./date-utils";
-import { activeOnWhere } from "@/lib/employees/active";
+import { activeOnWhere, isActiveOn } from "@/lib/employees/active";
 import {
   calculateDailyStats,
   type DailyRecord,
+  type DailyStats,
   type EmployeeScheduleDay,
 } from "./calculator";
+import { classifyDay, type DayClassification } from "./presenze/classify";
 
 // ── Dati di input ────────────────────────────────────────────────────
 
@@ -32,11 +34,14 @@ export interface PresenzeDayData {
 }
 
 export interface PresenzeEmployeeData {
+  employeeId: string; // stable Employee.id (for the review day-editor; xlsx ignores it)
   displayName: string; // "COGNOME NOME" (gia' uppercase)
   contractType: string; // "FULL_TIME" | "PART_TIME"
   days: Map<number, PresenzeDayData>; // giorno 1-31 → dati
   straordinari: number; // ore straordinari del mese, arrotondate ai 15 min
   scheduledHoursPerDay: Map<number, number>; // giorno 1-31 → ore pianificate dallo schedule
+  /** Canonical classification per day-of-month (1-31). Drives cell color + review UI. */
+  classifications: Map<number, DayClassification>;
 }
 
 export interface PresenzeMonthData {
@@ -307,20 +312,17 @@ export async function generatePresenzeXlsx(
           cellO.value = null;
           cellFP.value = null;
         }
-        // Colore cella: usa le ore pianificate per quel giorno specifico.
-        const scheduledHoursDay = emp.scheduledHoursPerDay.get(d) ?? 0;
-        if (scheduledHoursDay > 0) {
-          const dayData2 = emp.days.get(d);
-          const totale = (dayData2?.oreOrdinario ?? 0) + (dayData2?.oreFuoriSede ?? 0);
-          if (totale < scheduledHoursDay) {
-            const redFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFF0000" } };
-            cellO.fill = redFill;
-            cellFP.fill = redFill;
-          } else if (totale > scheduledHoursDay) {
-            const yellowFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
-            cellO.fill = yellowFill;
-            cellFP.fill = yellowFill;
-          }
+        // Colore cella: deriva da DayClassification (single source of truth,
+        // stessa logica del report e della pagina di revisione).
+        const cls = emp.classifications.get(d);
+        if (cls?.isRed) {
+          const redFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFF0000" } };
+          cellO.fill = redFill;
+          cellFP.fill = redFill;
+        } else if (cls?.isYellow) {
+          const yellowFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
+          cellO.fill = yellowFill;
+          cellFP.fill = yellowFill;
         }
       }
     }
@@ -369,6 +371,72 @@ export const HALF_DAY_LEAVE_TYPES = new Set([
   "VACATION_HALF_PM",
 ]);
 
+/**
+ * Build the per-day DayClassification map for a finished PresenzeEmployeeData.
+ * Pure given (emp, year, month, isActiveOnDay, statsForDay). `effectiveHours`
+ * is derived from the same O + F/P values the xlsx prints (totale), so colors
+ * stay byte-identical to the legacy inline rule.
+ *
+ * @param isActiveOnDay (dateStr) => boolean — Feature 2 isActiveOn closure.
+ * @param statsForDay   (d) => DailyStats | null — real stats (for anomalies),
+ *                      optional; defaults to null (no anomalies, hours from O+F/P).
+ */
+export function classifyEmployeeDays(
+  emp: PresenzeEmployeeData,
+  year: number,
+  month: number,
+  isActiveOnDay: (dateStr: string) => boolean,
+  statsForDay?: (d: number) => DailyStats | null,
+): Map<number, DayClassification> {
+  const monthStr = String(month).padStart(2, "0");
+  const nDays = new Date(year, month, 0).getDate();
+  const out = new Map<number, DayClassification>();
+  for (let d = 1; d <= nDays; d++) {
+    const dateStr = `${year}-${monthStr}-${String(d).padStart(2, "0")}`;
+    const scheduledHours = emp.scheduledHoursPerDay.get(d) ?? 0;
+    const dayData = emp.days.get(d);
+    const oreOrdinario = dayData?.oreOrdinario ?? 0;
+    const oreFuoriSede = dayData?.oreFuoriSede ?? 0;
+    // F/P column carries leave (and fuori-sede) hours; treat it as leaveHours so
+    // effectiveHours = totale, matching the printed cell value exactly.
+    const leaveHours = oreFuoriSede;
+    // BYTE-IDENTITY: the COLOR decision MUST use the PRINTED hours
+    // (oreOrdinario + oreFuoriSede = totale), NOT the raw stats.hoursWorked.
+    // stats.hoursWorked is un-rounded/un-capped and would drift from the printed
+    // cell at roundHalf / hourly-leave-cap boundaries, silently changing report
+    // colors. So we always feed classifyDay hoursWorked = oreOrdinario and only
+    // BORROW anomalies/entries from the real stats (for the issue panel).
+    const realStats = statsForDay ? statsForDay(d) : null;
+    const dailyStats: DailyStats | null =
+      realStats || oreOrdinario > 0
+        ? ({
+            employeeId: realStats?.employeeId ?? "",
+            employeeName: realStats?.employeeName ?? "",
+            date: dateStr,
+            hoursWorked: oreOrdinario, // PRINTED value → effectiveHours === totale
+            hoursWorkedMsg: 0, pauseMinutes: 0, pauses: [],
+            morningDelay: 0, afternoonDelay: 0, overtime: 0, overtimeBlocks: [],
+            hasAnomaly: (realStats?.anomalies.length ?? 0) > 0,
+            anomalies: realStats?.anomalies ?? [],
+            entries: realStats?.entries ?? [],
+            exits: realStats?.exits ?? [],
+          } as DailyStats)
+        : null;
+    out.set(
+      d,
+      classifyDay({
+        date: dateStr,
+        scheduledHours,
+        dailyStats,
+        leaveHours,
+        isNonWorkingDay: isNonWorkingDay(dateStr),
+        isActiveOnDay: isActiveOnDay(dateStr),
+      }),
+    );
+  }
+  return out;
+}
+
 // ── Builder dati presenze ─────────────────────────────────────────────
 
 /**
@@ -388,7 +456,14 @@ export async function buildPresenzeMonthData(
   // ── 1. Employees (tutti, anche quelli senza record nel mese) ─────
   const employees = await prisma.employee.findMany({
     where: activeOnWhere(to), // attivi nel mese: esclude chi e' cessato prima del mese
-    select: { id: true, name: true, displayName: true, contractType: true },
+    select: {
+      id: true,
+      name: true,
+      displayName: true,
+      contractType: true,
+      hireDate: true, // per isActiveOn(emp, dateStr) nella classificazione per-giorno
+      terminationDate: true,
+    },
     orderBy: { name: "asc" },
   });
 
@@ -459,13 +534,15 @@ export async function buildPresenzeMonthData(
     });
   }
 
-  // Calcola hoursWorked per ogni (employee, date) che abbia record
+  // Calcola DailyStats per ogni (employee, date) che abbia record
   const hoursMap = new Map<string, number>(); // "employeeId|YYYY-MM-DD" → hoursWorked
+  const statsMap = new Map<string, DailyStats>(); // "employeeId|YYYY-MM-DD" → stats
   for (const dr of grouped.values()) {
     const dayOfWeek = getDayOfWeek(dr.date);
     const empSchedule = scheduleMap.get(dr.employeeId)?.get(dayOfWeek) ?? null;
     const stats = calculateDailyStats(dr, empSchedule);
     hoursMap.set(`${dr.employeeId}|${dr.date}`, stats.hoursWorked);
+    statsMap.set(`${dr.employeeId}|${dr.date}`, stats);
   }
 
   // ── 6. Build PresenzeEmployeeData per ogni employee ──────────────
@@ -534,12 +611,33 @@ export async function buildPresenzeMonthData(
       }
     }
 
+    const classifications = classifyEmployeeDays(
+      {
+        employeeId: emp.id,
+        displayName: (emp.displayName || emp.name).toUpperCase(),
+        contractType: emp.contractType,
+        days,
+        straordinari: roundQuarter(overtimeTotal),
+        scheduledHoursPerDay,
+        classifications: new Map(),
+      },
+      year,
+      month,
+      (dateStr) => isActiveOn(emp, dateStr),
+      (d) => {
+        const dateStr = `${yearStr}-${monthStr}-${String(d).padStart(2, "0")}`;
+        return statsMap.get(`${emp.id}|${dateStr}`) ?? null;
+      },
+    );
+
     presenzeEmployees.push({
+      employeeId: emp.id,
       displayName: (emp.displayName || emp.name).toUpperCase(),
       contractType: emp.contractType,
       days,
       straordinari: roundQuarter(overtimeTotal),
       scheduledHoursPerDay,
+      classifications,
     });
   }
 

@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import type { DailyStats } from "./calculator";
 import { getLeaveForDate } from "./leaves";
-import { todayRome } from "./tz";
+import { isTerminatedOnDate } from "./employees/termination";
 
 /**
  * Check if an employee's date is fully covered by leave (skip all anomalies)
@@ -14,15 +14,6 @@ async function isFullDayLeave(employeeId: string, date: string): Promise<boolean
     return leave.type !== "VACATION_HALF_AM" && leave.type !== "VACATION_HALF_PM";
   }
   return false;
-}
-
-/**
- * Pure: suppress new anomalies (and stale-cleanup) for days strictly after
- * the employee's inclusive termination date. termDate at UTC midnight.
- */
-export function shouldSuppressAnomaly(termDate: Date | null, date: string): boolean {
-  if (!termDate) return false;
-  return date > todayRome(termDate);
 }
 
 /**
@@ -58,7 +49,7 @@ export async function syncAnomalies(
   for (const ds of dailyStats) {
     // Skip post-termination days entirely: do NOT create anomalies and do
     // NOT add to processedKeys (so the stale-cleanup pass leaves them alone).
-    if (shouldSuppressAnomaly(terminationByEmp.get(ds.employeeId) ?? null, ds.date)) {
+    if (isTerminatedOnDate(terminationByEmp.get(ds.employeeId) ?? null, ds.date)) {
       continue;
     }
 

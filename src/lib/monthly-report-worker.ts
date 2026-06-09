@@ -2,6 +2,9 @@ import { prisma } from "./db";
 import { sendMail } from "./mail-send";
 import { monthlyReportEmail } from "./mail-templates";
 import { buildPresenzeMonthData, generatePresenzeXlsx, presenzeFilename } from "./excel-presenze";
+import { flattenIssues } from "./presenze/issues";
+import { shouldWarnPreSend } from "./presenze/pre-send-warning";
+import { notificationsBus } from "./notifications-bus";
 import { logger } from "./logger";
 import { recordRunning, recordTick, setStartedAt } from "./worker-metrics";
 
@@ -87,6 +90,52 @@ async function runCheck(): Promise<void> {
     const dayStr = await getSetting("monthlyReportDay");
     const day = dayStr ? parseInt(dayStr, 10) : 5;
     const now = new Date();
+
+    // Pre-send heads-up: a few days before reportDay, warn if red issues remain.
+    const WARN_LEAD_DAYS = 2;
+    const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+    const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const reportMonthStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+    const lastSentForWarn = await getSetting("lastReportSent");
+    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    try {
+      const monthData = await buildPresenzeMonthData(prevYear, prevMonth);
+      const reviewEmployees = monthData.employees.map((emp) => {
+        const days = [];
+        const nDays = new Date(prevYear, prevMonth, 0).getDate();
+        for (let d = 1; d <= nDays; d++) {
+          const c = emp.classifications.get(d);
+          if (c) days.push(c);
+        }
+        return { employeeId: emp.employeeId, name: emp.displayName, displayName: emp.displayName, days, overtimeTotal: emp.straordinari };
+      });
+      const redIssueCount = flattenIssues(reviewEmployees).filter((i) => i.severity === "red").length;
+      if (
+        shouldWarnPreSend({
+          today: now.getDate(),
+          reportDay: day,
+          warnLeadDays: WARN_LEAD_DAYS,
+          alreadySent: lastSentForWarn === currentYM,
+          redIssueCount,
+        })
+      ) {
+        const warnedKey = `presenzeReviewWarned-${reportMonthStr}`;
+        if ((await getSetting(warnedKey)) !== "true") {
+          notificationsBus.publish({
+            employeeId: "",
+            employeeName: "Revisione Presenze",
+            action: "ANOMALY_RESOLVED",
+            time: "",
+            date: `${reportMonthStr}-01`,
+            details: { recordType: "PRESENZE_REVIEW_WARNING" },
+          });
+          await setSetting(warnedKey, "true");
+          logger.warn({ worker: WORKER, reportMonthStr, redIssueCount }, "pre-send heads-up: red issues remain");
+        }
+      }
+    } catch (err) {
+      logger.error({ worker: WORKER, err: String(err) }, "pre-send heads-up check failed");
+    }
 
     if (now.getDate() !== day) {
       recordTick(WORKER, { ok: true, durationMs: Date.now() - started });

@@ -4,8 +4,13 @@ vi.mock("@/lib/auth", () => ({
   auth: (handler: (req: { auth: unknown; nextUrl: URL; method: string; headers: Headers; url: string }) => unknown) => handler,
 }));
 
-// Re-import after mock so middleware uses the mocked auth wrapper
-const { default: middleware } = await import("./middleware");
+// Re-import after mock so middleware uses the mocked auth wrapper.
+// The real export is typed as a 2-arg NextAuth middleware (req, event); under
+// the mocked `auth` (handler => handler) it is a 1-arg handler at runtime. Cast
+// to the runtime shape so the single-arg test calls typecheck under tsc --noEmit
+// (CI) exactly as they already pass at runtime under vitest.
+const { default: middlewareImpl } = await import("./middleware");
+const middleware = middlewareImpl as unknown as (req: unknown) => Promise<Response>;
 
 function mkReq(opts: {
   method: string;

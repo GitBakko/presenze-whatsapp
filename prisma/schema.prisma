@@ -21,6 +21,7 @@ model User {
   anomalies      Anomaly[]      @relation("ResolvedBy")
   approvedLeaves LeaveRequest[] @relation("ApprovedLeaves")
   leaveEdits     LeaveRequestEdit[] @relation("UserLeaveEdits")
+  recordEdits    AttendanceRecordEdit[] @relation("UserRecordEdits")
   payrollImports PayrollImport[] @relation("PayrollImports")
   employee       Employee?      @relation("UserEmployee", fields: [employeeId], references: [id])
   terminatedEmployees Employee[] @relation("EmployeeTerminatedBy")
@@ -305,5 +306,35 @@ model LeaveRequestEdit {
   editedBy User         @relation("UserLeaveEdits", fields: [editedById], references: [id])
 
   @@index([leaveId, editedAt])
+  @@index([editedById])
+}
+
+model AttendanceRecordEdit {
+  id          String   @id @default(cuid())
+  recordId    String?           // null if the record was deleted
+  employeeId  String
+  date        String            // YYYY-MM-DD, for range queries
+  editedById  String
+  editedAt    DateTime @default(now())
+  action      String            // CREATE | UPDATE | DELETE
+
+  // Snapshot pre-edit (only watched fields)
+  oldType         String?
+  oldDeclaredTime String?
+  oldDate         String?
+
+  // Snapshot post-edit
+  newType         String?
+  newDeclaredTime String?
+  newDate         String?
+
+  reason        String?         // optional free text from the review UI
+  source        String          // "REVIEW" | "RECORDS" | "ANOMALY_RESOLUTION"
+  changedFields String          @default("[]") // JSON array, denormalized
+
+  editedBy User @relation("UserRecordEdits", fields: [editedById], references: [id])
+
+  @@index([employeeId, date])
+  @@index([recordId])
   @@index([editedById])
 }

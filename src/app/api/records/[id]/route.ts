@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAuth } from "@/lib/auth-guard";
 import { notificationsBus } from "@/lib/notifications-bus";
-import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from "@/lib/calculator";
-import { syncAnomalies } from "@/lib/anomaly-sync";
+import { auth } from "@/lib/auth";
+import { recomputeAnomaliesForDates, computeRecordDiff } from "@/lib/attendance/recompute";
 
 export async function PUT(
   request: NextRequest,
@@ -76,6 +76,30 @@ export async function PUT(
     include: { employee: true },
   });
 
+  const session = await auth();
+  const editorId = session?.user?.id ?? null;
+  if (editorId) {
+    const diff = computeRecordDiff(
+      { type: original.type, declaredTime: original.declaredTime, date: original.date },
+      { type: record.type, declaredTime: record.declaredTime, date: record.date },
+    );
+    if (diff.changedFields.length > 0) {
+      await prisma.attendanceRecordEdit.create({
+        data: {
+          recordId: record.id,
+          employeeId: record.employeeId,
+          date: record.date,
+          editedById: editorId,
+          action: "UPDATE",
+          oldType: original.type, oldDeclaredTime: original.declaredTime, oldDate: original.date,
+          newType: record.type, newDeclaredTime: record.declaredTime, newDate: record.date,
+          source: "RECORDS",
+          changedFields: JSON.stringify(diff.changedFields),
+        },
+      });
+    }
+  }
+
   try {
     notificationsBus.publish({
       employeeId: record.employeeId,
@@ -93,83 +117,16 @@ export async function PUT(
   const datesToSync =
     original.date === record.date ? [record.date] : [original.date, record.date];
   try {
-    await resyncAnomaliesForDates(
+    await recomputeAnomaliesForDates(
       original.employeeId,
       original.employee.displayName || original.employee.name,
-      datesToSync
+      datesToSync,
     );
   } catch (err) {
     console.error("[records/PUT] anomaly sync failed:", err);
   }
 
   return NextResponse.json(record);
-}
-
-/**
- * Recalculates anomalies for the given employee on the given dates.
- * Stale unresolved anomalies are marked as resolved with an automatic note.
- */
-async function resyncAnomaliesForDates(
-  employeeId: string,
-  employeeName: string,
-  dates: string[]
-): Promise<void> {
-  const sorted = [...dates].sort();
-  const minDate = sorted[0];
-  const maxDate = sorted[sorted.length - 1];
-
-  const attendanceRecords = await prisma.attendanceRecord.findMany({
-    where: { employeeId, date: { gte: minDate, lte: maxDate } },
-    include: { employee: true },
-    orderBy: [{ date: "asc" }, { declaredTime: "asc" }],
-  });
-
-  const schedules = await prisma.employeeSchedule.findMany({ where: { employeeId } });
-
-  const empScheduleMap = new Map<number, EmployeeScheduleDay>();
-  for (const s of schedules) {
-    empScheduleMap.set(s.dayOfWeek, {
-      block1Start: s.block1Start,
-      block1End: s.block1End,
-      block2Start: s.block2Start,
-      block2End: s.block2End,
-    });
-  }
-
-  // Group records by date
-  const grouped = new Map<string, DailyRecord>();
-  for (const r of attendanceRecords) {
-    if (!grouped.has(r.date)) {
-      grouped.set(r.date, {
-        employeeId: r.employeeId,
-        employeeName: r.employee.displayName || r.employee.name,
-        date: r.date,
-        records: [],
-      });
-    }
-    grouped.get(r.date)!.records.push({
-      type: r.type as DailyRecord["records"][0]["type"],
-      declaredTime: r.declaredTime,
-      messageTime: r.messageTime,
-    });
-  }
-
-  // Ensure every requested date is represented (even if it now has 0 records)
-  for (const date of dates) {
-    if (!grouped.has(date)) {
-      grouped.set(date, { employeeId, employeeName, date, records: [] });
-    }
-  }
-
-  const dailyStats = Array.from(grouped.values()).map((dr) => {
-    const [y, m, d] = dr.date.split("-").map(Number);
-    const dow = new Date(y, m - 1, d).getDay();
-    const dayOfWeek = dow === 0 ? 7 : dow;
-    const schedule = empScheduleMap.get(dayOfWeek) ?? null;
-    return calculateDailyStats(dr, schedule);
-  });
-
-  await syncAnomalies(dailyStats, { resolveNote: "Risolta automaticamente da modifica timbratura" });
 }
 
 export async function DELETE(
@@ -200,6 +157,36 @@ export async function DELETE(
       });
     } catch (err) {
       console.error("[records/DELETE] bus publish failed:", err);
+    }
+
+    const session = await auth();
+    const editorId = session?.user?.id ?? null;
+    if (editorId) {
+      try {
+        await prisma.attendanceRecordEdit.create({
+          data: {
+            recordId: null,
+            employeeId: existing.employeeId,
+            date: existing.date,
+            editedById: editorId,
+            action: "DELETE",
+            oldType: existing.type, oldDeclaredTime: existing.declaredTime, oldDate: existing.date,
+            source: "RECORDS",
+            changedFields: JSON.stringify(["type", "declaredTime", "date"]),
+          },
+        });
+      } catch (err) {
+        console.error("[records/DELETE] audit write failed:", err);
+      }
+    }
+    try {
+      await recomputeAnomaliesForDates(
+        existing.employeeId,
+        existing.employee.displayName || existing.employee.name,
+        [existing.date],
+      );
+    } catch (err) {
+      console.error("[records/DELETE] anomaly sync failed:", err);
     }
   }
 

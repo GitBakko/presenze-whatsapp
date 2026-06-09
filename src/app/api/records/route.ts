@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAuth, checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { notificationsBus } from "@/lib/notifications-bus";
+import { auth } from "@/lib/auth";
+import { recomputeAnomaliesForDates } from "@/lib/attendance/recompute";
 
 export async function GET(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -140,6 +142,32 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("[records/POST] bus publish failed:", err);
+  }
+
+  const session = await auth();
+  const editorId = session?.user?.id ?? null;
+  if (editorId) {
+    try {
+      await prisma.attendanceRecordEdit.create({
+        data: {
+          recordId: record.id,
+          employeeId,
+          date,
+          editedById: editorId,
+          action: "CREATE",
+          newType: type, newDeclaredTime: declaredTime, newDate: date,
+          source: "RECORDS",
+          changedFields: JSON.stringify(["type", "declaredTime", "date"]),
+        },
+      });
+    } catch (err) {
+      console.error("[records/POST] audit write failed:", err);
+    }
+  }
+  try {
+    await recomputeAnomaliesForDates(employeeId, employee.displayName || employee.name, [date]);
+  } catch (err) {
+    console.error("[records/POST] anomaly sync failed:", err);
   }
 
   return NextResponse.json(record, { status: 201 });

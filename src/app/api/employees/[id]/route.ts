@@ -54,6 +54,8 @@ export async function GET(
     rolCarryOver: balance?.rolCarryOver ?? 0,
     vacationAccrualAdjust: balance?.vacationAccrualAdjust ?? 0,
     rolAccrualAdjust: balance?.rolAccrualAdjust ?? 0,
+    terminationDate: employee.terminationDate ? todayRome(employee.terminationDate) : null,
+    terminationReason: employee.terminationReason,
   });
 }
 

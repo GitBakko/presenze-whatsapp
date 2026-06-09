@@ -572,18 +572,12 @@ export default function EmployeeDetailPage() {
                               onClick={async () => {
                                 const ok = await confirm({
                                   title: "Elimina registrazione",
-                                  message: "Eliminare questa registrazione?",
+                                  message: "Eliminare questa registrazione? Verrà rimossa al salvataggio.",
                                   confirmLabel: "Elimina",
                                   danger: true,
                                 });
                                 if (!ok) return;
-                                const res = await fetch(`/api/records/${rec.id}`, { method: "DELETE" });
-                                if (res.ok) {
-                                  toast.success("Registrazione eliminata");
-                                  setEditingRecords(editingRecords.filter((_, j) => j !== i));
-                                } else {
-                                  toast.error("Errore nella cancellazione");
-                                }
+                                setEditingRecords(editingRecords.filter((_, j) => j !== i));
                               }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -598,15 +592,24 @@ export default function EmployeeDetailPage() {
                           onClick={async () => {
                             setSavingRecords(true);
                             try {
-                              await Promise.all(
-                                editingRecords.map((rec) =>
-                                  fetch(`/api/records/${rec.id}`, {
-                                    method: "PUT",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ type: rec.type, declaredTime: rec.declaredTime }),
-                                  })
-                                )
-                              );
+                              const res = await fetch("/api/presenze/review/day", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  employeeId: selectedDay.employeeId,
+                                  date: selectedDay.date,
+                                  records: editingRecords.map((rec) => ({
+                                    ...(rec.id.startsWith("new-") ? {} : { id: rec.id }),
+                                    type: rec.type,
+                                    declaredTime: rec.declaredTime,
+                                  })),
+                                }),
+                              });
+                              if (!res.ok) {
+                                const e = await res.json().catch(() => ({}));
+                                toast.error(e.error || "Errore nel salvataggio");
+                                return;
+                              }
                               toast.success("Modifiche salvate");
                               setEditingRecords(null);
                               load();
@@ -628,20 +631,10 @@ export default function EmployeeDetailPage() {
                         <button
                           className="flex items-center gap-1.5 rounded-lg border border-dashed border-outline-variant px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors ml-auto"
                           onClick={() => {
-                            fetch("/api/records", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                employeeId: selectedDay.employeeId,
-                                date: selectedDay.date,
-                                type: "ENTRY",
-                                declaredTime: "09:00",
-                              }),
-                            })
-                              .then((r) => r.json())
-                              .then((newRec) => {
-                                setEditingRecords([...editingRecords, { id: newRec.id, type: newRec.type, declaredTime: newRec.declaredTime }]);
-                              });
+                            setEditingRecords([
+                              ...editingRecords,
+                              { id: `new-${Date.now()}`, type: "ENTRY", declaredTime: "09:00" },
+                            ]);
                           }}
                         >
                           <Plus className="h-3.5 w-3.5" /> Aggiungi

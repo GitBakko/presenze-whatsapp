@@ -1,3 +1,65 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+**Presenze WhatsApp** — an Italian SME attendance/HR system. Employees clock in/out via WhatsApp group messages (`Entrata 09:00`, `Uscita 18:30`, `Pausa 13:00 - 14:00`); the app parses the chat export, computes worked hours / delays / overtime, detects anomalies, and manages leave (ferie/ROL/malattia per **CCNL Commercio**). Attendance also arrives via NFC kiosk, Telegram bot, manual entry, and an email-to-leaves ingest. UI and most domain strings are **Italian**.
+
+Single-tenant, runs on a **single LAN Windows Server behind IIS** (ARR reverse proxy). Not serverless — in-process singletons and background workers are load-bearing (see Gotchas).
+
+## Commands
+
+```bash
+npm run dev          # dev server (Turbopack)
+npm run build        # production build → .next/standalone/ (output: "standalone")
+npm start            # run production server
+npm run lint         # eslint src/
+npm test             # vitest run (one-shot)
+npm run test:watch   # vitest watch
+npx vitest run src/lib/calculator.test.ts   # single test file
+npx vitest run -t "overtime"                 # single test by name
+npm run db:push      # sync Prisma schema → SQLite (see Gotchas: NO migrations)
+npm run db:studio    # Prisma Studio GUI
+npm run db:generate  # regenerate Prisma Client (run after editing schema.prisma)
+```
+
+Always run `npm run build && npm test` before committing.
+
+## Gotchas (non-obvious, read before editing)
+
+- **Schema changes use `npm run db:push`, NOT `prisma migrate`.** There is no `migrations/` dir; the SQLite DB is synced by push. After editing `prisma/schema.prisma`, run `db:generate`.
+- **In-process singletons MUST be anchored on `globalThis`** (see `src/lib/db.ts`, `src/lib/notifications-bus.ts`). Next.js standalone splits modules across chunks → module-scoped state silently duplicates. Never hold shared registries/caches/buses in module scope.
+- **Background workers boot from `src/instrumentation.ts`** (`register()`, nodejs runtime only): mail-ingest poller (Graph API), WebSocket notification server, monthly-report worker. Adding a server-lifetime worker means wiring it here.
+- **Real-time notifications run over a dedicated WebSocket port** (`WS_PORT`, default 3101), not SSE — IIS/ARR buffers SSE. `notifications-bus.ts` is an in-memory pub/sub + ring buffer (ephemeral; cleared on restart). Employees receive only their own whitelisted self-events; admins receive all.
+- **`LeaveBalance.*Accrued` / `*Used` columns are ignored** — accrual and usage are **recomputed dynamically** from records/leaves at read time (`src/lib/leaves/balance.ts`). Only `*CarryOver` and `*AccrualAdjust` are authoritative manual inputs (payslip realignment).
+- **Pauses are NOT subtracted from worked hours** — `hoursWorked` = full ENTRY→EXIT span (`calculator.ts`). Overtime = worked minutes exceeding the employee's contracted schedule; explicit `OVERTIME_START/END` blocks are informational only.
+- **Times/dates are stored as strings** (`"HH:MM"`, `"YYYY-MM-DD"`), not `DateTime`, to dodge timezone drift. Locale is Europe/Rome; use `tz.ts` / `date-utils.ts` for conversions — don't reach for raw `new Date()` on these.
+- **Import is idempotent** via `AttendanceRecord @@unique([employeeId, date, type, declaredTime])` — re-importing a chat silently skips dupes.
+- **Prod env vars live in NSSM `AppEnvironmentExtra`, not `.env`.** Deploy is delicate (IIS physical-path subdir + `uploads/` must survive a publish). Treat prod actions as high-risk.
+
+## Architecture
+
+**Stack:** Next.js 16 (App Router) · React 19 · TypeScript · Prisma 6 + SQLite · NextAuth v5 (JWT/Credentials) · Tailwind 4 · Recharts · ExcelJS · vitest.
+
+**Request flow / layers:**
+- `src/app/(dashboard)/**` — protected admin UI (route group). `src/app/api/**` — API routes.
+- `src/middleware.ts` — gates everything to *logged-in + active*; sets the public-route allowlist (login, register, `api/auth`, `api/kiosk`, `api/external`, `api/employee-portal`, `api/telegram/webhook`) and does a same-origin CSRF check (via `X-Forwarded-Host`, behind ARR) on mutating methods.
+- **Authorization is per-route**, not in middleware: `checkAuth()` (admin-only), `checkAuthAny()` (any active user), `resolveEmployeeId()` in `src/lib/auth-guard.ts`.
+- **Two auth schemes:** NextAuth JWT cookie for the UI; SHA-256-hashed API keys for machine access — global `ApiKey` (`Authorization: Bearer`, used by `/api/external` + `/api/kiosk`, see `api-key-auth.ts`) and per-employee `EmployeeApiKey` (`/api/employee-portal`, see `employee-api-key-auth.ts`).
+
+**Domain core (`src/lib/`):**
+- `parser.ts` — WhatsApp `.txt` → structured records (state machine per employee/day: handles `fine`, `Pausa come <name>`, `+N minuti`, time-format variants, excluded names).
+- `calculator.ts` — per-day hours / delays / overtime / anomalies from records + the employee's `EmployeeSchedule`.
+- `anomaly-sync.ts` — reconciles computed anomalies with the `Anomaly` table.
+- `kiosk-classifier.ts` — turns an NFC punch into the right ENTRY/EXIT/PAUSE type from current day state.
+- `leaves/` — barrel module (`balance`, `working-days`, `holidays`, `validation`, `format`, `overlap`, `audit`, `edit-service`); legacy callers import the `src/lib/leaves.ts` shim. Leave edits are audited (`LeaveRequestEdit` snapshots pre/post) and `LeaveRequest.version` is an optimistic lock bumped on every update. `working-days`/`holidays` make accrual & day-counting holiday-aware (Italian holidays).
+- `mail-ingest.ts` / `mail-graph.ts` / `mail-send.ts` — Microsoft Graph email-to-leaves ingest + outbound notifications. `telegram-*.ts` — bot webhook handlers/keyboards. `monthly-report-worker.ts` — scheduled presenze report. `worker-metrics.ts` + `/api/healthz` — observability.
+
+**Data model (`prisma/schema.prisma`):** `Employee` is the hub (records, schedule, leaves, balances, api key, optional `User` account). `AttendanceRecord.type` ∈ ENTRY/EXIT/PAUSE_START/PAUSE_END/OVERTIME_START/OVERTIME_END; `.source` ∈ PARSED/MANUAL/NFC/TELEGRAM. `User.role` ∈ ADMIN/EMPLOYEE, `active` gated by admin. Several `Unrecognized*` tables hold unmatched NFC UIDs / Telegram chats / email senders for admin triage.
+
+---
+
 # Ruflo — Claude Code Configuration
 
 ## Rules

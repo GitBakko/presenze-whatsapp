@@ -29,6 +29,8 @@ interface EmployeeProfile {
   rolCarryOver: number;
   vacationAccrualAdjust: number;
   rolAccrualAdjust: number;
+  terminationDate: string | null;
+  terminationReason: string | null;
 }
 
 export default function EmployeeEditPage() {
@@ -48,6 +50,10 @@ export default function EmployeeEditPage() {
   const [rolCarryOver, setRolCarryOver] = useState("0");
   const [vacationAccrualAdjust, setVacationAccrualAdjust] = useState("0");
   const [rolAccrualAdjust, setRolAccrualAdjust] = useState("0");
+  const [terminationDate, setTerminationDate] = useState("");
+  const [terminationReason, setTerminationReason] = useState<"RESIGNATION" | "DISMISSAL" | "OTHER">("RESIGNATION");
+  const [terminationNote, setTerminationNote] = useState("");
+  const [terminating, setTerminating] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
@@ -164,6 +170,7 @@ export default function EmployeeEditPage() {
         setVacationAccrualAdjust(String(data.vacationAccrualAdjust ?? 0));
         setRolAccrualAdjust(String(data.rolAccrualAdjust ?? 0));
         if (data.avatarUrl) setPreview(data.avatarUrl);
+        setTerminationDate(data.terminationDate ?? new Date().toISOString().slice(0, 10));
       })
       .finally(() => setLoading(false));
     loadApiKeyState();
@@ -212,6 +219,66 @@ export default function EmployeeEditPage() {
       setMessage({ type: "err", text: "Errore di rete" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTerminate = async () => {
+    const ok = await confirm({
+      title: "Termina rapporto",
+      message:
+        "Il dipendente verra' marcato come cessato a partire dalla data scelta (ultimo giorno lavorativo incluso). " +
+        "La tessera NFC e la chat Telegram verranno liberate per riuso. Lo storico resta intatto. Continuare?",
+      confirmLabel: "Termina rapporto",
+      danger: true,
+    });
+    if (!ok) return;
+    setTerminating(true);
+    try {
+      const res = await fetch(`/api/employees/${id}/termination`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          terminationDate,
+          reason: terminationReason,
+          note: terminationNote.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success("Rapporto cessato");
+        if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+          for (const w of data.warnings) toast.warning(w);
+        }
+        router.push("/employees");
+      } else {
+        toast.error(data.error || "Errore nella cessazione");
+      }
+    } finally {
+      setTerminating(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    const ok = await confirm({
+      title: "Riattiva dipendente",
+      message:
+        "Il rapporto verra' riattivato. Tessera NFC e chat Telegram, liberate alla cessazione, vanno riassegnate manualmente. Continuare?",
+      confirmLabel: "Riattiva",
+    });
+    if (!ok) return;
+    setTerminating(true);
+    try {
+      const res = await fetch(`/api/employees/${id}/termination`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Dipendente riattivato");
+        router.refresh();
+        window.location.reload();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Errore nella riattivazione");
+      }
+    } finally {
+      setTerminating(false);
     }
   };
 
@@ -582,6 +649,82 @@ export default function EmployeeEditPage() {
                     Elimina
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Fine rapporto ──────────────────────────────────────── */}
+          <div className="border-t border-surface-container pt-4">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-error">
+              Fine rapporto
+            </h3>
+            {profile.terminationDate ? (
+              <div className="space-y-3">
+                <p className="text-sm text-on-surface-variant">
+                  Cessato il <strong>{formatDateIsoIt(profile.terminationDate)}</strong>
+                  {profile.terminationReason ? ` — ${profile.terminationReason}` : ""}.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleReactivate}
+                  disabled={terminating}
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-container disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Riattiva
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="mb-1 text-xs text-outline-variant">
+                  Marca il dipendente come cessato dalla data scelta. Lo storico resta intatto; tessera NFC e chat Telegram vengono liberate.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                      Data cessazione
+                    </label>
+                    <input
+                      type="date"
+                      value={terminationDate}
+                      onChange={(e) => setTerminationDate(e.target.value)}
+                      className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                      Motivo
+                    </label>
+                    <select
+                      value={terminationReason}
+                      onChange={(e) => setTerminationReason(e.target.value as "RESIGNATION" | "DISMISSAL" | "OTHER")}
+                      className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
+                    >
+                      <option value="RESIGNATION">Dimissioni</option>
+                      <option value="DISMISSAL">Licenziamento</option>
+                      <option value="OTHER">Altro</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-on-surface-variant">
+                    Nota (opzionale)
+                  </label>
+                  <input
+                    type="text"
+                    value={terminationNote}
+                    onChange={(e) => setTerminationNote(e.target.value)}
+                    placeholder="es. trasferimento sede"
+                    className="w-full rounded-lg border-0 border-b-2 border-transparent bg-surface-container-highest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-0"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTerminate}
+                  disabled={terminating}
+                  className="rounded-md bg-error-container px-4 py-2 text-sm font-medium text-error hover:bg-error-container/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {terminating ? "Elaborazione..." : "Termina rapporto"}
+                </button>
               </div>
             )}
           </div>

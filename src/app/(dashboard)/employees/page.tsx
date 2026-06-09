@@ -18,6 +18,7 @@ interface Employee {
   aliases: string[];
   totalDays: number;
   lastSeen: string | null;
+  terminationDate: string | null;
 }
 
 function Avatar({ emp, size = "md" }: { emp: Employee; size?: "sm" | "md" }) {
@@ -48,6 +49,7 @@ function Avatar({ emp, size = "md" }: { emp: Employee; size?: "sm" | "md" }) {
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showTerminated, setShowTerminated] = useState(false);
 
   // Modal "Nuovo dipendente"
   const [showModal, setShowModal] = useState(false);
@@ -148,6 +150,10 @@ export default function EmployeesPage() {
     }
   };
 
+  const visibleEmployees = showTerminated
+    ? employees
+    : employees.filter((e) => !e.terminationDate);
+
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
@@ -157,6 +163,15 @@ export default function EmployeesPage() {
           </h1>
           <p className="mt-1 text-secondary">Elenco completo del personale.</p>
         </div>
+        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+          <input
+            type="checkbox"
+            checked={showTerminated}
+            onChange={(e) => setShowTerminated(e.target.checked)}
+            className="rounded border-outline-variant text-primary focus:ring-primary"
+          />
+          Mostra cessati
+        </label>
         <button
           type="button"
           onClick={openModal}
@@ -171,7 +186,7 @@ export default function EmployeesPage() {
         <div className="flex h-64 items-center justify-center text-on-surface-variant">
           Caricamento...
         </div>
-      ) : employees.length === 0 ? (
+      ) : visibleEmployees.length === 0 ? (
         <div className="rounded-lg bg-surface-container-lowest p-8 text-center text-on-surface-variant shadow-card">
           Nessun dipendente trovato. Crea il primo con &quot;Nuovo dipendente&quot; o importa un file WhatsApp.
         </div>
@@ -193,7 +208,7 @@ export default function EmployeesPage() {
               </tr>
             </thead>
             <tbody>
-              {employees.map((emp) => (
+              {visibleEmployees.map((emp) => (
                 <tr
                   key={emp.id}
                   className="border-b border-surface-container transition-colors hover:bg-surface-container-low/50"
@@ -205,6 +220,11 @@ export default function EmployeesPage() {
                         <div className="font-medium text-on-surface">{emp.displayName || emp.name}</div>
                         {emp.displayName && (
                           <div className="text-xs text-on-surface-variant">{emp.name}</div>
+                        )}
+                        {emp.terminationDate && (
+                          <span className="mt-0.5 inline-block rounded bg-error-container px-1.5 py-0.5 text-[10px] font-medium text-error">
+                            Cessato — {formatDate(emp.terminationDate)}
+                          </span>
                         )}
                       </div>
                     </div>

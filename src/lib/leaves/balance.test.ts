@@ -32,7 +32,7 @@ function partTimeSchedule24h(): ScheduleRow[] {
 describe("computeLeaveBalanceFromData", () => {
   it("FULL_TIME hired before this year, no leaves, no balance → 12 months accrued at year end", () => {
     const r = computeLeaveBalanceFromData(
-      { id: "e1", hireDate: new Date("2020-01-01"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "FULL_TIME", schedule: fullTimeSchedule() },
       null,
       [],
       2026,
@@ -48,7 +48,7 @@ describe("computeLeaveBalanceFromData", () => {
 
   it("FULL_TIME hired June this year, now=December same year → 7 months accrued", () => {
     const r = computeLeaveBalanceFromData(
-      { id: "e1", hireDate: new Date("2026-06-15"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      { id: "e1", hireDate: new Date("2026-06-15"), terminationDate: null, contractType: "FULL_TIME", schedule: fullTimeSchedule() },
       null,
       [],
       2026,
@@ -60,7 +60,7 @@ describe("computeLeaveBalanceFromData", () => {
 
   it("PART_TIME 24h/wk with schedule rows → accrual proportional to 24/40", () => {
     const r = computeLeaveBalanceFromData(
-      { id: "e2", hireDate: new Date("2020-01-01"), contractType: "PART_TIME", schedule: partTimeSchedule24h() },
+      { id: "e2", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "PART_TIME", schedule: partTimeSchedule24h() },
       null,
       [],
       2026,
@@ -73,7 +73,7 @@ describe("computeLeaveBalanceFromData", () => {
 
   it("PART_TIME without schedule rows → accrual=0, no throw (known limitation)", () => {
     const r = computeLeaveBalanceFromData(
-      { id: "e3", hireDate: new Date("2020-01-01"), contractType: "PART_TIME", schedule: [] },
+      { id: "e3", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "PART_TIME", schedule: [] },
       null,
       [],
       2026,
@@ -86,7 +86,7 @@ describe("computeLeaveBalanceFromData", () => {
 
   it("Hired previous year with carryOver=10 and accrualAdjust=+2 → totals include both", () => {
     const r = computeLeaveBalanceFromData(
-      { id: "e1", hireDate: new Date("2020-01-01"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "FULL_TIME", schedule: fullTimeSchedule() },
       {
         vacationCarryOver: 10,
         rolCarryOver: 5,
@@ -107,7 +107,7 @@ describe("computeLeaveBalanceFromData", () => {
     // Use 2026-06-08..2026-06-12 (Mon-Fri, no Italian holidays).
     // 2026-06-01..06-05 would hit Festa della Repubblica on Jun 2.
     const r = computeLeaveBalanceFromData(
-      { id: "e1", hireDate: new Date("2020-01-01"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "FULL_TIME", schedule: fullTimeSchedule() },
       null,
       [{
         type: "VACATION",
@@ -125,7 +125,7 @@ describe("computeLeaveBalanceFromData", () => {
 
   it("1 leave ROL hours=4 APPROVED → rolUsed=4", () => {
     const r = computeLeaveBalanceFromData(
-      { id: "e1", hireDate: new Date("2020-01-01"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "FULL_TIME", schedule: fullTimeSchedule() },
       null,
       [{
         type: "ROL",
@@ -143,7 +143,7 @@ describe("computeLeaveBalanceFromData", () => {
 
   it("VACATION_HALF_AM counted as 0.5 days", () => {
     const r = computeLeaveBalanceFromData(
-      { id: "e1", hireDate: new Date("2020-01-01"), contractType: "FULL_TIME", schedule: fullTimeSchedule() },
+      { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "FULL_TIME", schedule: fullTimeSchedule() },
       null,
       [{
         type: "VACATION_HALF_AM",

@@ -1,9 +1,10 @@
 // src/app/(dashboard)/presenze/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { formatDateIt } from "@/lib/date-utils";
 
 type DayStatus = "ok" | "under" | "over" | "absent" | "non_working";
@@ -237,55 +238,92 @@ export default function PresenzeReviewPage() {
 
       {/* Day editor modal */}
       {editor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditor(null)}>
-          <div className="w-full max-w-lg rounded-lg bg-surface-container-lowest p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-4 text-lg font-semibold">{editor.employeeName} — {formatDateIt(editor.date)}</h3>
-            {editRecords === null ? (
-              <div className="py-8 text-center text-on-surface-variant">Caricamento...</div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  {editRecords.map((rec, idx) => (
-                    <div key={rec.id} className="flex items-center gap-2">
-                      <select
-                        value={rec.type}
-                        onChange={(e) => {
-                          const u = [...editRecords]; u[idx] = { ...rec, type: e.target.value }; setEditRecords(u);
-                        }}
-                        className="rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs"
-                      >
-                        {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                      </select>
-                      <input
-                        type="time"
-                        value={rec.declaredTime}
-                        onChange={(e) => {
-                          const u = [...editRecords]; u[idx] = { ...rec, declaredTime: e.target.value }; setEditRecords(u);
-                        }}
-                        className="rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs tabular-nums"
-                      />
-                      <button
-                        className="ml-auto rounded-full p-1 text-outline-variant hover:text-error"
-                        onClick={() => setEditRecords(editRecords.filter((_, j) => j !== idx))}
-                      >✕</button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <button className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-on-primary disabled:opacity-50" disabled={saving} onClick={saveDay}>
-                    Salva
-                  </button>
-                  <button className="rounded-lg border border-outline-variant px-4 py-2 text-xs" onClick={() => setEditor(null)}>Annulla</button>
-                  <button
-                    className="ml-auto rounded-lg border border-dashed border-outline-variant px-3 py-2 text-xs"
-                    onClick={() => setEditRecords([...(editRecords ?? []), { id: `new-${Date.now()}`, type: "ENTRY", declaredTime: "09:00" }])}
-                  >+ Aggiungi</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <DayEditorModal
+          editor={editor}
+          editRecords={editRecords}
+          setEditRecords={setEditRecords}
+          saving={saving}
+          onSave={saveDay}
+          onClose={() => setEditor(null)}
+        />
       )}
+    </div>
+  );
+}
+
+function DayEditorModal({
+  editor,
+  editRecords,
+  setEditRecords,
+  saving,
+  onSave,
+  onClose,
+}: {
+  editor: { employeeId: string; employeeName: string; date: string };
+  editRecords: DayRecord[] | null;
+  setEditRecords: (recs: DayRecord[]) => void;
+  saving: boolean;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalContentRef, onClose);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        ref={modalContentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="day-editor-title"
+        className="w-full max-w-lg rounded-lg bg-surface-container-lowest p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="day-editor-title" className="mb-4 text-lg font-semibold">{editor.employeeName} — {formatDateIt(editor.date)}</h3>
+        {editRecords === null ? (
+          <div className="py-8 text-center text-on-surface-variant">Caricamento...</div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {editRecords.map((rec, idx) => (
+                <div key={rec.id} className="flex items-center gap-2">
+                  <select
+                    value={rec.type}
+                    onChange={(e) => {
+                      const u = [...editRecords]; u[idx] = { ...rec, type: e.target.value }; setEditRecords(u);
+                    }}
+                    className="rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs"
+                  >
+                    {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <input
+                    type="time"
+                    value={rec.declaredTime}
+                    onChange={(e) => {
+                      const u = [...editRecords]; u[idx] = { ...rec, declaredTime: e.target.value }; setEditRecords(u);
+                    }}
+                    className="rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs tabular-nums"
+                  />
+                  <button
+                    className="ml-auto rounded-full p-1 text-outline-variant hover:text-error"
+                    onClick={() => setEditRecords(editRecords.filter((_, j) => j !== idx))}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <button className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-on-primary disabled:opacity-50" disabled={saving} onClick={onSave}>
+                Salva
+              </button>
+              <button className="rounded-lg border border-outline-variant px-4 py-2 text-xs" onClick={onClose}>Annulla</button>
+              <button
+                className="ml-auto rounded-lg border border-dashed border-outline-variant px-3 py-2 text-xs"
+                onClick={() => setEditRecords([...(editRecords ?? []), { id: `new-${Date.now()}`, type: "ENTRY", declaredTime: "09:00" }])}
+              >+ Aggiungi</button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

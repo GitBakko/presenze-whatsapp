@@ -84,19 +84,23 @@ export async function PUT(
       { type: record.type, declaredTime: record.declaredTime, date: record.date },
     );
     if (diff.changedFields.length > 0) {
-      await prisma.attendanceRecordEdit.create({
-        data: {
-          recordId: record.id,
-          employeeId: record.employeeId,
-          date: record.date,
-          editedById: editorId,
-          action: "UPDATE",
-          oldType: original.type, oldDeclaredTime: original.declaredTime, oldDate: original.date,
-          newType: record.type, newDeclaredTime: record.declaredTime, newDate: record.date,
-          source: "RECORDS",
-          changedFields: JSON.stringify(diff.changedFields),
-        },
-      });
+      try {
+        await prisma.attendanceRecordEdit.create({
+          data: {
+            recordId: record.id,
+            employeeId: record.employeeId,
+            date: record.date,
+            editedById: editorId,
+            action: "UPDATE",
+            oldType: original.type, oldDeclaredTime: original.declaredTime, oldDate: original.date,
+            newType: record.type, newDeclaredTime: record.declaredTime, newDate: record.date,
+            source: "RECORDS",
+            changedFields: JSON.stringify(diff.changedFields),
+          },
+        });
+      } catch (err) {
+        console.error("[records/PUT] audit write failed:", err);
+      }
     }
   }
 

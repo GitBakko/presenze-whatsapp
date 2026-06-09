@@ -99,28 +99,36 @@ async function runCheck(): Promise<void> {
     const lastSentForWarn = await getSetting("lastReportSent");
     const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     try {
-      const monthData = await buildPresenzeMonthData(prevYear, prevMonth);
-      const reviewEmployees = monthData.employees.map((emp) => {
-        const days = [];
-        const nDays = new Date(prevYear, prevMonth, 0).getDate();
-        for (let d = 1; d <= nDays; d++) {
-          const c = emp.classifications.get(d);
-          if (c) days.push(c);
-        }
-        return { employeeId: emp.employeeId, name: emp.displayName, displayName: emp.displayName, days, overtimeTotal: emp.straordinari };
+      // Cheap gating FIRST: buildPresenzeMonthData is expensive (multiple
+      // queries + full-month per-employee classification) and this runs every
+      // hourly tick all month long. Every predicate input except redIssueCount
+      // is available without the build, so short-circuit before building.
+      // `redIssueCount: 1` is a sentinel "a warning could fire" — it passes the
+      // count gate, leaving shouldWarnPreSend to evaluate only the date-window
+      // and alreadySent conditions (the single source of truth for that logic).
+      const inWarnWindow = shouldWarnPreSend({
+        today: now.getDate(),
+        reportDay: day,
+        warnLeadDays: WARN_LEAD_DAYS,
+        alreadySent: lastSentForWarn === currentYM,
+        redIssueCount: 1,
       });
-      const redIssueCount = flattenIssues(reviewEmployees).filter((i) => i.severity === "red").length;
-      if (
-        shouldWarnPreSend({
-          today: now.getDate(),
-          reportDay: day,
-          warnLeadDays: WARN_LEAD_DAYS,
-          alreadySent: lastSentForWarn === currentYM,
-          redIssueCount,
-        })
-      ) {
-        const warnedKey = `presenzeReviewWarned-${reportMonthStr}`;
-        if ((await getSetting(warnedKey)) !== "true") {
+      const warnedKey = `presenzeReviewWarned-${reportMonthStr}`;
+      // Only build the month data when a warning could actually fire: inside the
+      // lead window, not yet sent, and not already warned for this report month.
+      if (inWarnWindow && (await getSetting(warnedKey)) !== "true") {
+        const monthData = await buildPresenzeMonthData(prevYear, prevMonth);
+        const reviewEmployees = monthData.employees.map((emp) => {
+          const days = [];
+          const nDays = new Date(prevYear, prevMonth, 0).getDate();
+          for (let d = 1; d <= nDays; d++) {
+            const c = emp.classifications.get(d);
+            if (c) days.push(c);
+          }
+          return { employeeId: emp.employeeId, name: emp.displayName, displayName: emp.displayName, days, overtimeTotal: emp.straordinari };
+        });
+        const redIssueCount = flattenIssues(reviewEmployees).filter((i) => i.severity === "red").length;
+        if (redIssueCount > 0) {
           notificationsBus.publish({
             employeeId: "",
             employeeName: "Revisione Presenze",

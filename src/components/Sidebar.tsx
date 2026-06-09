@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   FileBarChart,
   Clock,
+  ClipboardCheck,
   Settings,
 } from "lucide-react";
 import { useNotificationsContext } from "./NotificationsProvider";
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, color: "text-blue-500" },
   { href: "/employees", label: "Dipendenti", icon: Users, color: "text-indigo-500", adminOnly: true },
   { href: "/records", label: "Timbrature", icon: Clock, color: "text-teal-500" },
+  { href: "/presenze", label: "Revisione Presenze", icon: ClipboardCheck, color: "text-rose-500", adminOnly: true },
   { href: "/leaves", label: "Ferie & Permessi", icon: CalendarCheck, color: "text-emerald-500" },
   { href: "/anomalies", label: "Anomalie", icon: AlertTriangle, color: "text-amber-500", adminOnly: true },
   { href: "/reports", label: "Report", icon: FileBarChart, color: "text-violet-500", adminOnly: true },

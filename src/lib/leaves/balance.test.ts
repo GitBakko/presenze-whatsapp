@@ -123,6 +123,26 @@ describe("computeLeaveBalanceFromData", () => {
     expect(r.vacationRemaining).toBe(19);
   });
 
+  it("FULL_TIME WITHOUT schedule rows → VACATION Fri-Sun counts 1 working day via Mon-Fri fallback", () => {
+    // Regression: schedule-less FULL_TIME employees (the majority in prod) used to
+    // scale 0 vacation days here while the leave popup reported the Mon-Fri count.
+    // 2026-06-12 Fri .. 2026-06-14 Sun → only Fri is a working day.
+    const r = computeLeaveBalanceFromData(
+      { id: "e9", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "FULL_TIME", schedule: [] },
+      null,
+      [{
+        type: "VACATION",
+        startDate: "2026-06-12",
+        endDate: "2026-06-14",
+        hours: null,
+        timeSlots: null,
+      }],
+      2026,
+      new Date("2026-12-31T12:00:00Z"),
+    );
+    expect(r.vacationUsed).toBe(1);
+  });
+
   it("1 leave ROL hours=4 APPROVED → rolUsed=4", () => {
     const r = computeLeaveBalanceFromData(
       { id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null, contractType: "FULL_TIME", schedule: fullTimeSchedule() },

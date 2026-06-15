@@ -18,6 +18,7 @@ import { isNonWorkingDay } from "./holidays-it";
 import { prisma } from "./db";
 import { getDayOfWeek } from "./date-utils";
 import { activeInRangeWhere, isActiveOn } from "@/lib/employees/active";
+import { appliesScheduleFallback, effectiveScheduledHours } from "@/lib/employees/schedule-fallback";
 import {
   calculateDailyStats,
   type DailyRecord,
@@ -374,6 +375,49 @@ export const HALF_DAY_LEAVE_TYPES = new Set([
   "VACATION_HALF_PM",
 ]);
 
+export interface LeaveDayInfo {
+  type: string;
+  hours: number | null;
+}
+
+/**
+ * Espande i permessi approvati in una mappa per-giorno chiave
+ * `employeeId|YYYY-MM-DD`, ritagliata su [from, to] ed ESCLUSI i giorni non
+ * lavorativi (weekend + festività italiane).
+ *
+ * Lo skip dei non-lavorativi è ciò che impedisce a una ferie venerdì→domenica
+ * di addebitare sabato/domenica: il report disegna comunque "-" sul weekend, ma
+ * la mappa sottostante non deve neppure portare ore di ferie lì (prima ci
+ * finivano 8h, mascherate dal render ma pronte a riemergere in qualsiasi
+ * consumer futuro che non rimascheri il weekend). Il primo permesso che copre un
+ * dato giorno vince.
+ */
+export function buildLeaveDayMap(
+  leaves: Array<{ employeeId: string; type: string; hours: number | null; startDate: string; endDate: string }>,
+  from: string,
+  to: string,
+): Map<string, LeaveDayInfo> {
+  const leaveMap = new Map<string, LeaveDayInfo>();
+  for (const l of leaves) {
+    const start = l.startDate < from ? from : l.startDate;
+    const end = l.endDate > to ? to : l.endDate;
+    const cur = new Date(start);
+    const endDate = new Date(end);
+    while (cur <= endDate) {
+      // eslint-disable-next-line local/no-iso-split -- UTC day key matches LeaveRequest.startDate (UTC midnight) used by `${r.employeeId}-${r.date}` lookups
+      const dateStr = cur.toISOString().split("T")[0];
+      if (!isNonWorkingDay(dateStr)) {
+        const key = `${l.employeeId}|${dateStr}`;
+        if (!leaveMap.has(key)) {
+          leaveMap.set(key, { type: l.type, hours: l.hours ?? null });
+        }
+      }
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+  return leaveMap;
+}
+
 /**
  * Build the per-day DayClassification map for a finished PresenzeEmployeeData.
  * Pure given (emp, year, month, isActiveOnDay, statsForDay). `effectiveHours`
@@ -501,24 +545,9 @@ export async function buildPresenzeMonthData(
     },
   });
 
-  // Mappa "employeeId|YYYY-MM-DD" → leave (il primo che matcha basta)
-  type LeaveInfo = { type: string; hours: number | null };
-  const leaveMap = new Map<string, LeaveInfo>();
-  for (const l of leaves) {
-    const start = l.startDate < from ? from : l.startDate;
-    const end = l.endDate > to ? to : l.endDate;
-    const cur = new Date(start);
-    const endDate = new Date(end);
-    while (cur <= endDate) {
-      // eslint-disable-next-line local/no-iso-split -- UTC day key matches LeaveRequest.startDate (UTC midnight) used by `${r.employeeId}-${r.date}` lookups
-      const dateStr = cur.toISOString().split("T")[0];
-      const key = `${l.employeeId}|${dateStr}`;
-      if (!leaveMap.has(key)) {
-        leaveMap.set(key, { type: l.type, hours: l.hours ?? null });
-      }
-      cur.setUTCDate(cur.getUTCDate() + 1);
-    }
-  }
+  // Mappa "employeeId|YYYY-MM-DD" → leave, esclusi i giorni non lavorativi
+  // (weekend/festivi): su quei giorni non si consumano ferie.
+  const leaveMap = buildLeaveDayMap(leaves, from, to);
 
   // ── 5. Group records by employee+date → DailyRecord ──────────────
   const grouped = new Map<string, DailyRecord>();
@@ -558,6 +587,14 @@ export async function buildPresenzeMonthData(
     const scheduledHoursPerDay = new Map<number, number>();
     let overtimeTotal = 0;
 
+    // Nessuna riga schedule per un FULL_TIME → assumi Lun-Ven a ore contrattuali,
+    // coerente con il popup ferie (api/leaves/preview-days) e con il saldo
+    // (lib/leaves/balance). Senza questo i dipendenti senza schedule avrebbero
+    // scheduledHours=0 ogni giorno → classifyDay li marca "non_working" e la
+    // griglia di Revisione Presenze li mostrava completamente vuoti.
+    const empScheduleRowCount = scheduleMap.get(emp.id)?.size ?? 0;
+    const scheduleFallback = appliesScheduleFallback(empScheduleRowCount, emp.contractType);
+
     for (let d = 1; d <= nDays; d++) {
       const dateStr = `${yearStr}-${monthStr}-${String(d).padStart(2, "0")}`;
       const keyHours = `${emp.id}|${dateStr}`;
@@ -569,7 +606,12 @@ export async function buildPresenzeMonthData(
       // Ore pianificate per questo giorno specifico (dipende dal giorno della settimana)
       const dayOfWeek = getDayOfWeek(dateStr);
       const daySchedule = scheduleMap.get(emp.id)?.get(dayOfWeek) ?? null;
-      const scheduledHours = scheduledHoursForDay(daySchedule);
+      const scheduledHours = effectiveScheduledHours(
+        scheduledHoursForDay(daySchedule),
+        scheduleFallback,
+        dayOfWeek,
+        emp.contractType,
+      );
       if (scheduledHours > 0) {
         scheduledHoursPerDay.set(d, scheduledHours);
       }

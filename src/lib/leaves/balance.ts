@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { countWorkDays } from "./working-days";
+import { appliesScheduleFallback, FALLBACK_WORKING_DOWS } from "../employees/schedule-fallback";
 
 // ── Leave type definitions ──
 
@@ -211,6 +212,15 @@ export function computeLeaveBalanceFromData(
   const scheduleMap = new Map<number, ScheduleBlock>();
   for (const s of employee.schedule) {
     scheduleMap.set(s.dayOfWeek, s);
+  }
+  // No schedule rows for a FULL_TIME employee → assume Mon-Fri working, matching
+  // the leave popup (api/leaves/preview-days). Without this the vacation
+  // working-day count below would be 0 for every schedule-less employee, scaling
+  // nothing from the balance while the popup showed the user a non-zero count.
+  if (appliesScheduleFallback(employee.schedule.length, employee.contractType)) {
+    for (const dow of FALLBACK_WORKING_DOWS) {
+      scheduleMap.set(dow, { block1Start: null, block1End: null, block2Start: null, block2End: null });
+    }
   }
 
   let vacationUsed = 0;

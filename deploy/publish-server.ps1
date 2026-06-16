@@ -5,16 +5,19 @@
 # il file presenze-hr-deploy.zip in una cartella di staging.
 #
 # Cosa fa:
-#   1. Verifica prerequisiti (NSSM, zip, percorsi)
-#   2. Ferma il servizio PresenzeHR
-#   3. Sposta la cartella app corrente in un backup datato
-#   4. Estrae il nuovo zip in E:\www\hr
-#   5. Ripristina da backup: .env + public\uploads (avatar runtime)
-#   6. Avvia il servizio
-#   7. Verifica health endpoint http://127.0.0.1:3100/api/kiosk/health
-#   8. Tiene solo gli ultimi -KeepBackups backup (default 3), rimuove gli altri
+#   1.  Verifica prerequisiti (NSSM, zip, percorsi)
+#   1b. Backup del DB di produzione (restore point) — servizio ancora attivo,
+#       copia WAL-safe (.db + -wal/-shm). Salta con -SkipDbBackup.
+#   2.  Ferma il servizio PresenzeHR
+#   3.  Sposta la cartella app corrente in un backup datato
+#   4.  Estrae il nuovo zip in E:\www\hr
+#   5.  Ripristina da backup: .env + public\uploads (avatar runtime) + iis\
+#   6.  Avvia il servizio
+#   7.  Verifica health endpoint http://127.0.0.1:3100/api/kiosk/health
+#   8.  Tiene solo gli ultimi -KeepBackups backup app (default 3), rimuove gli altri
 #
-# Il database (E:\HR\data\prod.db) NON viene toccato: è fuori dalla app dir.
+# Il DB (E:\HR\data\prod.db) NON viene MODIFICATO: lo script ne fa solo una
+# copia di backup read-only (passo 1b). Lo schema (db push) resta manuale.
 #
 # Esempi:
 #   .\publish-server.ps1 -ZipPath 'E:\deploy\presenze-hr-deploy.zip'
@@ -31,7 +34,13 @@ param(
   [string]$Nssm         = 'C:\ProgramData\chocolatey\bin\nssm.exe',
   [string]$HealthUrl    = 'http://127.0.0.1:3100/api/kiosk/health',
   [int]$KeepBackups     = 3,
-  [switch]$SkipHealthCheck
+  [switch]$SkipHealthCheck,
+
+  # Backup DB di produzione (passo 1b). Default = path prod confermati.
+  [string]$DbPath       = 'E:\HR\data\prod.db',
+  [string]$DbBackupDir  = 'E:\HR\backups',
+  [int]$KeepDbBackupDays = 30,
+  [switch]$SkipDbBackup
 )
 
 $ErrorActionPreference = 'Stop'
@@ -92,6 +101,40 @@ $currentBuildId = $null
 if (Test-Path "$AppDir\.next\BUILD_ID") {
   $currentBuildId = (Get-Content "$AppDir\.next\BUILD_ID" -Raw).Trim()
   Write-Ok "BUILD_ID corrente: $currentBuildId"
+}
+
+# ─── 1b. Backup DB di produzione (restore point) ─────────────────────
+# Eseguito col servizio ANCORA ATTIVO: copia WAL-safe (.db + -wal/-shm) così,
+# anche con una transazione WAL in corso, il set ripristinabile è coerente.
+# Failure mode sicuro: se il backup fallisce qui, il sito è ancora su e
+# l'app dir è intatta. Lo script NON modifica il DB (solo copia read-only).
+if ($SkipDbBackup) {
+  Write-WarnStep 'Backup DB saltato (-SkipDbBackup)'
+} elseif (-not (Test-Path $DbPath)) {
+  throw "DB di produzione non trovato: $DbPath. Passa -DbPath corretto, oppure -SkipDbBackup se intenzionale."
+} else {
+  Write-Step "Backup DB → $DbBackupDir"
+  if (-not (Test-Path $DbBackupDir)) { New-Item -ItemType Directory -Path $DbBackupDir -Force | Out-Null }
+  $dbTs   = Get-Date -Format 'yyyyMMdd-HHmmss'
+  $dbDest = Join-Path $DbBackupDir "prod-$dbTs.db"
+  Copy-Item -LiteralPath $DbPath -Destination $dbDest -Force
+  Write-Ok "DB: $dbDest ($([math]::Round((Get-Item $dbDest).Length / 1KB)) KB)"
+  # -wal/-shm se presenti (servizio attivo): preserva lo stato non checkpointed
+  foreach ($suffix in '-wal', '-shm') {
+    $side = "$DbPath$suffix"
+    if (Test-Path $side) {
+      Copy-Item -LiteralPath $side -Destination (Join-Path $DbBackupDir "prod-$dbTs.db$suffix") -Force
+      Write-Ok "DB $suffix copiato"
+    }
+  }
+  # Pruning: rimuove i backup DB più vecchi di -KeepDbBackupDays giorni
+  $dbCutoff = (Get-Date).AddDays(-$KeepDbBackupDays)
+  Get-ChildItem -Path $DbBackupDir -Filter 'prod-*.db*' -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -lt $dbCutoff } |
+    ForEach-Object {
+      Remove-Item -LiteralPath $_.FullName -Force
+      Write-Ok "Rimosso vecchio backup DB: $($_.Name)"
+    }
 }
 
 # ─── 2. Stop service ─────────────────────────────────────────────────

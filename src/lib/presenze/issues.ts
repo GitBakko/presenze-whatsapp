@@ -28,11 +28,12 @@ export function flattenIssues(employees: ReviewEmployee[]): Issue[] {
   const issues: Issue[] = [];
   for (const emp of employees) {
     for (const d of emp.days) {
-      if (!d.isRed && !d.isYellow) continue;
+      if (!d.isRed && !d.isYellow && !d.exceedsDailyCap) continue;
       const reasons: string[] = [];
       if (d.status === "absent") reasons.push("Assenza non giustificata");
       else if (d.status === "under") reasons.push(`Ore sotto soglia (${d.effectiveHours}h / ${d.scheduledHours}h)`);
       else if (d.status === "over") reasons.push(`Ore sopra soglia (${d.effectiveHours}h / ${d.scheduledHours}h)`);
+      if (d.exceedsDailyCap) reasons.push(`Lavorate + assenze ${d.rawEffectiveHours}h superano il massimo giornaliero (${d.dailyCapHours}h)`);
       for (const a of d.anomalies) reasons.push(a.description);
       issues.push({
         employeeId: emp.employeeId,

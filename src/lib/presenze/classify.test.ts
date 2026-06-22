@@ -144,3 +144,92 @@ describe("classifyDay", () => {
     expect(c.isRed).toBe(false);
   });
 });
+
+describe("classifyDay — daily cap overage (worked + leave > cap)", () => {
+  it("without raw args the overage check is a no-op", () => {
+    const c = classifyDay({ ...base, dailyStats: statsWith({ hoursWorked: 8 }) });
+    expect(c.rawEffectiveHours).toBe(8); // defaults to effectiveHours
+    expect(c.dailyCapHours).toBe(8); // defaults to scheduledHours
+    expect(c.exceedsDailyCap).toBe(false);
+  });
+
+  it("capped ROL case: printed totale lands on 8 (ok) but raw worked+leave is 10 -> yellow", () => {
+    // buildPresenzeMonthData caps ordinario to 4 so the cell prints 8; the raw
+    // sum (6 worked + 4 ROL) is the overage the report hides.
+    const c = classifyDay({
+      ...base,
+      dailyStats: statsWith({ hoursWorked: 4 }), // printed (capped) hours
+      leaveHours: 4,
+      rawEffectiveHours: 10,
+      dailyCapHours: 8,
+    });
+    expect(c.status).toBe("ok"); // printed totale == scheduled
+    expect(c.isRed).toBe(false);
+    expect(c.exceedsDailyCap).toBe(true);
+    expect(c.isYellow).toBe(true); // overage lights the cell even on an "ok" day
+    expect(c.rawEffectiveHours).toBe(10);
+    // Emailed report stays byte-identical: overage must NOT color the xlsx.
+    expect(c.isReportRed).toBe(false);
+    expect(c.isReportYellow).toBe(false);
+  });
+
+  it("full-day leave with stray worked hours -> overage flagged", () => {
+    const c = classifyDay({
+      ...base,
+      dailyStats: null, // worked hours dropped from the printed cell
+      leaveHours: 8,
+      rawEffectiveHours: 13, // 5 worked + 8 full-day ferie
+      dailyCapHours: 8,
+    });
+    expect(c.exceedsDailyCap).toBe(true);
+    expect(c.isYellow).toBe(true);
+  });
+
+  it("raw sum exactly on the cap is not an overage (epsilon)", () => {
+    const c = classifyDay({
+      ...base,
+      dailyStats: statsWith({ hoursWorked: 8 }),
+      rawEffectiveHours: 8,
+      dailyCapHours: 8,
+    });
+    expect(c.exceedsDailyCap).toBe(false);
+  });
+
+  it("part-time cap (4h): worked 3 + ROL 2 = 5 > 4 -> overage", () => {
+    const c = classifyDay({
+      ...base,
+      scheduledHours: 4,
+      dailyStats: statsWith({ hoursWorked: 2 }),
+      leaveHours: 2,
+      rawEffectiveHours: 5,
+      dailyCapHours: 4,
+    });
+    expect(c.exceedsDailyCap).toBe(true);
+    expect(c.isYellow).toBe(true);
+  });
+
+  it("non-working day never flags an overage even with raw hours passed", () => {
+    const c = classifyDay({
+      ...base,
+      isNonWorkingDay: true,
+      scheduledHours: 0,
+      rawEffectiveHours: 12,
+      dailyCapHours: 8,
+    });
+    expect(c.status).toBe("non_working");
+    expect(c.dailyCapHours).toBe(0);
+    expect(c.exceedsDailyCap).toBe(false);
+  });
+
+  it("overage does NOT override an under day's red", () => {
+    const c = classifyDay({
+      ...base,
+      dailyStats: statsWith({ hoursWorked: 5 }),
+      rawEffectiveHours: 9,
+      dailyCapHours: 8,
+    });
+    expect(c.status).toBe("under");
+    expect(c.isRed).toBe(true);
+    expect(c.isYellow).toBe(false); // red wins
+  });
+});

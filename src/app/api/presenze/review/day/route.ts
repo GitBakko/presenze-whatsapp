@@ -6,8 +6,63 @@ import { auth } from "@/lib/auth";
 import { notificationsBus } from "@/lib/notifications-bus";
 import { recomputeAnomaliesForDates } from "@/lib/attendance/recompute";
 import { planDayBatch, type SubmittedRecord } from "@/lib/attendance/review-day";
+import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 
 const VALID_TYPES = ["ENTRY", "EXIT", "PAUSE_START", "PAUSE_END", "OVERTIME_START", "OVERTIME_END"];
+
+/**
+ * GET /api/presenze/review/day?employeeId=&date=
+ * Feeds the Revisione Presenze day popup: the day's timbrature plus every leave
+ * overlapping that date (so a multi-day ferie covering the date is included even
+ * though it starts earlier). Rejected leaves are excluded.
+ */
+export async function GET(request: NextRequest) {
+  const denied = await checkAuth();
+  if (denied) return denied;
+
+  const { searchParams } = new URL(request.url);
+  const employeeId = searchParams.get("employeeId");
+  const date = searchParams.get("date");
+  if (!employeeId || !date) {
+    return NextResponse.json({ error: "Parametri obbligatori: employeeId, date" }, { status: 400 });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: "Formato data non valido (YYYY-MM-DD)" }, { status: 400 });
+  }
+
+  const [records, leaves] = await Promise.all([
+    prisma.attendanceRecord.findMany({
+      where: { employeeId, date },
+      orderBy: [{ declaredTime: "asc" }],
+      select: { id: true, type: true, declaredTime: true },
+    }),
+    prisma.leaveRequest.findMany({
+      where: {
+        employeeId,
+        status: { not: "REJECTED" },
+        startDate: { lte: date },
+        endDate: { gte: date },
+      },
+      orderBy: [{ startDate: "asc" }],
+    }),
+  ]);
+
+  return NextResponse.json({
+    records,
+    leaves: leaves.map((l) => ({
+      id: l.id,
+      type: l.type,
+      typeLabel: LEAVE_TYPES[l.type as LeaveType]?.label ?? l.type,
+      unit: LEAVE_TYPES[l.type as LeaveType]?.unit ?? "days",
+      startDate: l.startDate,
+      endDate: l.endDate,
+      spansMultipleDays: l.startDate !== l.endDate,
+      hours: l.hours,
+      status: l.status,
+      version: l.version,
+    })),
+  });
+}
 
 export async function PUT(request: NextRequest) {
   const denied = await checkAuth();

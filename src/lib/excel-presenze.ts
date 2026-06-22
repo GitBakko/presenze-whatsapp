@@ -434,6 +434,12 @@ export function classifyEmployeeDays(
   month: number,
   isActiveOnDay: (dateStr: string) => boolean,
   statsForDay?: (d: number) => DailyStats | null,
+  /**
+   * UNCAPPED worked+leave and the daily cap for day `d`, used to flag the
+   * report-hidden overage (worked + leave > cap). Omit to disable the check
+   * (e.g. the standalone leavemap test, which has no raw hours to feed).
+   */
+  rawForDay?: (d: number) => { effective: number; cap: number } | null,
 ): Map<number, DayClassification> {
   const monthStr = String(month).padStart(2, "0");
   const nDays = new Date(year, month, 0).getDate();
@@ -469,6 +475,7 @@ export function classifyEmployeeDays(
             exits: realStats?.exits ?? [],
           } as DailyStats)
         : null;
+    const raw = rawForDay ? rawForDay(d) : null;
     out.set(
       d,
       classifyDay({
@@ -478,6 +485,8 @@ export function classifyEmployeeDays(
         leaveHours,
         isNonWorkingDay: isNonWorkingDay(dateStr),
         isActiveOnDay: isActiveOnDay(dateStr),
+        rawEffectiveHours: raw?.effective,
+        dailyCapHours: raw?.cap,
       }),
     );
   }
@@ -585,6 +594,8 @@ export async function buildPresenzeMonthData(
   for (const emp of employees) {
     const days = new Map<number, PresenzeDayData>();
     const scheduledHoursPerDay = new Map<number, number>();
+    // Per-day UNCAPPED worked+leave and the daily cap, for the overage signal.
+    const rawByDay = new Map<number, { effective: number; cap: number }>();
     let overtimeTotal = 0;
 
     // Nessuna riga schedule per un FULL_TIME → assumi Lun-Ven a ore contrattuali,
@@ -653,6 +664,30 @@ export async function buildPresenzeMonthData(
         oreOrdinario = roundHalf(hoursWorked - overtime); // ore nette al netto degli straordinari
       }
 
+      // ── Overage signal (Revisione Presenze, review-only) ───────────────
+      // Flag when worked + leave together blow past the day's contracted cap
+      // (8 full-time / 4 part-time). This is the discrepancy the printed report
+      // HIDES: the hour-based branch above caps `oreOrdinario` and the full-day
+      // branch drops worked hours entirely, so the cell prints a clean totale.
+      // We recompute the UNCAPPED sum here — but ONLY on days that carry a leave,
+      // so a legitimate pure-overtime day (10h worked, no leave) never lights up.
+      if (leave) {
+        const rawWorked = hoursWorked > 0 ? roundHalf(hoursWorked) : 0;
+        let rawLeave: number;
+        if (FULL_DAY_LEAVE_TYPES.has(leave.type)) {
+          rawLeave = scheduledHours > 0 ? roundHalf(scheduledHours) : 8;
+        } else if (HALF_DAY_LEAVE_TYPES.has(leave.type)) {
+          const isShortDay = scheduledHours > 0 && scheduledHours <= 4;
+          rawLeave = isShortDay
+            ? roundHalf(scheduledHours)
+            : scheduledHours > 0 ? roundHalf(scheduledHours / 2) : 4;
+        } else {
+          // ROL / MEDICAL_VISIT / hour-based
+          rawLeave = leave.hours && leave.hours > 0 ? roundHalf(leave.hours) : 0;
+        }
+        rawByDay.set(d, { effective: rawWorked + rawLeave, cap: scheduledHours });
+      }
+
       if (oreOrdinario !== null || oreFuoriSede !== null) {
         days.set(d, { oreOrdinario, oreFuoriSede });
       }
@@ -675,6 +710,7 @@ export async function buildPresenzeMonthData(
         const dateStr = `${yearStr}-${monthStr}-${String(d).padStart(2, "0")}`;
         return statsMap.get(`${emp.id}|${dateStr}`) ?? null;
       },
+      (d) => rawByDay.get(d) ?? null,
     );
 
     presenzeEmployees.push({

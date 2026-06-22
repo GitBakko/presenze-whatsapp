@@ -11,6 +11,7 @@ type DayStatus = "ok" | "under" | "over" | "absent" | "non_working";
 interface DayClassification {
   date: string; status: DayStatus; scheduledHours: number; workedHours: number;
   leaveHours: number; effectiveHours: number;
+  rawEffectiveHours: number; dailyCapHours: number; exceedsDailyCap: boolean;
   anomalies: { type: string; description: string; severity: "structural" | "possible" }[];
   isRed: boolean; isYellow: boolean;
 }
@@ -27,11 +28,31 @@ interface ReviewResponse {
   employees: ReviewEmployee[]; issues: Issue[];
 }
 interface DayRecord { id: string; type: string; declaredTime: string }
+interface DayLeave {
+  id: string; type: string; typeLabel: string; unit: "days" | "hours";
+  startDate: string; endDate: string; spansMultipleDays: boolean;
+  hours: number | null; status: string; version: number;
+}
+interface DayPayload { records: DayRecord[]; leaves: DayLeave[] }
+interface EditorTarget { employeeId: string; employeeName: string; date: string }
 
 const TYPE_LABELS: Record<string, string> = {
   ENTRY: "Entrata", EXIT: "Uscita", PAUSE_START: "Inizio pausa", PAUSE_END: "Fine pausa",
   OVERTIME_START: "Inizio straordinario", OVERTIME_END: "Fine straordinario",
 };
+// Mirrors LEAVE_TYPES (src/lib/leaves/balance.ts). `unit` decides whether the
+// row shows an hours input. Kept in sync manually (small, static catalog).
+const LEAVE_TYPE_OPTIONS: { value: string; label: string; unit: "days" | "hours" }[] = [
+  { value: "VACATION", label: "Ferie", unit: "days" },
+  { value: "VACATION_HALF_AM", label: "Ferie (mattina)", unit: "days" },
+  { value: "VACATION_HALF_PM", label: "Ferie (pomeriggio)", unit: "days" },
+  { value: "ROL", label: "Permesso orario (ROL)", unit: "hours" },
+  { value: "SICK", label: "Malattia", unit: "days" },
+  { value: "BEREAVEMENT", label: "Lutto", unit: "hours" },
+  { value: "MARRIAGE", label: "Matrimonio", unit: "hours" },
+  { value: "LAW_104", label: "L. 104", unit: "hours" },
+  { value: "MEDICAL_VISIT", label: "Visita medica", unit: "hours" },
+];
 const MONTH_NAMES = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 
 function prevMonthValue(): string {
@@ -47,16 +68,19 @@ export default function PresenzeReviewPage() {
   const [loading, setLoading] = useState(true);
   const [onlyRed, setOnlyRed] = useState(false);
   const [empFilter, setEmpFilter] = useState<string>("");
-  const [editor, setEditor] = useState<{ employeeId: string; employeeName: string; date: string } | null>(null);
+  const [editor, setEditor] = useState<EditorTarget | null>(null);
   const [editRecords, setEditRecords] = useState<DayRecord[] | null>(null);
+  const [editLeaves, setEditLeaves] = useState<DayLeave[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  // `silent` keeps the grid in place (no full-page spinner) for post-edit
+  // refreshes while the day popup stays open.
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     fetch(`/api/presenze/review?month=${month}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: ReviewResponse | null) => setData(d))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, [month]);
 
   useEffect(() => { load(); }, [load]);
@@ -83,17 +107,48 @@ export default function PresenzeReviewPage() {
 
   function cellClass(d: DayClassification): string {
     if (d.isRed) return "bg-red-500 text-white";
-    if (d.isYellow) return "bg-yellow-300 text-black";
+    if (d.isYellow || d.exceedsDailyCap) return "bg-yellow-300 text-black";
     if (d.status === "non_working") return "bg-surface-container-low text-outline-variant";
     return "bg-surface-container-lowest text-on-surface";
   }
 
+  function cellLabel(d: DayClassification): string {
+    if (d.exceedsDailyCap) return String(d.rawEffectiveHours); // show the REAL overage, not the capped totale
+    if (d.status === "non_working") return "-";
+    if (d.status === "absent") return "A";
+    return d.effectiveHours ? String(d.effectiveHours) : "";
+  }
+
+  function cellTitle(d: DayClassification): string {
+    const parts = d.anomalies.map((a) => a.description);
+    if (d.exceedsDailyCap) {
+      parts.unshift(`Lavorate + assenze = ${d.rawEffectiveHours}h, oltre il massimo giornaliero (${d.dailyCapHours}h)`);
+    }
+    return parts.join("; ") || d.status;
+  }
+
+  function findCls(employeeId: string, date: string): DayClassification | null {
+    const emp = data?.employees.find((e) => e.employeeId === employeeId);
+    return emp?.days.find((d) => d.date === date) ?? null;
+  }
+
+  const fetchDay = useCallback(async (employeeId: string, date: string): Promise<DayPayload | null> => {
+    const res = await fetch(`/api/presenze/review/day?employeeId=${employeeId}&date=${date}`);
+    if (!res.ok) return null;
+    return res.json();
+  }, []);
+
+  // Stable so useModalA11y's effect doesn't tear down / re-focus on every refresh.
+  const closeEditor = useCallback(() => setEditor(null), []);
+
   function openEditor(employeeId: string, employeeName: string, date: string) {
     setEditor({ employeeId, employeeName, date });
     setEditRecords(null);
-    fetch(`/api/records?employeeId=${employeeId}&date=${date}`)
-      .then((r) => r.json())
-      .then((recs: DayRecord[]) => setEditRecords(recs));
+    setEditLeaves(null);
+    fetchDay(employeeId, date).then((d) => {
+      setEditRecords(d?.records ?? []);
+      setEditLeaves(d?.leaves ?? []);
+    });
   }
 
   async function saveDay() {
@@ -117,13 +172,33 @@ export default function PresenzeReviewPage() {
         toast.error(e.error || "Errore nel salvataggio");
         return;
       }
-      toast.success("Modifiche salvate");
-      setEditor(null);
-      setEditRecords(null);
-      load();
+      toast.success("Timbrature salvate");
+      const d = await fetchDay(editor.employeeId, editor.date);
+      setEditRecords(d?.records ?? []);
+      load(true); // refresh grid colors under the open popup
     } finally {
       setSaving(false);
     }
+  }
+
+  // Day-scoped leave op (add / editDay / removeDay). Returns true on success.
+  async function leaveOp(payload: Record<string, unknown>): Promise<boolean> {
+    if (!editor) return false;
+    const res = await fetch("/api/presenze/review/day/leave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, employeeId: editor.employeeId, date: editor.date }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      toast.error(e.message || e.error || "Operazione non riuscita");
+      return false;
+    }
+    toast.success("Assenza aggiornata");
+    const d = await fetchDay(editor.employeeId, editor.date);
+    setEditLeaves(d?.leaves ?? []); // refresh leaves only (preserve unsaved record edits)
+    load(true); // refresh grid colors
+    return true;
   }
 
   return (
@@ -163,6 +238,11 @@ export default function PresenzeReviewPage() {
         )}
       </div>
 
+      <p className="text-xs text-on-surface-variant">
+        Doppio-click su una casella per modificare timbrature e assenze del giorno. Le caselle gialle
+        segnalano anche quando ore lavorate + assenze superano il massimo giornaliero.
+      </p>
+
       {loading ? (
         <div className="flex h-64 items-center justify-center text-on-surface-variant">Caricamento...</div>
       ) : !data ? (
@@ -190,15 +270,14 @@ export default function PresenzeReviewPage() {
                       {dayCols.map((d) => {
                         const c = byDay.get(d);
                         if (!c) return <td key={d} className="px-1 py-1.5 text-center text-outline-variant">·</td>;
-                        const clickable = c.isRed || c.isYellow || c.status === "absent";
                         return (
                           <td
                             key={d}
-                            title={c.anomalies.map((a) => a.description).join("; ") || c.status}
-                            className={`px-1 py-1.5 text-center tabular-nums ${cellClass(c)} ${clickable ? "cursor-pointer hover:ring-2 hover:ring-primary" : ""}`}
-                            onClick={() => clickable && openEditor(emp.employeeId, emp.displayName, c.date)}
+                            title={cellTitle(c)}
+                            className={`select-none cursor-pointer px-1 py-1.5 text-center tabular-nums hover:ring-2 hover:ring-primary ${cellClass(c)} ${c.exceedsDailyCap ? "font-bold ring-1 ring-amber-600" : ""}`}
+                            onDoubleClick={() => openEditor(emp.employeeId, emp.displayName, c.date)}
                           >
-                            {c.status === "non_working" ? "-" : c.status === "absent" ? "A" : c.effectiveHours || ""}
+                            {cellLabel(c)}
                           </td>
                         );
                       })}
@@ -236,15 +315,19 @@ export default function PresenzeReviewPage() {
         </>
       )}
 
-      {/* Day editor modal */}
+      {/* Day editor modal — cls is re-derived from current `data` on every render,
+          so the overage banner updates live as the admin fixes the day. */}
       {editor && (
         <DayEditorModal
           editor={editor}
+          cls={findCls(editor.employeeId, editor.date)}
           editRecords={editRecords}
           setEditRecords={setEditRecords}
+          editLeaves={editLeaves}
           saving={saving}
-          onSave={saveDay}
-          onClose={() => setEditor(null)}
+          onSaveRecords={saveDay}
+          onLeaveOp={leaveOp}
+          onClose={closeEditor}
         />
       )}
     </div>
@@ -253,21 +336,86 @@ export default function PresenzeReviewPage() {
 
 function DayEditorModal({
   editor,
+  cls,
   editRecords,
   setEditRecords,
+  editLeaves,
   saving,
-  onSave,
+  onSaveRecords,
+  onLeaveOp,
   onClose,
 }: {
-  editor: { employeeId: string; employeeName: string; date: string };
+  editor: EditorTarget;
+  cls: DayClassification | null;
   editRecords: DayRecord[] | null;
   setEditRecords: (recs: DayRecord[]) => void;
+  editLeaves: DayLeave[] | null;
   saving: boolean;
-  onSave: () => void;
+  onSaveRecords: () => void;
+  onLeaveOp: (payload: Record<string, unknown>) => Promise<boolean>;
   onClose: () => void;
 }) {
   const modalContentRef = useRef<HTMLDivElement>(null);
   useModalA11y(modalContentRef, onClose);
+
+  // Per-leave draft (type + hours). MERGE, don't replace, on refresh: seed only
+  // newly-arrived leave ids and drop vanished ones, so an unsaved edit on a
+  // sibling row survives another row's save (which refetches the whole list).
+  const [draft, setDraft] = useState<Record<string, { type: string; hours: string }>>({});
+  useEffect(() => {
+    if (!editLeaves) return;
+    setDraft((prev) => {
+      const next = { ...prev };
+      for (const l of editLeaves) {
+        if (!(l.id in next)) next[l.id] = { type: l.type, hours: l.hours != null ? String(l.hours) : "" };
+      }
+      for (const k of Object.keys(next)) {
+        if (!editLeaves.some((l) => l.id === k)) delete next[k];
+      }
+      return next;
+    });
+  }, [editLeaves]);
+
+  const [adding, setAdding] = useState(false);
+  const [addType, setAddType] = useState("VACATION");
+  const [addHours, setAddHours] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function unitOf(type: string): "days" | "hours" {
+    return LEAVE_TYPE_OPTIONS.find((o) => o.value === type)?.unit ?? "days";
+  }
+
+  async function run(payload: Record<string, unknown>) {
+    setBusy(true);
+    try {
+      return await onLeaveOp(payload);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveLeaveRow(l: DayLeave) {
+    const d = draft[l.id];
+    if (!d) return;
+    const unit = unitOf(d.type);
+    const hours = unit === "hours" ? Number(d.hours) : null;
+    if (unit === "hours" && (!Number.isFinite(hours!) || hours! <= 0)) {
+      toast.error("Inserisci ore valide");
+      return;
+    }
+    await run({ op: "editDay", leaveId: l.id, type: d.type, hours });
+  }
+
+  async function addLeave() {
+    const unit = unitOf(addType);
+    const hours = unit === "hours" ? Number(addHours) : null;
+    if (unit === "hours" && (!Number.isFinite(hours!) || hours! <= 0)) {
+      toast.error("Inserisci ore valide");
+      return;
+    }
+    const ok = await run({ op: "add", type: addType, hours });
+    if (ok) { setAdding(false); setAddType("VACATION"); setAddHours(""); }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -276,15 +424,28 @@ function DayEditorModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="day-editor-title"
-        className="w-full max-w-lg rounded-lg bg-surface-container-lowest p-6 shadow-xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-surface-container-lowest p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 id="day-editor-title" className="mb-4 text-lg font-semibold">{editor.employeeName} — {formatDateIt(editor.date)}</h3>
+        <h3 id="day-editor-title" className="mb-1 text-lg font-semibold">{editor.employeeName} — {formatDateIt(editor.date)}</h3>
+
+        {cls?.exceedsDailyCap && (
+          <div className="mb-4 rounded-lg border border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            ⚠ Ore lavorate + assenze = <strong>{cls.rawEffectiveHours}h</strong>, oltre il massimo
+            giornaliero di <strong>{cls.dailyCapHours}h</strong>. Correggi timbrature o assenze qui sotto.
+          </div>
+        )}
+
+        {/* ── Timbrature ─────────────────────────────────────────── */}
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Timbrature</div>
         {editRecords === null ? (
-          <div className="py-8 text-center text-on-surface-variant">Caricamento...</div>
+          <div className="py-4 text-center text-on-surface-variant">Caricamento...</div>
         ) : (
           <>
             <div className="space-y-2">
+              {editRecords.length === 0 && (
+                <p className="text-xs text-on-surface-variant">Nessuna timbratura per questo giorno.</p>
+              )}
               {editRecords.map((rec, idx) => (
                 <div key={rec.id} className="flex items-center gap-2">
                   <select
@@ -311,18 +472,108 @@ function DayEditorModal({
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex items-center gap-2">
-              <button className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-on-primary disabled:opacity-50" disabled={saving} onClick={onSave}>
-                Salva
+            <div className="mt-3 flex items-center gap-2">
+              <button className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-on-primary disabled:opacity-50" disabled={saving} onClick={onSaveRecords}>
+                Salva timbrature
               </button>
-              <button className="rounded-lg border border-outline-variant px-4 py-2 text-xs" onClick={onClose}>Annulla</button>
               <button
                 className="ml-auto rounded-lg border border-dashed border-outline-variant px-3 py-2 text-xs"
                 onClick={() => setEditRecords([...(editRecords ?? []), { id: `new-${Date.now()}`, type: "ENTRY", declaredTime: "09:00" }])}
-              >+ Aggiungi</button>
+              >+ Aggiungi timbratura</button>
             </div>
           </>
         )}
+
+        {/* ── Assenze (ferie / ROL / malattia / …) ───────────────── */}
+        <div className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Assenze</div>
+        {editLeaves === null ? (
+          <div className="py-4 text-center text-on-surface-variant">Caricamento...</div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {editLeaves.length === 0 && (
+                <p className="text-xs text-on-surface-variant">Nessuna assenza per questo giorno.</p>
+              )}
+              {editLeaves.map((l) => {
+                const d = draft[l.id] ?? { type: l.type, hours: l.hours != null ? String(l.hours) : "" };
+                const unit = unitOf(d.type);
+                return (
+                  <div key={l.id} className="rounded-lg border border-surface-container p-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={d.type}
+                        onChange={(e) => setDraft({ ...draft, [l.id]: { ...d, type: e.target.value } })}
+                        className="rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs"
+                      >
+                        {LEAVE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      {unit === "hours" && (
+                        <input
+                          type="number" min="0" max="24" step="0.5" placeholder="ore"
+                          value={d.hours}
+                          onChange={(e) => setDraft({ ...draft, [l.id]: { ...d, hours: e.target.value } })}
+                          className="w-20 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs tabular-nums"
+                        />
+                      )}
+                      {l.status !== "APPROVED" && (
+                        <span className="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] uppercase text-on-surface-variant">{l.status}</span>
+                      )}
+                      <div className="ml-auto flex items-center gap-1">
+                        <button
+                          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-on-primary disabled:opacity-50"
+                          disabled={busy} onClick={() => saveLeaveRow(l)}
+                        >Salva</button>
+                        <button
+                          className="rounded-lg border border-outline-variant px-3 py-1.5 text-xs text-error disabled:opacity-50"
+                          disabled={busy} onClick={() => run({ op: "removeDay", leaveId: l.id })}
+                        >Rimuovi giorno</button>
+                      </div>
+                    </div>
+                    {l.spansMultipleDays && (
+                      <p className="mt-1 text-[11px] text-amber-700">
+                        ⚠ Copre dal {formatDateIt(l.startDate)} al {formatDateIt(l.endDate)} — la modifica
+                        agisce solo su questo giorno (il resto resta invariato).
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {adding ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-outline-variant p-2">
+                <select
+                  value={addType}
+                  onChange={(e) => setAddType(e.target.value)}
+                  className="rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs"
+                >
+                  {LEAVE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                {unitOf(addType) === "hours" && (
+                  <input
+                    type="number" min="0" max="24" step="0.5" placeholder="ore"
+                    value={addHours}
+                    onChange={(e) => setAddHours(e.target.value)}
+                    className="w-20 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-xs tabular-nums"
+                  />
+                )}
+                <div className="ml-auto flex items-center gap-1">
+                  <button className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-on-primary disabled:opacity-50" disabled={busy} onClick={addLeave}>Aggiungi</button>
+                  <button className="rounded-lg border border-outline-variant px-3 py-1.5 text-xs" onClick={() => setAdding(false)}>Annulla</button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="mt-3 rounded-lg border border-dashed border-outline-variant px-3 py-2 text-xs"
+                onClick={() => setAdding(true)}
+              >+ Aggiungi assenza</button>
+            )}
+          </>
+        )}
+
+        <div className="mt-6 flex justify-end">
+          <button className="rounded-lg border border-outline-variant px-4 py-2 text-xs" onClick={onClose}>Chiudi</button>
+        </div>
       </div>
     </div>
   );

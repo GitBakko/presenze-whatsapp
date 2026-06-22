@@ -6,7 +6,9 @@ import type { DayClassification } from "@/lib/presenze/classify";
 function day(partial: Partial<DayClassification>): DayClassification {
   return {
     date: "2026-05-04", status: "ok", scheduledHours: 8, workedHours: 8,
-    leaveHours: 0, effectiveHours: 8, anomalies: [], isRed: false, isYellow: false,
+    leaveHours: 0, effectiveHours: 8,
+    rawEffectiveHours: 8, dailyCapHours: 8, exceedsDailyCap: false,
+    anomalies: [], isRed: false, isYellow: false,
     isReportRed: false, isReportYellow: false,
     ...partial,
   };
@@ -67,5 +69,19 @@ describe("flattenIssues", () => {
     const i = flattenIssues(employees)[0];
     expect(i.employeeId).toBe("e1");
     expect(i.employeeName).toBe("ROSSI MARIO");
+  });
+
+  it("surfaces an exceedsDailyCap day as a yellow issue with the overage reason", () => {
+    const emps: ReviewEmployee[] = [{
+      employeeId: "e2", name: "Bianchi Lia", displayName: "BIANCHI LIA", overtimeTotal: 0,
+      days: [
+        // printed totale lands on 8 (ok) but worked+leave is 10 > 8 cap
+        day({ date: "2026-05-11", status: "ok", isYellow: true, exceedsDailyCap: true, rawEffectiveHours: 10, dailyCapHours: 8 }),
+      ],
+    }];
+    const issues = flattenIssues(emps);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe("yellow");
+    expect(issues[0].reasons.join(" ")).toMatch(/superano il massimo giornaliero/i);
   });
 });

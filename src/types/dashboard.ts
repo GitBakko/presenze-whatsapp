@@ -114,6 +114,9 @@ export interface LeaveBalanceRow {
   employeeName: string;
   avatarUrl: string | null;
   vacationUsed: number;
+  vacationUsedPast: number;         // goduti (passato consumato)
+  vacationFutureHuman: number;      // richiesti umani futuri (approvati, non goduti)
+  vacationFuturePredictor: number;  // impostati dal predittore, futuri
   vacationTotal: number;     // carryOver + accrued + adjust
   vacationRemaining: number;
   vacationPercent: number;   // usato / totale × 100

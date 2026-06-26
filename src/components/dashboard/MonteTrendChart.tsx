@@ -8,6 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 import type { MonteTrend } from "@/types/dashboard";
@@ -109,6 +110,14 @@ export function MonteTrendChart({
               contentStyle={{ borderRadius: 8, border: "1px solid var(--color-outline-variant)", fontSize: 12 }}
               formatter={(value, name) => [`${value} gg`, name]}
             />
+            {data.currentMonthLabel && (
+              <ReferenceLine
+                x={data.currentMonthLabel}
+                stroke="var(--color-on-surface-variant)"
+                strokeDasharray="4 3"
+                label={{ value: "oggi", position: "top", fontSize: 10, fill: "var(--color-on-surface-variant)" }}
+              />
+            )}
             {!totalHidden && (
               <Line
                 type="monotone"

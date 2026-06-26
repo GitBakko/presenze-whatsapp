@@ -2,11 +2,12 @@
  * Monte ferie/permessi trend — month-by-month evolution of each employee's
  * residual leave pool, expressed in WHOLE DAYS (ROL hours converted at ore/8).
  *
- * "Residuo monte" here is the AS-OF residual: it counts only goduto (past)
- * consumption at each month-end, never future-approved leaves — so the line is a
- * true burn-down of what was actually available, not a projection. The unified
- * value merges ferie (days) and ROL (hours/8) into one figure, per the agreed
- * currency model.
+ * The line is plotted for the WHOLE year: past months are the real as-of residual
+ * (only goduto counted), future months PROJECT it forward — accrual keeps growing
+ * and every leave planned up to that month (human + predictor) is consumed. So a
+ * predictor-amortised employee rises to today, then burns down toward ~0 by year
+ * end; one with no plan keeps climbing. The unified value merges ferie (days) and
+ * ROL (hours/8) into one figure, per the agreed currency model.
  *
  * Pure (no DB): callers pass already-fetched per-employee data. `now` is injected
  * for deterministic tests. Dates use local Date at noon to match balance.ts.
@@ -40,11 +41,13 @@ export interface MonteTrendSeries {
 }
 
 export interface MonteTrend {
-  /** Month labels ("Gen".."Dic") up to the current month of `year`. */
+  /** Month labels "Gen".."Dic" (full year for the current/past year). */
   months: string[];
   series: MonteTrendSeries[];
   /** Company total per month = sum of non-null employee points. */
   total: number[];
+  /** Label of the current month (e.g. "Giu") for the "oggi" divider, else null. */
+  currentMonthLabel: string | null;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -55,15 +58,11 @@ function endOfMonth(year: number, m: number): Date {
 }
 
 /**
- * How many months of `year` to plot:
- *   - past year → all 12,
- *   - current year → up to the current month,
- *   - future year → none.
+ * Months of `year` to plot: the FULL year for the current or a past year (future
+ * months of the current year are projected), nothing for a future year.
  */
 function monthsToPlot(year: number, now: Date): number {
-  if (year < now.getFullYear()) return 12;
-  if (year > now.getFullYear()) return 0;
-  return now.getMonth() + 1;
+  return year > now.getFullYear() ? 0 : 12;
 }
 
 export function computeMonteTrend(
@@ -99,5 +98,6 @@ export function computeMonteTrend(
     return { employeeId: e.id, name: e.name, points };
   });
 
-  return { months, series, total };
+  const currentMonthLabel = year === now.getFullYear() ? MESI_ABBR[now.getMonth() + 1] : null;
+  return { months, series, total, currentMonthLabel };
 }

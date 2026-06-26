@@ -52,7 +52,7 @@ describe("computeMonteTrend", () => {
     expect(p[7]).toBe(20);
     // September (index 8) onward the 5 planned days are consumed: 20 + 2.5 − 5 = 17.5.
     expect(p[8]).toBe(17.5);
-    expect(p[8]).toBeLessThan(p[7]); // the line turns DOWN — the amortization is visible
+    expect(p[8]!).toBeLessThan(p[7]!); // the line turns DOWN — the amortization is visible
   });
 
   it("company total sums non-null employee points per month", () => {

@@ -124,7 +124,7 @@ export default function AmortizationPage() {
   const totalToConfirm = employees.reduce((s, e) => s + e.days.filter((d) => !d.confirmedAt).length, 0);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

@@ -124,7 +124,7 @@ export function PlanByEmployee({
                       disabled={busy}
                       aria-label="Conferma giorno"
                       title="Conferma"
-                      className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-success hover:bg-success-container disabled:opacity-50"
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-success hover:bg-success-container disabled:opacity-50"
                     >
                       <CheckCheck className="h-5 w-5" />
                     </button>
@@ -134,7 +134,7 @@ export function PlanByEmployee({
                     disabled={busy}
                     aria-label="Cancella giorno"
                     title="Cancella (non goduto)"
-                    className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-outline-variant hover:bg-surface-container-high hover:text-error disabled:opacity-50"
+                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-outline-variant hover:bg-surface-container-high hover:text-error disabled:opacity-50"
                   >
                     <Trash2 className="h-5 w-5" />
                   </button>

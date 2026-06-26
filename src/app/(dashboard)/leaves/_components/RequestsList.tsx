@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarX2, CheckCircle, XCircle, Trash2, Pencil, Search, X } from "lucide-react";
+import { CalendarX2, CheckCircle, XCircle, Trash2, Pencil, Search, X, CheckCheck } from "lucide-react";
 import type { LeaveRequest } from "./types";
-import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS, LEAVE_TYPE_OPTIONS } from "./types";
+import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS, SOURCE_LABELS, SOURCE_BADGE, LEAVE_TYPE_OPTIONS } from "./types";
 
 export function RequestsList({
   requests,
@@ -13,6 +13,7 @@ export function RequestsList({
   onReject,
   onDelete,
   onEdit,
+  onConfirm,
   onSelectEmployee,
   isAdmin = true,
 }: {
@@ -23,6 +24,7 @@ export function RequestsList({
   onReject: (id: string) => void;
   onDelete: (r: LeaveRequest) => void;
   onEdit: (r: LeaveRequest) => void;
+  onConfirm?: (id: string) => void;
   onSelectEmployee: (id: string) => void;
   isAdmin?: boolean;
 }) {
@@ -171,8 +173,15 @@ export function RequestsList({
                       {STATUS_LABELS[r.status] ?? r.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-outline-variant">
-                    {r.source === "EXTERNAL_API" ? "API" : "Manager"}
+                  <td className="px-4 py-3 text-xs">
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${SOURCE_BADGE[r.source] ?? SOURCE_BADGE.MANAGER}`}>
+                      {SOURCE_LABELS[r.source] ?? r.source}
+                    </span>
+                    {r.source === "PREDICTOR" && (
+                      <span className={`ml-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${r.confirmedAt ? "bg-success-container text-success" : "bg-warning-container text-warning"}`}>
+                        {r.confirmedAt ? "confermato" : "da confermare"}
+                      </span>
+                    )}
                   </td>
                   {isAdmin && (
                   <td className="px-4 py-3">
@@ -186,6 +195,11 @@ export function RequestsList({
                             <XCircle className="h-5 w-5" />
                           </button>
                         </>
+                      )}
+                      {onConfirm && r.source === "PREDICTOR" && !r.confirmedAt && (
+                        <button onClick={() => onConfirm(r.id)} aria-label="Conferma giorno predittore" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-success hover:bg-success-container" title="Conferma giorno predittore">
+                          <CheckCheck className="h-5 w-5" />
+                        </button>
                       )}
                       {(r.status === "APPROVED" || r.status === "PENDING") && (
                         <button onClick={() => onEdit(r)} aria-label="Modifica" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-outline-variant hover:bg-surface-container-high hover:text-primary" title="Modifica">

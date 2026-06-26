@@ -12,6 +12,7 @@ export interface LeaveRequest {
   notes: string | null;
   status: string;
   source: string;
+  confirmedAt: string | null;
   createdAt: string;
   approvedBy: string | null;
   approvedAt: string | null;
@@ -32,6 +33,7 @@ export interface CalendarEvent {
   sickProtocol: string | null;
   notes: string | null;
   source: string;
+  confirmedAt: string | null;
   approvedBy: string | null;
   approvedAt: string | null;
   createdAt: string;
@@ -81,6 +83,7 @@ export interface ByEmployeeRequest {
   hours: number | null;
   status: string;
   source: string;
+  confirmedAt: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -128,4 +131,17 @@ export const STATUS_LABELS: Record<string, string> = {
   APPROVED: "Approvata",
   PENDING: "In attesa",
   REJECTED: "Rifiutata",
+};
+
+export const SOURCE_LABELS: Record<string, string> = {
+  MANAGER: "Manager",
+  EXTERNAL_API: "API / Bot / Email",
+  PREDICTOR: "Predittore",
+};
+
+/** Badge style for a leave row by source. Predictor stands out in amber. */
+export const SOURCE_BADGE: Record<string, string> = {
+  MANAGER: "bg-surface-container-high text-on-surface-variant",
+  EXTERNAL_API: "bg-surface-container-high text-on-surface-variant",
+  PREDICTOR: "bg-amber-100 text-amber-800",
 };

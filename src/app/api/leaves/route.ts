@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
       notes: l.notes,
       status: l.status,
       source: l.source,
+      confirmedAt: l.confirmedAt?.toISOString() ?? null,
       createdAt: l.createdAt.toISOString(),
       approvedBy: l.approvedBy?.name ?? null,
       approvedAt: l.approvedAt?.toISOString() ?? null,

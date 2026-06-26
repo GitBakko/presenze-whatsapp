@@ -6,7 +6,7 @@ import { useModalA11y } from "@/hooks/useModalA11y";
 import { getShortName } from "@/lib/avatar-utils";
 import { todayRome } from "@/lib/tz";
 import type { CalendarDay, CalendarEvent } from "./types";
-import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS } from "./types";
+import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS, SOURCE_LABELS } from "./types";
 
 export function CalendarView({
   calendarDays,
@@ -39,11 +39,6 @@ export function CalendarView({
   }, [calendarDays]);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const closeEventPopup = useCallback(() => setSelectedEvent(null), []);
-
-  const SOURCE_LABELS: Record<string, string> = {
-    MANAGER: "Manager",
-    EXTERNAL_API: "API / Bot / Email",
-  };
 
   const formatDate = (d: string) => {
     const [, m, day] = d.split("-");
@@ -109,15 +104,20 @@ export function CalendarView({
               <div className="mt-0.5 space-y-0.5">
                 {day.events.slice(0, 3).map((ev, i) => {
                   const isPending = ev.status === "PENDING";
+                  const isPredictor = ev.source === "PREDICTOR";
+                  const isUnconfirmedPredictor = isPredictor && !ev.confirmedAt;
+                  const predictorHint = isPredictor
+                    ? ` (predittore${ev.confirmedAt ? ", confermato" : ", da confermare"})`
+                    : "";
                   return (
                     <button
                       key={i}
                       onClick={() => setSelectedEvent(ev)}
-                      aria-label={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}`}
-                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-semibold leading-tight ${TYPE_COLORS[ev.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400 ring-offset-0" : ""}`}
-                      title={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}`}
+                      aria-label={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}${predictorHint}`}
+                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-semibold leading-tight ${TYPE_COLORS[ev.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400 ring-offset-0" : ""} ${isPredictor ? "ring-1 ring-inset ring-amber-500" : ""} ${isUnconfirmedPredictor ? "opacity-70" : ""}`}
+                      title={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}${predictorHint}`}
                     >
-                      {isPending && <Hourglass className="mr-0.5 inline h-2.5 w-2.5" />}{getShortName(ev.employeeName, allNames)}
+                      {isPending && <Hourglass className="mr-0.5 inline h-2.5 w-2.5" />}{isPredictor && <span className="mr-0.5 font-extrabold text-amber-700">P</span>}{getShortName(ev.employeeName, allNames)}
                     </button>
                   );
                 })}
@@ -146,6 +146,9 @@ export function CalendarView({
         ))}
         <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-400">
           <Hourglass className="h-2.5 w-2.5" /> In attesa
+        </span>
+        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-500">
+          <span className="font-extrabold">P</span> Predittore
         </span>
       </div>
 
@@ -241,6 +244,15 @@ function EventDetailPopup({
               {sourceLabels[event.source] ?? event.source}
             </span>
           </div>
+
+          {event.source === "PREDICTOR" && (
+            <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">
+              <span className="text-xs font-medium text-on-surface-variant">Stato predittore</span>
+              <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${event.confirmedAt ? "bg-success-container text-success" : "bg-warning-container text-warning"}`}>
+                {event.confirmedAt ? "Confermato" : "Da confermare"}
+              </span>
+            </div>
+          )}
 
           {event.approvedBy && (
             <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2">

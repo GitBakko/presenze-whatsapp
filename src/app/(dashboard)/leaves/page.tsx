@@ -151,6 +151,18 @@ export default function LeavesPage() {
     fetchCalendar();
   }
 
+  async function handleConfirm(id: string) {
+    const res = await fetch(`/api/leaves/${id}/confirm`, { method: "POST" });
+    if (res.ok) {
+      toast.success("Giorno predittore confermato");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || `Errore ${res.status}`);
+    }
+    fetchRequests();
+    fetchCalendar();
+  }
+
   async function handleDelete(r: LeaveRequest) {
     const period =
       r.startDate === r.endDate
@@ -342,6 +354,7 @@ export default function LeavesPage() {
           onReject={handleReject}
           onDelete={handleDelete}
           onEdit={setEditingRequest}
+          onConfirm={handleConfirm}
           onSelectEmployee={setSelectedEmployee}
           isAdmin={isLeavesAdmin}
         />

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { ByEmployeeCard, ByEmployeeRequest } from "./types";
-import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS } from "./types";
+import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS, SOURCE_LABELS } from "./types";
 import { BalanceMini } from "./BalanceCard";
 import { StatusBadge } from "@/components/StatusBadge";
 
@@ -206,7 +206,12 @@ function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
                   </span>
                 </td>
                 <td className="px-4 py-2 text-[11px] text-outline-variant">
-                  {r.source === "EXTERNAL_API" ? "API/Bot/Email" : "Manager"}
+                  {SOURCE_LABELS[r.source] ?? r.source}
+                  {r.source === "PREDICTOR" && (
+                    <span className={`ml-1 inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold ${r.confirmedAt ? "bg-success-container text-success" : "bg-warning-container text-warning"}`}>
+                      {r.confirmedAt ? "confermato" : "da confermare"}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2 max-w-xs truncate text-[11px] text-on-surface-variant" title={r.notes ?? ""}>
                   {r.notes ?? "\u2014"}

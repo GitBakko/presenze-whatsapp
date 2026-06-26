@@ -75,6 +75,7 @@ export async function GET() {
           hours: l.hours,
           status: l.status,
           source: l.source,
+          confirmedAt: l.confirmedAt?.toISOString() ?? null,
           notes: l.notes,
           createdAt: l.createdAt.toISOString(),
         })),

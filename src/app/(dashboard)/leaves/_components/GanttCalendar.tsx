@@ -33,6 +33,21 @@ interface BlockInfo {
   startMin: number;
   endMin: number;
   status: string;
+  source: string;
+  confirmedAt: string | null;
+}
+
+function mkBlock(ev: CalendarDay["events"][number], startMin: number, endMin: number): BlockInfo {
+  return {
+    employeeName: ev.employeeName,
+    typeLabel: ev.typeLabel,
+    type: ev.type,
+    startMin,
+    endMin,
+    status: ev.status,
+    source: ev.source,
+    confirmedAt: ev.confirmedAt,
+  };
 }
 
 function resolveBlocks(day: CalendarDay): BlockInfo[] {
@@ -45,43 +60,15 @@ function resolveBlocks(day: CalendarDay): BlockInfo[] {
     if (ev.timeSlots && ev.timeSlots.length > 0) {
       // ROL / permesso with explicit time slots
       for (const slot of ev.timeSlots) {
-        blocks.push({
-          employeeName: ev.employeeName,
-          typeLabel: ev.typeLabel,
-          type: ev.type,
-          startMin: hmToMin(slot.from),
-          endMin: hmToMin(slot.to),
-          status: ev.status,
-        });
+        blocks.push(mkBlock(ev, hmToMin(slot.from), hmToMin(slot.to)));
       }
     } else if (ev.type === "VACATION_HALF_AM") {
-      blocks.push({
-        employeeName: ev.employeeName,
-        typeLabel: ev.typeLabel,
-        type: ev.type,
-        startMin: DAY_START,
-        endMin: 13 * 60, // 13:00
-        status: ev.status,
-      });
+      blocks.push(mkBlock(ev, DAY_START, 13 * 60)); // 13:00
     } else if (ev.type === "VACATION_HALF_PM") {
-      blocks.push({
-        employeeName: ev.employeeName,
-        typeLabel: ev.typeLabel,
-        type: ev.type,
-        startMin: 14 * 60 + 30, // 14:30
-        endMin: DAY_END,
-        status: ev.status,
-      });
+      blocks.push(mkBlock(ev, 14 * 60 + 30, DAY_END)); // 14:30
     } else {
       // Full day (VACATION, SICK, etc.)
-      blocks.push({
-        employeeName: ev.employeeName,
-        typeLabel: ev.typeLabel,
-        type: ev.type,
-        startMin: DAY_START,
-        endMin: DAY_END,
-        status: ev.status,
-      });
+      blocks.push(mkBlock(ev, DAY_START, DAY_END));
     }
   }
 
@@ -202,6 +189,8 @@ export function GanttCalendar({
                     const topPx = ((clampedStart - DAY_START) / DAY_SPAN) * TIMELINE_HEIGHT;
                     const heightPx = Math.max(14, ((clampedEnd - clampedStart) / DAY_SPAN) * TIMELINE_HEIGHT);
                     const isPending = block.status === "PENDING";
+                    const isPredictor = block.source === "PREDICTOR";
+                    const isUnconfirmedPredictor = isPredictor && !block.confirmedAt;
 
                     // Stack blocks side by side: compute column among overlapping blocks
                     const overlapping = blocks.filter((b, j) =>
@@ -219,8 +208,8 @@ export function GanttCalendar({
                     return (
                       <div
                         key={bi}
-                        aria-label={`${block.employeeName} — ${block.typeLabel}`}
-                        className={`absolute overflow-hidden rounded px-1 py-0.5 text-[9px] font-semibold leading-tight ${TYPE_COLORS[block.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400" : ""}`}
+                        aria-label={`${block.employeeName} — ${block.typeLabel}${isPredictor ? (block.confirmedAt ? " (predittore, confermato)" : " (predittore, da confermare)") : ""}`}
+                        className={`absolute overflow-hidden rounded px-1 py-0.5 text-[9px] font-semibold leading-tight ${TYPE_COLORS[block.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400" : ""} ${isPredictor ? "ring-1 ring-inset ring-amber-500" : ""} ${isUnconfirmedPredictor ? "opacity-70" : ""}`}
                         style={{
                           top: topPx,
                           height: heightPx,

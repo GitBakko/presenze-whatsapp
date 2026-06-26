@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
         sickProtocol: string | null;
         notes: string | null;
         source: string;
+        confirmedAt: string | null;
         approvedBy: string | null;
         approvedAt: string | null;
         createdAt: string;
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
           sickProtocol: l.sickProtocol,
           notes: l.notes,
           source: l.source,
+          confirmedAt: l.confirmedAt?.toISOString() ?? null,
           approvedBy: l.approvedBy?.name ?? null,
           approvedAt: l.approvedAt?.toISOString() ?? null,
           createdAt: l.createdAt.toISOString(),

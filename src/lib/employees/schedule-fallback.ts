@@ -32,6 +32,46 @@ export function appliesScheduleFallback(rowCount: number, contractType: string):
   return rowCount === 0 && contractType === "FULL_TIME";
 }
 
+interface ScheduleBlocks {
+  block1Start: string | null;
+  block1End: string | null;
+  block2Start: string | null;
+  block2End: string | null;
+}
+
+/**
+ * A schedule row represents a WORKING day only if it carries at least one
+ * complete work block (a start AND its end). A row that exists but has all-null
+ * blocks is a *configured non-working day* (e.g. a stray weekend row), not a
+ * working one — counting it inflates ferie working-day counts (prod bug: a
+ * Mon→Sun vacation scored 7 days instead of 5 because empty Sat/Sun rows existed).
+ */
+export function hasWorkBlock(s: Partial<ScheduleBlocks>): boolean {
+  return Boolean((s.block1Start && s.block1End) || (s.block2Start && s.block2End));
+}
+
+/**
+ * Single builder for the working-day map consumed by countWorkDays /
+ * expandToWorkingDays. Keys are the ISO weekdays the employee ACTUALLY works:
+ *   - real schedule rows are included only when `hasWorkBlock` (drops empty rows),
+ *   - schedule-less FULL_TIME falls back to Mon-Fri.
+ * This keeps `isWorkingDay`'s key-presence check correct without it needing to
+ * know about blocks, and guarantees the three consumers can never diverge.
+ */
+export function buildWorkingScheduleMap<T extends ScheduleBlocks & { dayOfWeek: number }>(
+  scheduleRows: T[],
+  contractType: string,
+): Map<number, unknown> {
+  const map = new Map<number, unknown>();
+  for (const s of scheduleRows) {
+    if (hasWorkBlock(s)) map.set(s.dayOfWeek, s);
+  }
+  if (appliesScheduleFallback(scheduleRows.length, contractType)) {
+    for (const dow of FALLBACK_WORKING_DOWS) map.set(dow, {});
+  }
+  return map;
+}
+
 /**
  * Effective contracted hours for ISO weekday `dowIso` (1=Mon..7=Sun).
  * When `fallback` is set, returns the contractual hours on Mon-Fri and 0 on the

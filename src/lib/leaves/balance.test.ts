@@ -304,4 +304,79 @@ describe("computeLeaveBalanceFromData — past/future/predictor split", () => {
     expect(r.rolFutureHuman).toBe(0);
     expect(r.rolUsed).toBe(12);
   });
+
+  it("schedule-less FULL_TIME: a Mon→Sun vacation counts 5 working days, NOT 7 calendar days", () => {
+    // Repro of the prod report: Stefano Brunelli, FULL_TIME, no EmployeeSchedule
+    // rows, VACATION 2026-08-24 (Mon) → 2026-08-30 (Sun). The monte must drop by
+    // 5 (working days), never 7 (calendar days incl. Sat 29 + Sun 30).
+    const scheduleLess = {
+      id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null,
+      contractType: "FULL_TIME", schedule: [] as ScheduleRow[],
+    };
+    const leaves = [
+      { type: "VACATION", startDate: "2026-08-24", endDate: "2026-08-30", hours: null, timeSlots: null, source: "MANAGER" },
+    ];
+    const r = computeLeaveBalanceFromData(scheduleLess, null, leaves, 2026, new Date("2026-12-31T12:00:00"));
+    expect(r.vacationUsed).toBe(5);
+  });
+
+  it("empty (all-null) weekend schedule rows do NOT count toward a Mon→Sun vacation", () => {
+    // The other prod scenario: the employee has Mon-Fri rows WITH hours plus stray
+    // Sat(6)/Sun(7) rows with no work blocks. Those empty rows must not turn the
+    // weekend into working days → 5, not 7.
+    const withEmptyWeekend = {
+      id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null,
+      contractType: "FULL_TIME",
+      schedule: [
+        ...fullTimeSchedule(), // 1..5 with blocks
+        { dayOfWeek: 6, block1Start: null, block1End: null, block2Start: null, block2End: null },
+        { dayOfWeek: 7, block1Start: null, block1End: null, block2Start: null, block2End: null },
+      ] as ScheduleRow[],
+    };
+    const leaves = [
+      { type: "VACATION", startDate: "2026-08-24", endDate: "2026-08-30", hours: null, timeSlots: null, source: "MANAGER" },
+    ];
+    const r = computeLeaveBalanceFromData(withEmptyWeekend, null, leaves, 2026, new Date("2026-12-31T12:00:00"));
+    expect(r.vacationUsed).toBe(5);
+  });
+
+  it("a real Saturday worker (Sat row WITH hours) DOES count Saturday", () => {
+    // Guard against over-correction: if Saturday genuinely carries work hours it
+    // must still count. Mon-Sat worker on a Mon→Sun vacation = 6 working days.
+    const monSat = {
+      id: "e1", hireDate: new Date("2020-01-01"), terminationDate: null,
+      contractType: "FULL_TIME",
+      schedule: [
+        ...fullTimeSchedule(),
+        { dayOfWeek: 6, block1Start: "09:00", block1End: "13:00", block2Start: null, block2End: null },
+      ] as ScheduleRow[],
+    };
+    const leaves = [
+      { type: "VACATION", startDate: "2026-08-24", endDate: "2026-08-30", hours: null, timeSlots: null, source: "MANAGER" },
+    ];
+    const r = computeLeaveBalanceFromData(monSat, null, leaves, 2026, new Date("2026-12-31T12:00:00"));
+    expect(r.vacationUsed).toBe(6);
+  });
+
+  it("as-of-today residual ignores future-approved leaves (= remaining + future)", () => {
+    const now = new Date("2026-06-15T12:00:00"); // 6 months accrued: vac 12, rol 12
+    const leaves = [
+      { type: "VACATION", startDate: "2026-03-02", endDate: "2026-03-03", hours: null, timeSlots: null, source: "MANAGER" }, // 2 wd past
+      { type: "VACATION", startDate: "2026-09-07", endDate: "2026-09-08", hours: null, timeSlots: null, source: "MANAGER" }, // 2 wd future human
+      { type: "VACATION", startDate: "2026-10-05", endDate: "2026-10-05", hours: null, timeSlots: null, source: "PREDICTOR" }, // 1 wd future predictor
+      { type: "ROL", startDate: "2026-05-04", endDate: "2026-05-04", hours: 4, timeSlots: null, source: "MANAGER" }, // 4h past
+      { type: "ROL", startDate: "2026-08-04", endDate: "2026-08-04", hours: 8, timeSlots: null, source: "PREDICTOR" }, // 8h future predictor
+    ];
+    const r = computeLeaveBalanceFromData(emp, null, leaves, 2026, now);
+    // Vacation: total 12, past 2 → as-of-today 10; full remaining 12−5used = 7
+    expect(r.vacationRemainingAsOfToday).toBe(10);
+    expect(r.vacationRemainingAsOfToday).toBe(
+      r.vacationRemaining + r.vacationFutureHuman + r.vacationFuturePredictor,
+    );
+    // ROL: total 12, past 4 → as-of-today 8; full remaining 12−12used = 0
+    expect(r.rolRemainingAsOfToday).toBe(8);
+    expect(r.rolRemainingAsOfToday).toBe(
+      r.rolRemaining + r.rolFutureHuman + r.rolFuturePredictor,
+    );
+  });
 });

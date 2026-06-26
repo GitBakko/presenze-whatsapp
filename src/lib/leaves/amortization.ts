@@ -7,15 +7,16 @@
  * employee off per day, soft-overflowing only when free days run out).
  *
  * Currency model (decision D3): vacation days and ROL hours are merged into a
- * single hour-pool, then spread as WHOLE days. Vacation contributes whole days
- * directly; its fractional remainder rolls into the ROL pool; indivisible ROL
- * hours below one working day are an accepted scrap left as residual.
+ * single hour-pool, then spread as WHOLE FERIE days. Vacation contributes whole
+ * days directly; its fractional remainder rolls into the ROL pool; whole-day ROL
+ * multiples (8h, 16h, …) are booked as ferie days too — never as hourly permits —
+ * and only indivisible ROL hours below one working day are accepted scrap.
  *
  * All dates are YYYY-MM-DD strings (Europe/Rome), never Date arithmetic for
  * iteration — mirrors working-days.ts. `now` is injected for deterministic tests.
  */
 import { expandToWorkingDays, type ScheduleMap } from "./working-days";
-import { CONTRACT_DAILY_HOURS, appliesScheduleFallback, FALLBACK_WORKING_DOWS } from "../employees/schedule-fallback";
+import { CONTRACT_DAILY_HOURS, buildWorkingScheduleMap } from "../employees/schedule-fallback";
 
 export interface EmployeeAmortInput {
   id: string;
@@ -29,8 +30,7 @@ export interface EmployeeAmortInput {
 
 export interface PlannedDay {
   date: string;
-  type: "VACATION" | "ROL";
-  hours?: number; // set for ROL full-days (= dailyH)
+  type: "VACATION"; // every amortized day is a whole ferie day (see planAmortization)
 }
 
 export interface EmployeePool {
@@ -78,14 +78,7 @@ export function computePool(input: EmployeeAmortInput): EmployeePool {
 }
 
 function buildScheduleMap(input: EmployeeAmortInput): ScheduleMap {
-  const map = new Map<number, unknown>();
-  for (const s of input.schedule) map.set(s.dayOfWeek, s);
-  if (appliesScheduleFallback(input.schedule.length, input.contractType)) {
-    for (const dow of FALLBACK_WORKING_DOWS) {
-      map.set(dow, { block1Start: null, block1End: null, block2Start: null, block2End: null });
-    }
-  }
-  return map;
+  return buildWorkingScheduleMap(input.schedule, input.contractType);
 }
 
 /** Candidate working dates (today+1 .. yearEnd) minus holidays, occupied days, and >= terminationDate. */
@@ -139,9 +132,12 @@ export function planAmortization(
       return oa !== ob ? oa - ob : a < b ? -1 : 1;
     });
     const chosen = ranked.slice(0, pool.totalDays).sort();
-    chosen.forEach((date, i) => {
-      const type: "VACATION" | "ROL" = i < pool.vacWholeDays ? "VACATION" : "ROL";
-      planned.push(type === "ROL" ? { date, type, hours: pool.dailyH } : { date, type });
+    // Decision (correction): every amortized day is a WHOLE FERIE day, never an
+    // hourly ROL permit. The unified pool already converted ROL hours into
+    // whole-day equivalents (8h → 1 day); a full-working-day absence is booked as
+    // VACATION, and only the sub-daily ROL remainder stays as accepted scrap.
+    chosen.forEach((date) => {
+      planned.push({ date, type: "VACATION" });
       occupancy.set(date, (occupancy.get(date) ?? 0) + 1);
     });
     result.set(emp.id, planned);

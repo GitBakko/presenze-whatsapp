@@ -69,15 +69,15 @@ describe("planAmortization", () => {
     });
   });
 
-  it("first vacWholeDays are VACATION then ROL full-days carry hours=dailyH", () => {
+  it("whole-day ROL multiples are booked as ferie days, never hourly permits", () => {
+    // 1 vac day + 8h ROL = 2 whole days; BOTH must be VACATION (no ROL permits).
     const plan = planAmortization([
       { ...base, schedule: ftSched(), vacationRemaining: 1, rolRemaining: 8 },
     ], now, yearEnd);
     const days = plan.get("e1")!;
-    expect(days.filter((d) => d.type === "VACATION").length).toBe(1);
-    const rol = days.filter((d) => d.type === "ROL");
-    expect(rol.length).toBe(1);
-    expect(rol[0].hours).toBe(8);
+    expect(days.length).toBe(2);
+    expect(days.every((d) => d.type === "VACATION")).toBe(true);
+    expect(days.some((d) => (d as { hours?: number }).hours != null)).toBe(false);
   });
 
   it("avoids collisions between two employees when space allows", () => {

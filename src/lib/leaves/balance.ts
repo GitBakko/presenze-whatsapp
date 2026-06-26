@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { countWorkDays } from "./working-days";
-import { appliesScheduleFallback, FALLBACK_WORKING_DOWS } from "../employees/schedule-fallback";
+import { buildWorkingScheduleMap } from "../employees/schedule-fallback";
 
 // ── Leave type definitions ──
 
@@ -98,6 +98,10 @@ export interface LeaveBalanceSummary {
   vacationFuturePredictor: number;
   vacationCarryOver: number;
   vacationRemaining: number;
+  // Residual counting ONLY past (goduto) consumption — ignores future-approved
+  // leaves (human or predictor). Drives the "progress to today" dashboard bar
+  // and the per-month points of the monte trend chart.
+  vacationRemainingAsOfToday: number;
   vacationUsedThisMonth: number;
   // ROL (hours)
   rolAccrued: number;
@@ -108,6 +112,7 @@ export interface LeaveBalanceSummary {
   rolFuturePredictor: number;
   rolCarryOver: number;
   rolRemaining: number;
+  rolRemainingAsOfToday: number; // see vacationRemainingAsOfToday
   rolUsedThisMonth: number;
   // Sick
   sickDays: number;
@@ -216,19 +221,11 @@ export function computeLeaveBalanceFromData(
   const monthStart = `${year}-${String(currentMonth + 1).padStart(2, "0")}-01`;
   const monthEnd = `${year}-${String(currentMonth + 1).padStart(2, "0")}-31`;
 
-  const scheduleMap = new Map<number, ScheduleBlock>();
-  for (const s of employee.schedule) {
-    scheduleMap.set(s.dayOfWeek, s);
-  }
-  // No schedule rows for a FULL_TIME employee → assume Mon-Fri working, matching
-  // the leave popup (api/leaves/preview-days). Without this the vacation
-  // working-day count below would be 0 for every schedule-less employee, scaling
-  // nothing from the balance while the popup showed the user a non-zero count.
-  if (appliesScheduleFallback(employee.schedule.length, employee.contractType)) {
-    for (const dow of FALLBACK_WORKING_DOWS) {
-      scheduleMap.set(dow, { block1Start: null, block1End: null, block2Start: null, block2End: null });
-    }
-  }
+  // Working-day map keyed by the days the employee ACTUALLY works: real rows are
+  // kept only when they carry work hours (a stray empty Sat/Sun row must NOT make
+  // the weekend count toward ferie), and schedule-less FULL_TIME falls back to
+  // Mon-Fri — same rule the leave popup (api/leaves/preview-days) uses.
+  const scheduleMap = buildWorkingScheduleMap(employee.schedule, employee.contractType);
 
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const today = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
@@ -297,6 +294,10 @@ export function computeLeaveBalanceFromData(
       Math.round(
         (vacationCarryOver + vacationAccrued + vacationAccrualAdjust - vacationUsed) * 100
       ) / 100,
+    vacationRemainingAsOfToday:
+      Math.round(
+        (vacationCarryOver + vacationAccrued + vacationAccrualAdjust - vacationUsedPast) * 100
+      ) / 100,
     vacationUsedThisMonth: Math.round(vacationUsedThisMonth * 100) / 100,
     rolAccrued,
     rolAccrualAdjust,
@@ -308,6 +309,10 @@ export function computeLeaveBalanceFromData(
     rolRemaining:
       Math.round(
         (rolCarryOver + rolAccrued + rolAccrualAdjust - rolUsed) * 100
+      ) / 100,
+    rolRemainingAsOfToday:
+      Math.round(
+        (rolCarryOver + rolAccrued + rolAccrualAdjust - rolUsedPast) * 100
       ) / 100,
     rolUsedThisMonth: Math.round(rolUsedThisMonth * 100) / 100,
     sickDays,

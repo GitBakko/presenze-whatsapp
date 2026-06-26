@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { expandToWorkingDays } from "@/lib/leaves/working-days";
 import { isPublicHoliday } from "@/lib/leaves/holidays";
-import { appliesScheduleFallback, FALLBACK_WORKING_DOWS } from "@/lib/employees/schedule-fallback";
+import { buildWorkingScheduleMap } from "@/lib/employees/schedule-fallback";
 
 export async function POST(request: NextRequest) {
   const authResult = await checkAuthAny();
@@ -36,13 +36,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Dipendente non trovato" }, { status: 404 });
   }
 
-  const scheduleMap = new Map<number, unknown>();
-  for (const s of employee.schedule) scheduleMap.set(s.dayOfWeek, s);
-  // Fallback: FULL_TIME senza righe schedule → assume Lun-Ven lavorativi.
-  // Regola condivisa (schedule-fallback.ts) con balance.ts ed excel-presenze.ts.
-  if (appliesScheduleFallback(employee.schedule.length, employee.contractType)) {
-    for (const dow of FALLBACK_WORKING_DOWS) scheduleMap.set(dow, {});
-  }
+  // Working-day map keyed by the days actually worked: empty rows (no work block)
+  // are excluded so a stray weekend row can't make Sat/Sun count, and schedule-less
+  // FULL_TIME falls back to Mon-Fri. Shared rule (schedule-fallback.ts) with
+  // balance.ts ed excel-presenze.ts.
+  const scheduleMap = buildWorkingScheduleMap(employee.schedule, employee.contractType);
 
   if (type === "VACATION_HALF_AM" || type === "VACATION_HALF_PM") {
     return NextResponse.json({

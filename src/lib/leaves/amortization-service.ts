@@ -72,10 +72,18 @@ export async function recomputeAmortization(
     leavesByEmp.set(l.employeeId, arr);
   }
 
+  // The leaves we are about to WIPE (unconfirmed future predictor days) must not
+  // influence this run: counting them in the balance would understate the
+  // residual (→ nothing to regenerate), and treating them as occupied would
+  // block their own dates. Excluding them makes the run idempotent and lets the
+  // residual reflect rule 2 (certified − goduto − human/confirmed-predictor).
+  const isWiped = (l: { source: string; confirmedAt: Date | null; startDate: string }) =>
+    l.source === "PREDICTOR" && l.confirmedAt === null && l.startDate > today;
+
   // Build amort inputs from CURRENT balance (already nets out goduti + confirmed
   // predictor leaves → the day-residual formula of rule 2 holds automatically).
   const inputs: EmployeeAmortInput[] = employees.map((e) => {
-    const leaves = leavesByEmp.get(e.id) ?? [];
+    const leaves = (leavesByEmp.get(e.id) ?? []).filter((l) => !isWiped(l));
     const bal = computeLeaveBalanceFromData(
       { id: e.id, hireDate: e.hireDate, terminationDate: e.terminationDate, contractType: e.contractType, schedule: e.schedule },
       balByEmp.get(e.id) ?? null,
@@ -83,8 +91,8 @@ export async function recomputeAmortization(
       year,
       now,
     );
-    // Occupied = every date covered by an existing approved leave (predictor must
-    // never double up on a day the employee is already off).
+    // Occupied = every date covered by an existing approved leave we are keeping
+    // (predictor must never double up on a day the employee is already off).
     const occupiedDates = new Set<string>();
     for (const l of leaves) {
       let cur = l.startDate;
@@ -119,18 +127,24 @@ export async function recomputeAmortization(
     const rows: Array<Record<string, unknown>> = [];
     for (const [employeeId, days] of plan) {
       const dayList = days as PlannedDay[];
-      const vacDays = dayList.filter((d) => d.type === "VACATION").length;
-      const rolDays = dayList.filter((d) => d.type === "ROL").length;
+      // Every planned day is a whole ferie day now; the pool's vac/rol split is
+      // kept only for audit transparency (how much came from ROL conversion).
       const inp = poolByEmp.get(employeeId);
-      const scrapHours = inp ? computePool(inp).scrapHours : 0;
-      perEmployee.push({ employeeId, generated: dayList.length, vacDays, rolDays, scrapHours });
+      const pool = inp ? computePool(inp) : null;
+      perEmployee.push({
+        employeeId,
+        generated: dayList.length,
+        vacDays: pool?.vacWholeDays ?? dayList.length,
+        rolDays: pool?.rolWholeDays ?? 0,
+        scrapHours: pool?.scrapHours ?? 0,
+      });
       for (const d of dayList) {
         rows.push({
           employeeId,
-          type: d.type,
+          type: d.type, // always VACATION
           startDate: d.date,
           endDate: d.date,
-          hours: d.type === "ROL" ? d.hours ?? null : null,
+          hours: null,
           status: "APPROVED",
           source: "PREDICTOR",
           confirmedAt: null,

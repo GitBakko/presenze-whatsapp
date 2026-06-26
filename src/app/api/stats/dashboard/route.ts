@@ -429,7 +429,9 @@ export async function GET(request: NextRequest) {
         currentYear,
       );
       const vacTotal = bal.vacationCarryOver + bal.vacationAccrued + bal.vacationAccrualAdjust;
-      const vacPercent = vacTotal > 0 ? (bal.vacationUsed / vacTotal) * 100 : 0;
+      // Progress "to today": only goduto (past) consumption fills the bar, so
+      // future-approved/predictor leaves don't inflate it.
+      const vacPercent = vacTotal > 0 ? (bal.vacationUsedPast / vacTotal) * 100 : 0;
       leaveBalances.push({
         employeeId: emp.id,
         employeeName: emp.displayName || emp.name,
@@ -441,7 +443,8 @@ export async function GET(request: NextRequest) {
         vacationTotal: Math.round(vacTotal * 100) / 100,
         vacationRemaining: bal.vacationRemaining,
         vacationPercent: Math.round(vacPercent * 10) / 10,
-        rolRemaining: bal.rolRemaining,
+        // ROL residue "to today": don't subtract ROL not yet enjoyed (future).
+        rolRemaining: bal.rolRemainingAsOfToday,
         alert: isH2 && bal.vacationRemaining < 5,
       });
     } catch {

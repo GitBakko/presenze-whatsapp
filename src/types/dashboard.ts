@@ -118,9 +118,9 @@ export interface LeaveBalanceRow {
   vacationFutureHuman: number;      // richiesti umani futuri (approvati, non goduti)
   vacationFuturePredictor: number;  // impostati dal predittore, futuri
   vacationTotal: number;     // carryOver + accrued + adjust
-  vacationRemaining: number;
-  vacationPercent: number;   // usato / totale × 100
-  rolRemaining: number;      // ore
+  vacationRemaining: number; // residuo pieno (netto anche dei futuri)
+  vacationPercent: number;   // goduto-AD-OGGI / totale × 100 (no futuri)
+  rolRemaining: number;      // ore residue AD OGGI (no ROL futuri non goduti)
   alert: boolean;            // true se < 5 gg residui e siamo in H2
 }
 

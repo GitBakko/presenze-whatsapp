@@ -17,6 +17,22 @@ import { prisma } from "../../db";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mock = prisma as unknown as Record<string, any>;
 
+/** N future weekday (Mon-Fri) YYYY-MM-DD dates within the given year, from tomorrow. */
+function futureWeekdays(year: number, n: number): string[] {
+  const out: string[] = [];
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  while (out.length < n) {
+    d.setDate(d.getDate() + 1);
+    if (d.getFullYear() !== year) break;
+    const dow = d.getDay();
+    if (dow >= 1 && dow <= 5) {
+      out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    }
+  }
+  return out;
+}
+
 function enabledEmployee() {
   return {
     id: "e1",
@@ -64,13 +80,35 @@ describe("recomputeAmortization", () => {
     expect(mock.leavePredictorRun.create).toHaveBeenCalled();
   });
 
-  it("ROL predictor rows carry hours = daily working hours; VACATION rows carry null", async () => {
+  it("every predictor row is a whole VACATION day (no hourly ROL permits)", async () => {
     await recomputeAmortization(new Date().getFullYear(), "MANUAL", "user1");
     const rows = mock.leaveRequest.createMany.mock.calls[0][0].data;
+    expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      if (row.type === "ROL") expect(row.hours).toBe(8);
-      else expect(row.hours).toBe(null);
+      expect(row.type).toBe("VACATION");
+      expect(row.hours).toBe(null);
     }
+  });
+
+  it("excludes unconfirmed-future predictor leaves from the residual (idempotent re-run)", async () => {
+    const YEAR = new Date().getFullYear();
+    // First run: no pre-existing leaves → baseline plan size.
+    mock.leaveRequest.findMany.mockResolvedValueOnce([]);
+    await recomputeAmortization(YEAR, "MANUAL", "user1");
+    const baseCount = mock.leaveRequest.createMany.mock.calls[0][0].data.length;
+    expect(baseCount).toBeGreaterThan(0);
+
+    // Second run: the employee now already carries the previous run's unconfirmed
+    // future predictor days. They must be wiped+ignored, so the plan size is
+    // identical — not collapsed to ~0 by double-counting them as "used".
+    const existing = futureWeekdays(YEAR, 8).map((d) => ({
+      type: "VACATION", startDate: d, endDate: d, hours: null, timeSlots: null,
+      source: "PREDICTOR", confirmedAt: null,
+    }));
+    mock.leaveRequest.findMany.mockResolvedValueOnce(existing);
+    await recomputeAmortization(YEAR, "MANUAL", "user1");
+    const reCount = mock.leaveRequest.createMany.mock.calls[1][0].data.length;
+    expect(reCount).toBe(baseCount);
   });
 
   it("no enabled employees → no wipe/create, writes an empty run", async () => {

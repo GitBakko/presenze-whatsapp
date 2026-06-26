@@ -23,6 +23,7 @@ interface EmployeeProfile {
   email: string | null;
   nfcUid: string | null;
   payrollId: string | null;
+  leavePredictorEnabled?: boolean;
   telegramChatId: string | null;
   telegramUsername: string | null;
   vacationCarryOver: number;
@@ -41,6 +42,7 @@ export default function EmployeeEditPage() {
   const [displayName, setDisplayName] = useState("");
   const [hireDate, setHireDate] = useState("");
   const [contractType, setContractType] = useState("FULL_TIME");
+  const [leavePredictorEnabled, setLeavePredictorEnabled] = useState(false);
   const [email, setEmail] = useState("");
   const [nfcUid, setNfcUid] = useState("");
   const [payrollId, setPayrollId] = useState("");
@@ -160,6 +162,7 @@ export default function EmployeeEditPage() {
         setDisplayName(data.displayName ?? "");
         setHireDate(data.hireDate ?? "");
         setContractType(data.contractType ?? "FULL_TIME");
+        setLeavePredictorEnabled(data.leavePredictorEnabled ?? false);
         setEmail(data.email ?? "");
         setNfcUid(data.nfcUid ?? "");
         setPayrollId(data.payrollId ?? "");
@@ -192,6 +195,7 @@ export default function EmployeeEditPage() {
     form.append("displayName", displayName);
     if (hireDate) form.append("hireDate", hireDate);
     form.append("contractType", contractType);
+    form.append("leavePredictorEnabled", String(leavePredictorEnabled));
     form.append("email", email);
     form.append("nfcUid", nfcUid);
     form.append("payrollId", payrollId);
@@ -409,6 +413,25 @@ export default function EmployeeEditPage() {
               <option value="FULL_TIME">Full-time (40h)</option>
               <option value="PART_TIME">Part-time</option>
             </select>
+          </div>
+          <div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-surface-container-highest px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={leavePredictorEnabled}
+                onChange={(e) => setLeavePredictorEnabled(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-outline text-primary focus:ring-primary"
+              />
+              <span>
+                <span className="block text-sm font-medium text-on-surface">
+                  Predittore ammortamento ferie
+                </span>
+                <span className="mt-0.5 block text-xs text-outline-variant">
+                  Distribuisce automaticamente il residuo ferie/permessi sui giorni lavorativi futuri,
+                  ricalcolato a ogni upload del monte. I giorni proposti vanno confermati dall&apos;HR.
+                </span>
+              </span>
+            </label>
           </div>
 
           {/* ── Canali di contatto ─────────────────────────────────── */}

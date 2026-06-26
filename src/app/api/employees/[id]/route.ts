@@ -50,6 +50,7 @@ export async function GET(
     telegramUsername: employee.telegramUsername,
     email: employee.email,
     payrollId: employee.payrollId,
+    leavePredictorEnabled: employee.leavePredictorEnabled,
     vacationCarryOver: balance?.vacationCarryOver ?? 0,
     rolCarryOver: balance?.rolCarryOver ?? 0,
     vacationAccrualAdjust: balance?.vacationAccrualAdjust ?? 0,
@@ -88,6 +89,7 @@ export async function PUT(
   const telegramUsernameRaw = formData.get("telegramUsername") as string | null;
   const emailRaw = formData.get("email") as string | null;
   const payrollIdRaw = formData.get("payrollId") as string | null;
+  const leavePredictorEnabledRaw = formData.get("leavePredictorEnabled") as string | null;
 
   // Saldi ferie/permessi (anno corrente). Tutti opzionali. Se almeno
   // uno e' presente nel form, facciamo upsert sulla tabella LeaveBalance
@@ -107,6 +109,7 @@ export async function PUT(
     telegramUsername?: string | null;
     email?: string | null;
     payrollId?: string | null;
+    leavePredictorEnabled?: boolean;
   } = {};
 
   // Update display name (empty string = reset to null/use original name)
@@ -122,6 +125,11 @@ export async function PUT(
   // Update contract type
   if (contractType && ["FULL_TIME", "PART_TIME"].includes(contractType)) {
     updateData.contractType = contractType;
+  }
+
+  // Update leave-predictor toggle (checkbox → "true"/"false")
+  if (leavePredictorEnabledRaw !== null) {
+    updateData.leavePredictorEnabled = leavePredictorEnabledRaw === "true";
   }
 
   // Update NFC UID (stringa vuota = scollega tessera)

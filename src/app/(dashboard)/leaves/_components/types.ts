@@ -54,11 +54,17 @@ export interface LeaveBalance {
   vacationAccrued: number;
   vacationAccrualAdjust?: number;
   vacationUsed: number;
+  vacationUsedPast?: number;
+  vacationFutureHuman?: number;
+  vacationFuturePredictor?: number;
   vacationCarryOver: number;
   vacationRemaining: number;
   rolAccrued: number;
   rolAccrualAdjust?: number;
   rolUsed: number;
+  rolUsedPast?: number;
+  rolFutureHuman?: number;
+  rolFuturePredictor?: number;
   rolCarryOver: number;
   rolRemaining: number;
   sickDays: number;

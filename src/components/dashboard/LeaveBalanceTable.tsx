@@ -61,7 +61,27 @@ export function LeaveBalanceTable({
                   </span>
                 </td>
                 <td className="py-2.5 pr-4 tabular-nums text-xs text-on-surface-variant">
-                  {r.vacationUsed}/{r.vacationTotal} gg
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium text-on-surface">
+                      {r.vacationRemaining}
+                      <span className="ml-1 text-[10px] font-normal text-on-surface-variant">
+                        / {r.vacationTotal} gg
+                      </span>
+                    </span>
+                    <span className="flex flex-wrap gap-x-2 text-[10px]">
+                      <span className="text-primary" title="Goduti (passato)">
+                        God {r.vacationUsedPast}
+                      </span>
+                      <span className="text-on-surface-variant" title="Richiesti umani futuri">
+                        Fut {r.vacationFutureHuman}
+                      </span>
+                      {r.vacationFuturePredictor > 0 && (
+                        <span className="text-warning" title="Predittore (da confermare)">
+                          Pred {r.vacationFuturePredictor}
+                        </span>
+                      )}
+                    </span>
+                  </div>
                 </td>
                 <td className="hidden py-2.5 pr-4 sm:table-cell">
                   <div className="flex items-center gap-2">

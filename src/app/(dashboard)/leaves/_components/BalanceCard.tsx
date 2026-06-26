@@ -63,7 +63,23 @@ function BalanceItem({ label, value, sub, color, numericValue }: { label: string
   );
 }
 
+/** Build a 4-bucket usage subtitle: Monte · Goduti · Futuri umani · Predittore. */
+function usageSub(opts: {
+  total: number;
+  past: number;
+  futureHuman: number;
+  futurePredictor: number;
+  unit: string;
+}): string {
+  const r = (n: number) => Math.round(n * 100) / 100;
+  let s = `Monte ${r(opts.total)}${opts.unit} · God ${r(opts.past)} · Fut ${r(opts.futureHuman)}`;
+  if (opts.futurePredictor > 0) s += ` · Pred ${r(opts.futurePredictor)}`;
+  return s;
+}
+
 export function BalanceCard({ balance, employeeName, onClose }: { balance: LeaveBalance; employeeName: string; onClose: () => void }) {
+  const vacTotal = balance.vacationCarryOver + balance.vacationAccrued + (balance.vacationAccrualAdjust ?? 0);
+  const rolTotal = balance.rolCarryOver + balance.rolAccrued + (balance.rolAccrualAdjust ?? 0);
   return (
     <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-card">
       <div className="mb-4 flex items-center justify-between">
@@ -75,8 +91,8 @@ export function BalanceCard({ balance, employeeName, onClose }: { balance: Leave
         </button>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <BalanceItem label="Ferie residue" value={`${balance.vacationRemaining} gg`} sub={`Maturate: ${balance.vacationAccrued} | Usate: ${balance.vacationUsed}`} color="blue" numericValue={balance.vacationRemaining} />
-        <BalanceItem label="ROL residui" value={`${balance.rolRemaining} h`} sub={`Maturate: ${balance.rolAccrued} | Usate: ${balance.rolUsed}`} color="amber" numericValue={balance.rolRemaining} />
+        <BalanceItem label="Ferie residue" value={`${balance.vacationRemaining} gg`} sub={usageSub({ total: vacTotal, past: balance.vacationUsedPast ?? balance.vacationUsed, futureHuman: balance.vacationFutureHuman ?? 0, futurePredictor: balance.vacationFuturePredictor ?? 0, unit: "gg" })} color="blue" numericValue={balance.vacationRemaining} />
+        <BalanceItem label="ROL residui" value={`${balance.rolRemaining} h`} sub={usageSub({ total: rolTotal, past: balance.rolUsedPast ?? balance.rolUsed, futureHuman: balance.rolFutureHuman ?? 0, futurePredictor: balance.rolFuturePredictor ?? 0, unit: "h" })} color="amber" numericValue={balance.rolRemaining} />
         <BalanceItem label="Malattia" value={`${balance.sickDays} gg`} sub="Nessun limite annuale" color="red" />
         <BalanceItem label="Contratto" value={balance.contractType === "FULL_TIME" ? "Full-time" : "Part-time"} sub={`${balance.weeklyHours}h/settimana`} color="teal" />
       </div>

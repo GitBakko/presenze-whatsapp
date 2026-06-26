@@ -137,7 +137,7 @@ function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
           <BalanceMini
             label="Ferie residue"
             value={`${card.balance.vacationRemaining} gg`}
-            sub={`Mat ${card.balance.vacationAccrued} · Rip ${card.balance.vacationCarryOver} · Usa ${card.balance.vacationUsed}`}
+            sub={`God ${card.balance.vacationUsedPast ?? card.balance.vacationUsed} · Fut ${card.balance.vacationFutureHuman ?? 0}${(card.balance.vacationFuturePredictor ?? 0) > 0 ? ` · Pred ${card.balance.vacationFuturePredictor}` : ""}`}
             adjust={card.balance.vacationAccrualAdjust}
             negative={card.balance.vacationRemaining < 0}
             color="blue"
@@ -145,7 +145,7 @@ function ByEmployeeCardView({ card }: { card: ByEmployeeCard }) {
           <BalanceMini
             label="ROL residui"
             value={`${card.balance.rolRemaining} h`}
-            sub={`Mat ${card.balance.rolAccrued} · Rip ${card.balance.rolCarryOver} · Usa ${card.balance.rolUsed}`}
+            sub={`God ${card.balance.rolUsedPast ?? card.balance.rolUsed} · Fut ${card.balance.rolFutureHuman ?? 0}${(card.balance.rolFuturePredictor ?? 0) > 0 ? ` · Pred ${card.balance.rolFuturePredictor}` : ""}`}
             adjust={card.balance.rolAccrualAdjust}
             negative={card.balance.rolRemaining < 0}
             color="amber"

@@ -90,7 +90,9 @@ export default function EmployeeDetailPage() {
   const [selectedDay, setSelectedDay] = useState<DailyStat | null>(null);
   const [leaveBalance, setLeaveBalance] = useState<{
     vacationRemaining: number; vacationAccrued: number; vacationUsed: number;
+    vacationUsedPast?: number; vacationFutureHuman?: number; vacationFuturePredictor?: number;
     rolRemaining: number; rolAccrued: number; rolUsed: number;
+    rolUsedPast?: number; rolFutureHuman?: number; rolFuturePredictor?: number;
     sickDays: number; weeklyHours: number; contractType: string;
   } | null>(null);
   const [leaveMap, setLeaveMap] = useState<Map<string, LeaveEvent[]>>(new Map());
@@ -241,12 +243,12 @@ export default function EmployeeDetailPage() {
                 <div className={`rounded-lg p-3 ${leaveBalance.vacationRemaining < 0 ? "bg-red-50 ring-1 ring-red-200" : "bg-blue-50"}`}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Ferie residue</p>
                   <p className={`mt-1 text-lg font-extrabold ${leaveBalance.vacationRemaining < 0 ? "text-red-600" : "text-blue-700"}`}>{leaveBalance.vacationRemaining} gg</p>
-                  <p className="text-[10px] text-outline-variant">Mat. {leaveBalance.vacationAccrued} | Usate {leaveBalance.vacationUsed}</p>
+                  <p className="text-[10px] text-outline-variant">God {leaveBalance.vacationUsedPast ?? leaveBalance.vacationUsed} · Fut {leaveBalance.vacationFutureHuman ?? 0}{(leaveBalance.vacationFuturePredictor ?? 0) > 0 ? ` · Pred ${leaveBalance.vacationFuturePredictor}` : ""}</p>
                 </div>
                 <div className={`rounded-lg p-3 ${leaveBalance.rolRemaining < 0 ? "bg-red-50 ring-1 ring-red-200" : "bg-amber-50"}`}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">ROL residui</p>
                   <p className={`mt-1 text-lg font-extrabold ${leaveBalance.rolRemaining < 0 ? "text-red-600" : "text-amber-700"}`}>{leaveBalance.rolRemaining} h</p>
-                  <p className="text-[10px] text-outline-variant">Mat. {leaveBalance.rolAccrued} | Usate {leaveBalance.rolUsed}</p>
+                  <p className="text-[10px] text-outline-variant">God {leaveBalance.rolUsedPast ?? leaveBalance.rolUsed} · Fut {leaveBalance.rolFutureHuman ?? 0}{(leaveBalance.rolFuturePredictor ?? 0) > 0 ? ` · Pred ${leaveBalance.rolFuturePredictor}` : ""}</p>
                 </div>
                 <div className="rounded-lg bg-red-50 p-3">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Malattia</p>

@@ -3,6 +3,7 @@ import { prisma } from "./db";
 import { computeLeaveBalance } from "./leaves";
 import { parsePayrollPdf, type PayrollPdfParseResult, type PayrollPdfRow } from "./payroll-pdf-parser";
 import { computeMappedBalance, fuseRolFromPdf } from "./payroll-import-mapping";
+import { logger } from "./logger";
 
 export interface DiffPair {
   currentRemaining: number;
@@ -246,6 +247,16 @@ export async function confirmImport(
     });
     return created.id;
   });
+
+  // The certified balances were just upserted → recompute the amortization plan
+  // for predictor-enabled employees on the fresh data (decision D9). Best-effort:
+  // never fail the import if the recompute throws.
+  try {
+    const { recomputeAmortization } = await import("./leaves/amortization-service");
+    await recomputeAmortization(preview.year, "PAYROLL_IMPORT", userId);
+  } catch (err) {
+    logger.error({ err }, "amortization recompute after payroll import failed");
+  }
 
   return {
     importId,

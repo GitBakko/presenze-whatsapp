@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { computeLeaveBalanceFromData } from "./balance";
+import {
+  computeLeaveBalanceFromData,
+  remainingAccrualMonths,
+  projectYearEndResidual,
+} from "./balance";
 
 type ScheduleRow = {
   dayOfWeek: number;
@@ -39,7 +43,7 @@ describe("computeLeaveBalanceFromData", () => {
       new Date("2026-12-31T12:00:00Z"),
     );
     expect(r.vacationAccrued).toBe(24);
-    expect(r.rolAccrued).toBe(24);
+    expect(r.rolAccrued).toBe(48);
     expect(r.vacationUsed).toBe(0);
     expect(r.rolUsed).toBe(0);
     expect(r.vacationCarryOver).toBe(0);
@@ -55,7 +59,7 @@ describe("computeLeaveBalanceFromData", () => {
       new Date("2026-12-31T12:00:00Z"),
     );
     expect(r.vacationAccrued).toBe(14);
-    expect(r.rolAccrued).toBe(14);
+    expect(r.rolAccrued).toBe(28);
   });
 
   it("PART_TIME 24h/wk with schedule rows → accrual proportional to 24/40", () => {
@@ -68,7 +72,7 @@ describe("computeLeaveBalanceFromData", () => {
     );
     expect(r.weeklyHours).toBe(24);
     expect(r.vacationAccrued).toBeCloseTo(14.4, 2);
-    expect(r.rolAccrued).toBeCloseTo(14.4, 2);
+    expect(r.rolAccrued).toBeCloseTo(28.8, 2);
   });
 
   it("PART_TIME without schedule rows → accrual=0, no throw (known limitation)", () => {
@@ -100,7 +104,7 @@ describe("computeLeaveBalanceFromData", () => {
     expect(r.vacationCarryOver).toBe(10);
     expect(r.vacationAccrualAdjust).toBe(2);
     expect(r.vacationRemaining).toBe(36);
-    expect(r.rolRemaining).toBe(30);
+    expect(r.rolRemaining).toBe(54);
   });
 
   it("1 leave VACATION 5 working-days APPROVED → vacationUsed=5", () => {
@@ -158,7 +162,7 @@ describe("computeLeaveBalanceFromData", () => {
       new Date("2026-12-31T12:00:00Z"),
     );
     expect(r.rolUsed).toBe(4);
-    expect(r.rolRemaining).toBe(20);
+    expect(r.rolRemaining).toBe(44);
   });
 
   it("VACATION_HALF_AM counted as 0.5 days", () => {
@@ -186,9 +190,9 @@ describe("computeLeaveBalanceFromData", () => {
       2026,
       new Date("2026-12-31T12:00:00Z"),
     );
-    // Jan..Aug = 8 months × 2 days = 16
+    // Jan..Aug = 8 months × 2 days = 16; ROL = 8 × 4h = 32
     expect(r.vacationAccrued).toBe(16);
-    expect(r.rolAccrued).toBe(16);
+    expect(r.rolAccrued).toBe(32);
   });
 
   it("year after termination → 0 months accrued", () => {
@@ -212,7 +216,7 @@ describe("computeLeaveBalanceFromData", () => {
       new Date("2026-12-31T12:00:00Z"),
     );
     expect(r.vacationAccrued).toBe(24);
-    expect(r.rolAccrued).toBe(24);
+    expect(r.rolAccrued).toBe(48);
   });
 
   it("part-time terminated mid-year → cap AND proportion both apply", () => {
@@ -226,7 +230,7 @@ describe("computeLeaveBalanceFromData", () => {
     );
     expect(r.weeklyHours).toBe(24);
     expect(r.vacationAccrued).toBeCloseTo(9.6, 2);
-    expect(r.rolAccrued).toBeCloseTo(9.6, 2);
+    expect(r.rolAccrued).toBeCloseTo(19.2, 2);
   });
 
   it("hired June, terminated August same year → 3 months (Jun,Jul,Aug)", () => {
@@ -237,9 +241,9 @@ describe("computeLeaveBalanceFromData", () => {
       2026,
       new Date("2026-12-31T12:00:00Z"),
     );
-    // Jun..Aug = 3 months × 2 = 6
+    // Jun..Aug = 3 months × 2 = 6; ROL = 3 × 4h = 12
     expect(r.vacationAccrued).toBe(6);
-    expect(r.rolAccrued).toBe(6);
+    expect(r.rolAccrued).toBe(12);
   });
 
   it("adjust fields still added on top of capped accrual", () => {
@@ -359,7 +363,7 @@ describe("computeLeaveBalanceFromData — past/future/predictor split", () => {
   });
 
   it("as-of-today residual ignores future-approved leaves (= remaining + future)", () => {
-    const now = new Date("2026-06-15T12:00:00"); // 6 months accrued: vac 12, rol 12
+    const now = new Date("2026-06-15T12:00:00"); // 6 months accrued: vac 12, rol 24
     const leaves = [
       { type: "VACATION", startDate: "2026-03-02", endDate: "2026-03-03", hours: null, timeSlots: null, source: "MANAGER" }, // 2 wd past
       { type: "VACATION", startDate: "2026-09-07", endDate: "2026-09-08", hours: null, timeSlots: null, source: "MANAGER" }, // 2 wd future human
@@ -373,10 +377,59 @@ describe("computeLeaveBalanceFromData — past/future/predictor split", () => {
     expect(r.vacationRemainingAsOfToday).toBe(
       r.vacationRemaining + r.vacationFutureHuman + r.vacationFuturePredictor,
     );
-    // ROL: total 12, past 4 → as-of-today 8; full remaining 12−12used = 0
-    expect(r.rolRemainingAsOfToday).toBe(8);
+    // ROL: accrued 24, past 4 → as-of-today 20; full remaining 24−12used = 12
+    expect(r.rolRemainingAsOfToday).toBe(20);
     expect(r.rolRemainingAsOfToday).toBe(
       r.rolRemaining + r.rolFutureHuman + r.rolFuturePredictor,
     );
+  });
+});
+
+describe("remainingAccrualMonths", () => {
+  it("counts the months still to accrue AFTER the current month", () => {
+    // now = Jun (already accrued) → Jul..Dec still to come = 6.
+    expect(remainingAccrualMonths(new Date("2026-06-15T12:00:00"), 2026, null)).toBe(6);
+  });
+
+  it("December → nothing left to accrue this year", () => {
+    expect(remainingAccrualMonths(new Date("2026-12-31T12:00:00"), 2026, null)).toBe(0);
+  });
+
+  it("a past year (now after the year) → 0", () => {
+    expect(remainingAccrualMonths(new Date("2027-03-01T12:00:00"), 2026, null)).toBe(0);
+  });
+
+  it("planning a future year (now before it) → full 12 months", () => {
+    expect(remainingAccrualMonths(new Date("2026-06-15T12:00:00"), 2027, null)).toBe(12);
+  });
+
+  it("termination caps the end month (Aug term, now Jun → Jul..Aug = 2)", () => {
+    expect(remainingAccrualMonths(new Date("2026-06-15T12:00:00"), 2026, new Date("2026-08-20"))).toBe(2);
+  });
+
+  it("termination before the year → 0", () => {
+    expect(remainingAccrualMonths(new Date("2026-06-15T12:00:00"), 2026, new Date("2025-08-20"))).toBe(0);
+  });
+});
+
+describe("projectYearEndResidual", () => {
+  it("adds the FULL_TIME accrual still to come (2 ferie + 4 ROL h per month)", () => {
+    // now Jun, 6 months left → vac +12, rol +24.
+    const p = projectYearEndResidual(10, 5, 40, new Date("2026-06-15T12:00:00"), 2026, null);
+    expect(p.vacationRemaining).toBe(22); // 10 + 6×2
+    expect(p.rolRemaining).toBe(29); // 5 + 6×4
+  });
+
+  it("PART_TIME 24h/wk pro-rates the accrual (×0.6)", () => {
+    // 6 months left → vac +6×1.2=7.2, rol +6×2.4=14.4.
+    const p = projectYearEndResidual(0, 0, 24, new Date("2026-06-15T12:00:00"), 2026, null);
+    expect(p.vacationRemaining).toBeCloseTo(7.2, 2);
+    expect(p.rolRemaining).toBeCloseTo(14.4, 2);
+  });
+
+  it("in December the residual is returned unchanged (no months left)", () => {
+    const p = projectYearEndResidual(8, 3, 40, new Date("2026-12-31T12:00:00"), 2026, null);
+    expect(p.vacationRemaining).toBe(8);
+    expect(p.rolRemaining).toBe(3);
   });
 });

@@ -22,7 +22,7 @@ export type LeaveType = keyof typeof LEAVE_TYPES;
 
 const FULL_TIME_WEEKLY_HOURS = 40;
 const VACATION_DAYS_PER_MONTH_FT = 2; // 24 days/year for full-time
-const ROL_HOURS_PER_MONTH_FT = 2;     // 24 hours/year for full-time
+const ROL_HOURS_PER_MONTH_FT = 4;     // 48 hours/year for full-time
 
 // ── Weekly hours calculation ──
 
@@ -84,6 +84,44 @@ export function monthlyVacationAccrual(weeklyHours: number): number {
 /** Monthly ROL accrual in hours */
 export function monthlyRolAccrual(weeklyHours: number): number {
   return Math.round(ROL_HOURS_PER_MONTH_FT * getProportionRatio(weeklyHours) * 100) / 100;
+}
+
+/**
+ * Months of accrual still to come in `year` AFTER the current month (the current
+ * month's accrual is already in the residual), capped at the termination month.
+ * `now` is injectable for deterministic tests.
+ */
+export function remainingAccrualMonths(now: Date, year: number, terminationDate: Date | null): number {
+  if (now.getFullYear() > year) return 0;
+  const curMonth = now.getFullYear() < year ? -1 : now.getMonth(); // -1 → whole future year accrues
+  let endMonth = 11;
+  if (terminationDate) {
+    const t = new Date(terminationDate);
+    if (t.getFullYear() < year) return 0;
+    if (t.getFullYear() === year) endMonth = Math.min(11, t.getMonth());
+  }
+  return Math.max(0, endMonth - curMonth);
+}
+
+/**
+ * Project a CURRENT residual forward to year-end by adding the accrual that will
+ * still mature (2 ferie days + 4 ROL hours per month, pro-rated by weeklyHours).
+ * Used by the amortization predictor so it spreads the WHOLE year-end monte —
+ * zeroing it by 31/12 instead of leaving the future accrual unamortized.
+ */
+export function projectYearEndResidual(
+  vacationRemaining: number,
+  rolRemaining: number,
+  weeklyHours: number,
+  now: Date,
+  year: number,
+  terminationDate: Date | null,
+): { vacationRemaining: number; rolRemaining: number } {
+  const months = remainingAccrualMonths(now, year, terminationDate);
+  return {
+    vacationRemaining: Math.round((vacationRemaining + months * monthlyVacationAccrual(weeklyHours)) * 100) / 100,
+    rolRemaining: Math.round((rolRemaining + months * monthlyRolAccrual(weeklyHours)) * 100) / 100,
+  };
 }
 
 // ── Balance computation ──

@@ -33,13 +33,13 @@ describe("computeMonteTrend", () => {
   });
 
   it("residual monte rises monthly with accrual (vac days + rol hours/8), no leaves", () => {
-    // FT accrual: +2 vac days & +2 rol h per month. Monte days = vac + rol/8.
-    // Jan 2.25 · Mar 6.75 · projected forward to Dec 24 + 3 = 27.
+    // FT accrual: +2 vac days & +4 rol h per month. Monte days = vac + rol/8.
+    // Jan 2.5 · Mar 7.5 · projected forward to Dec 24 + 6 = 30.
     const t = computeMonteTrend([ftEmployee("e1", "Mario")], 2026, new Date("2026-03-15T12:00:00"));
     const p = t.series[0].points;
-    expect(p[0]).toBe(2.25);
-    expect(p[2]).toBe(6.75);
-    expect(p[11]).toBe(27);
+    expect(p[0]).toBe(2.5);
+    expect(p[2]).toBe(7.5);
+    expect(p[11]).toBe(30);
   });
 
   it("a FUTURE planned leave PROJECTS a burn-down from its month onward", () => {
@@ -48,17 +48,17 @@ describe("computeMonteTrend", () => {
     e.leaves = [{ type: "VACATION", startDate: "2026-09-07", endDate: "2026-09-11", hours: null, timeSlots: null, source: "PREDICTOR" }];
     const t = computeMonteTrend([e], 2026, new Date("2026-03-15T12:00:00"));
     const p = t.series[0].points;
-    // August (index 7) is before the leave → unaffected (8 vac + 2 rol = 18).
-    expect(p[7]).toBe(18);
-    // September (index 8) onward the 5 planned days are consumed: 18 + 2.25 − 5 = 15.25.
-    expect(p[8]).toBe(15.25);
+    // August (index 7) is before the leave → unaffected (16 vac + 4 rol = 20).
+    expect(p[7]).toBe(20);
+    // September (index 8) onward the 5 planned days are consumed: 20 + 2.5 − 5 = 17.5.
+    expect(p[8]).toBe(17.5);
     expect(p[8]).toBeLessThan(p[7]); // the line turns DOWN — the amortization is visible
   });
 
   it("company total sums non-null employee points per month", () => {
     const t = computeMonteTrend([ftEmployee("e1", "A"), ftEmployee("e2", "B")], 2026, new Date("2026-02-15T12:00:00"));
-    expect(t.total[0]).toBe(4.5); // 2.25 * 2
-    expect(t.total[1]).toBe(9);   // 4.5 * 2
+    expect(t.total[0]).toBe(5);  // 2.5 * 2
+    expect(t.total[1]).toBe(10); // 5 * 2
   });
 
   it("points before the hire month are null and excluded from the total", () => {
@@ -66,7 +66,7 @@ describe("computeMonteTrend", () => {
     const t = computeMonteTrend([ftEmployee("e1", "Early"), hired], 2026, new Date("2026-03-15T12:00:00"));
     expect(t.series[1].points[0]).toBeNull(); // hired Feb 15 > Jan 31
     expect(t.series[1].points[1]).not.toBeNull();
-    expect(t.total[0]).toBe(2.25); // Jan = only Early
+    expect(t.total[0]).toBe(2.5); // Jan = only Early
   });
 
   it("future year → no months", () => {

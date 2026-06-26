@@ -12,7 +12,7 @@
  *   4. records a LeavePredictorRun for observability.
  */
 import { prisma } from "../db";
-import { computeLeaveBalanceFromData } from "./balance";
+import { computeLeaveBalanceFromData, projectYearEndResidual } from "./balance";
 import { computePool, planAmortization, type EmployeeAmortInput, type PlannedDay } from "./amortization";
 
 function pad2(n: number): string {
@@ -101,13 +101,19 @@ export async function recomputeAmortization(
         cur = nextDay(cur);
       }
     }
+    // Amortise the PROJECTED year-end monte: current residual + the accrual still
+    // to come (2 ferie + 4 ROL h per month). Spreading only today's residual would
+    // leave the rest-of-year accrual unamortised → monte not zeroed at 31/12.
+    const projected = projectYearEndResidual(
+      bal.vacationRemaining, bal.rolRemaining, bal.weeklyHours, now, year, e.terminationDate,
+    );
     return {
       id: e.id,
       contractType: e.contractType,
       schedule: e.schedule,
       terminationDate: e.terminationDate,
-      vacationRemaining: bal.vacationRemaining,
-      rolRemaining: bal.rolRemaining,
+      vacationRemaining: projected.vacationRemaining,
+      rolRemaining: projected.rolRemaining,
       occupiedDates,
     };
   });

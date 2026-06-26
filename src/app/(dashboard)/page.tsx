@@ -12,6 +12,7 @@ import { EmployeeStatusList } from "@/components/dashboard/EmployeeStatusList";
 import { AnomalyList } from "@/components/dashboard/AnomalyList";
 import { LeaveBalanceTable } from "@/components/dashboard/LeaveBalanceTable";
 import { EmployeeMetricChart } from "@/components/dashboard/EmployeeMetricChart";
+import { MonteTrendChart } from "@/components/dashboard/MonteTrendChart";
 import { TodayLeavesBox } from "@/components/dashboard/TodayLeavesBox";
 import { UpcomingLeavesBox } from "@/components/dashboard/UpcomingLeavesBox";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
@@ -208,7 +209,10 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* SEZIONE E — Saldi ferie */}
+          {/* SEZIONE E — Andamento monte + Saldi ferie */}
+          {data.charts?.monteFeriePermessi && (
+            <MonteTrendChart data={data.charts.monteFeriePermessi} />
+          )}
           <LeaveBalanceTable rows={data.leaveBalances} />
         </div>
       )}

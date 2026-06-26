@@ -1,5 +1,9 @@
 /** Tipi condivisi tra endpoint /api/stats/dashboard e componenti dashboard. */
 
+import type { MonteTrend } from "@/lib/leaves/monte-trend";
+
+export type { MonteTrend };
+
 // ── KPI singolo con delta vs periodo precedente ──────────────────────
 
 export interface KpiValue {
@@ -45,6 +49,7 @@ export interface DashboardStatsResponse {
     assenzeTipologia?: AssenzaChartPoint[];
     ritardoPerDipendente?: EmployeeMetricPoint[];
     straordinarioPerDipendente?: EmployeeMetricPoint[];
+    monteFeriePermessi?: MonteTrend; // andamento mensile del monte ferie/permessi (giorni)
   };
 
   // Sezione D — Dipendenti oggi

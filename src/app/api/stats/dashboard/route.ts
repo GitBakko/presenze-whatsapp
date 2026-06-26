@@ -8,6 +8,7 @@ import {
 } from "@/lib/calculator";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { computeLeaveBalanceFromData } from "@/lib/leaves";
+import { computeMonteTrend, type MonteTrendEmployeeInput } from "@/lib/leaves/monte-trend";
 import { isActiveOn } from "@/lib/employees/active";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
 import { getDayOfWeek, hmToMinutes } from "@/lib/date-utils";
@@ -453,6 +454,24 @@ export async function GET(request: NextRequest) {
   }
   leaveBalances.sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
+  // Inputs for the monte ferie/permessi trend (reuses the data already fetched
+  // for Sezione E). One series per employee + a company total, residual-as-of.
+  const monteTrendInputs: MonteTrendEmployeeInput[] = allEmployees.map((emp) => ({
+    id: emp.id,
+    name: emp.displayName || emp.name,
+    employee: {
+      id: emp.id,
+      hireDate: emp.hireDate,
+      terminationDate: emp.terminationDate,
+      contractType: emp.contractType,
+      schedule: scheduleRowsByEmp.get(emp.id) ?? [],
+    },
+    balance: balanceByEmp.get(emp.id) ?? null,
+    leaves: (leavesByEmp.get(emp.id) ?? []).map((l) => ({
+      type: l.type, startDate: l.startDate, endDate: l.endDate, hours: l.hours, timeSlots: l.timeSlots, source: l.source,
+    })),
+  }));
+
   // ── SEZIONE C — Grafici (opzionale) ────────────────────────────────
   const charts: DashboardStatsResponse["charts"] = {};
 
@@ -464,6 +483,10 @@ export async function GET(request: NextRequest) {
 
   if (chart === "assenze_tipologia" || chart === "all") {
     charts.assenzeTipologia = computeAssenzeChart(periodLeaves, from, to);
+  }
+
+  if (chart === "monte_ferie" || chart === "all") {
+    charts.monteFeriePermessi = computeMonteTrend(monteTrendInputs, currentYear, now);
   }
 
   // Grafici ritardo e straordinario per dipendente (solo admin, chart=all)
@@ -610,6 +633,13 @@ export async function GET(request: NextRequest) {
     }
     if (chart === "assenze_tipologia" || chart === "all") {
       ownCharts.assenzeTipologia = computeAssenzeChart(ownLeaves, from, to);
+    }
+    if (chart === "monte_ferie" || chart === "all") {
+      ownCharts.monteFeriePermessi = computeMonteTrend(
+        monteTrendInputs.filter((i) => i.id === selfEmployeeId),
+        currentYear,
+        now,
+      );
     }
 
     const response: DashboardStatsResponse = {

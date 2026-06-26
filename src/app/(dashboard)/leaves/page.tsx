@@ -19,6 +19,8 @@ import { ByEmployeeView } from "./_components/ByEmployeeView";
 import { GanttCalendar } from "./_components/GanttCalendar";
 import { CreateLeaveModal } from "./_components/CreateLeaveModal";
 import { EditLeaveModal } from "./_components/EditLeaveModal";
+import { MonteTrendChart } from "@/components/dashboard/MonteTrendChart";
+import type { MonteTrend } from "@/lib/leaves/monte-trend";
 
 export default function LeavesPage() {
   const confirm = useConfirm();
@@ -43,6 +45,7 @@ export default function LeavesPage() {
   const [byEmployee, setByEmployee] = useState<ByEmployeeCard[]>([]);
   const [byEmployeeLoading, setByEmployeeLoading] = useState(false);
   const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null);
+  const [monteTrend, setMonteTrend] = useState<MonteTrend | null>(null);
 
   // ── Fetch data ──
 
@@ -92,12 +95,20 @@ export default function LeavesPage() {
     }
   }, []);
 
+  const fetchMonteTrend = useCallback(async () => {
+    const res = await fetch("/api/leaves/monte-trend");
+    if (res.ok) setMonteTrend(await res.json());
+  }, []);
+
   useEffect(() => { fetchCalendar(); }, [fetchCalendar]);
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
   useEffect(() => {
     if (tab === "byEmployee") fetchByEmployee();
   }, [tab, fetchByEmployee]);
+  useEffect(() => {
+    if (isLeavesAdmin) fetchMonteTrend();
+  }, [isLeavesAdmin, fetchMonteTrend]);
   useEffect(() => {
     if (selectedEmployee) fetchBalance(selectedEmployee);
     else setBalance(null);
@@ -113,10 +124,11 @@ export default function LeavesPage() {
     fetchCalendar();
     fetchRequests();
     if (tab === "byEmployee") fetchByEmployee();
+    if (isLeavesAdmin) fetchMonteTrend();
     if (selectedEmployee && lastEvent.employeeId === selectedEmployee) {
       fetchBalance(selectedEmployee);
     }
-  }, [lastEvent, fetchCalendar, fetchRequests, fetchByEmployee, tab, selectedEmployee, fetchBalance]);
+  }, [lastEvent, fetchCalendar, fetchRequests, fetchByEmployee, tab, selectedEmployee, fetchBalance, isLeavesAdmin, fetchMonteTrend]);
 
   // ── Actions ──
 
@@ -295,6 +307,9 @@ export default function LeavesPage() {
       {selectedEmployee && balance && (
         <BalanceCard balance={balance} employeeName={employees.find((e) => e.id === selectedEmployee)?.name ?? ""} onClose={() => setSelectedEmployee(null)} />
       )}
+
+      {/* Andamento monte ferie/permessi (admin) */}
+      {isLeavesAdmin && monteTrend && <MonteTrendChart data={monteTrend} />}
 
       {/* Tabs */}
       <div role="tablist" className="flex gap-1 rounded-lg bg-surface-container-high p-1">

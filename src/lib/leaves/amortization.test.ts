@@ -1,5 +1,30 @@
 import { describe, it, expect } from "vitest";
 import { computePool, planAmortization } from "./amortization";
+import { dayOfWeekIso } from "./working-days";
+import { isPublicHoliday } from "./holidays";
+
+function shiftDay(date: string, delta: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + delta, 12, 0, 0));
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** A high-leverage day: Mon/Fri (long weekend) or adjacent to a public holiday (ponte). */
+function createsLongBreak(date: string): boolean {
+  const dow = dayOfWeekIso(date);
+  return dow === 1 || dow === 5 || isPublicHoliday(shiftDay(date, 1)) || isPublicHoliday(shiftDay(date, -1));
+}
+
+/** Monday (ISO) of the week containing `date` — mirrors the planner's grouping. */
+function weekKey(date: string): string {
+  let cur = date;
+  for (let i = dayOfWeekIso(date); i > 1; i--) {
+    const [y, m, d] = cur.split("-").map(Number);
+    const t = new Date(Date.UTC(y, m - 1, d - 1, 12, 0, 0));
+    cur = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+  }
+  return cur;
+}
 
 const base = {
   id: "e1",
@@ -49,6 +74,14 @@ describe("computePool", () => {
   it("negative residual is clamped to zero (no negative days)", () => {
     const p = computePool({ ...base, vacationRemaining: -3, rolRemaining: -10 });
     expect(p.totalDays).toBe(0);
+  });
+
+  it("over-drawn ferie offsets remaining ROL in the unified pool (no phantom surplus)", () => {
+    // After the predictor booked ferie funded by ROL: ferie -4 days, ROL 32h.
+    // Unified = -4*8 + 32 = 0 → nothing left to plan, no scrap surplus.
+    const p = computePool({ ...base, vacationRemaining: -4, rolRemaining: 32 });
+    expect(p.totalDays).toBe(0);
+    expect(p.scrapHours).toBe(0);
   });
 });
 
@@ -109,6 +142,66 @@ describe("planAmortization", () => {
       { ...base, schedule: ftSched(), vacationRemaining: 0, rolRemaining: 0 },
     ], now, yearEnd);
     expect(plan.get("e1")!.length).toBe(0);
+  });
+
+  it("spreads leave across the whole year — one per week, never a consecutive block", () => {
+    // 6 ferie days from Jan with a full year ahead → 6 distinct weeks, far apart.
+    const janNow = new Date("2026-01-01T12:00:00");
+    const plan = planAmortization([
+      { ...base, schedule: ftSched(), vacationRemaining: 6, rolRemaining: 0 },
+    ], janNow, "2026-12-31");
+    const days = plan.get("e1")!.map((d) => d.date);
+    expect(days.length).toBe(6);
+    // No two days in the same ISO week.
+    expect(new Set(days.map(weekKey)).size).toBe(6);
+    // Genuinely spread to year-end: first and last span most of the year.
+    const firstMonth = parseInt(days[0].slice(5, 7));
+    const lastMonth = parseInt(days[days.length - 1].slice(5, 7));
+    expect(lastMonth - firstMonth).toBeGreaterThanOrEqual(7);
+  });
+
+  it("prefers long-weekend days: every chosen day is a Monday or Friday when the week is clear", () => {
+    const janNow = new Date("2026-01-01T12:00:00");
+    const plan = planAmortization([
+      { ...base, schedule: ftSched(), vacationRemaining: 6, rolRemaining: 0 },
+    ], janNow, "2026-12-31");
+    const days = plan.get("e1")!.map((d) => d.date);
+    // Every chosen day creates a long break: a Monday/Friday (3-day weekend) or a
+    // ponte bridging a public holiday.
+    expect(days.every(createsLongBreak)).toBe(true);
+  });
+
+  it("books no more than 2 ferie days in any single week", () => {
+    // Late-year horizon (~9 weeks) with 12 days → forced to 2 in some weeks, never 3.
+    const novNow = new Date("2026-10-26T12:00:00");
+    const plan = planAmortization([
+      { ...base, schedule: ftSched(), vacationRemaining: 12, rolRemaining: 0 },
+    ], novNow, "2026-12-31");
+    const days = plan.get("e1")!.map((d) => d.date);
+    const perWeek = new Map<string, number>();
+    for (const d of days) perWeek.set(weekKey(d), (perWeek.get(weekKey(d)) ?? 0) + 1);
+    expect(Math.max(...perWeek.values())).toBeLessThanOrEqual(2);
+  });
+
+  it("bridges a public holiday (ponte): picks the Monday before a Tuesday holiday", () => {
+    // 2026-06-02 (Festa della Repubblica) is a Tuesday → Monday 2026-06-01 off
+    // yields a 4-day break (Sat-Tue) and must beat plain mid-week days.
+    const mayNow = new Date("2026-05-31T12:00:00");
+    const plan = planAmortization([
+      { ...base, schedule: ftSched(), vacationRemaining: 1, rolRemaining: 0 },
+    ], mayNow, "2026-06-06");
+    expect(plan.get("e1")![0].date).toBe("2026-06-01");
+  });
+
+  it("rotates prized days across employees: two employees needing Fridays get different days", () => {
+    const janNow = new Date("2026-01-01T12:00:00");
+    const plan = planAmortization([
+      { ...base, id: "e1", schedule: ftSched(), vacationRemaining: 6, rolRemaining: 0 },
+      { ...base, id: "e2", schedule: ftSched(), vacationRemaining: 6, rolRemaining: 0, occupiedDates: new Set<string>() },
+    ], janNow, "2026-12-31");
+    const d1 = new Set(plan.get("e1")!.map((d) => d.date));
+    const overlap = plan.get("e2")!.filter((d) => d1.has(d.date));
+    expect(overlap.length).toBe(0);
   });
 
   it("soft-overflows: when free days run out, still schedules the full count (collisions allowed)", () => {

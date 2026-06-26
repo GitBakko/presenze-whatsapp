@@ -16,7 +16,7 @@ import { isPublicHoliday } from "./holidays";
 export type ScheduleMap = Map<number, unknown>;
 
 /** Day of week in Europe/Rome (1=Mon..7=Sun) for a YYYY-MM-DD string. */
-function dayOfWeekIso(date: string): number {
+export function dayOfWeekIso(date: string): number {
   const [y, m, d] = date.split("-").map(Number);
   // Anchor at noon UTC so the Europe/Rome calendar date matches `date`
   // regardless of DST and host TZ.

@@ -93,6 +93,9 @@ export interface LeaveBalanceSummary {
   vacationAccrued: number;
   vacationAccrualAdjust: number;
   vacationUsed: number;
+  vacationUsedPast: number;
+  vacationFutureHuman: number;
+  vacationFuturePredictor: number;
   vacationCarryOver: number;
   vacationRemaining: number;
   vacationUsedThisMonth: number;
@@ -100,6 +103,9 @@ export interface LeaveBalanceSummary {
   rolAccrued: number;
   rolAccrualAdjust: number;
   rolUsed: number;
+  rolUsedPast: number;
+  rolFutureHuman: number;
+  rolFuturePredictor: number;
   rolCarryOver: number;
   rolRemaining: number;
   rolUsedThisMonth: number;
@@ -132,6 +138,7 @@ export interface ApprovedLeaveRow {
   endDate: string;
   hours: number | null;
   timeSlots: string | null;
+  source?: string;
 }
 
 /**
@@ -223,24 +230,47 @@ export function computeLeaveBalanceFromData(
     }
   }
 
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const today = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+
   let vacationUsed = 0;
   let vacationUsedThisMonth = 0;
+  let vacationUsedPast = 0;
+  let vacationFutureHuman = 0;
+  let vacationFuturePredictor = 0;
   let rolUsed = 0;
   let rolUsedThisMonth = 0;
+  let rolUsedPast = 0;
+  let rolFutureHuman = 0;
+  let rolFuturePredictor = 0;
   let sickDays = 0;
   let sickDaysThisMonth = 0;
 
   for (const leave of approvedLeaves) {
     const type = leave.type as LeaveType;
     const isThisMonth = leave.startDate >= monthStart && leave.startDate <= monthEnd;
+    const isPredictor = leave.source === "PREDICTOR";
 
     if (type === "VACATION") {
       const days = countWorkDays(leave.startDate, leave.endDate, scheduleMap);
       vacationUsed += days;
       if (isThisMonth) vacationUsedThisMonth += days;
+      // Past = working days with date ≤ today; future = the remainder.
+      let pastDays = 0;
+      if (leave.startDate <= today) {
+        const upper = leave.endDate <= today ? leave.endDate : today;
+        pastDays = countWorkDays(leave.startDate, upper, scheduleMap);
+      }
+      const futureDays = Math.round((days - pastDays) * 100) / 100;
+      vacationUsedPast += pastDays;
+      if (isPredictor) vacationFuturePredictor += futureDays;
+      else vacationFutureHuman += futureDays;
     } else if (type === "VACATION_HALF_AM" || type === "VACATION_HALF_PM") {
       vacationUsed += 0.5;
       if (isThisMonth) vacationUsedThisMonth += 0.5;
+      if (leave.startDate <= today) vacationUsedPast += 0.5;
+      else if (isPredictor) vacationFuturePredictor += 0.5;
+      else vacationFutureHuman += 0.5;
     } else if (type === "SICK") {
       const days = countCalendarDays(leave.startDate, leave.endDate);
       sickDays += days;
@@ -249,6 +279,9 @@ export function computeLeaveBalanceFromData(
       const hours = leave.hours ?? 0;
       rolUsed += hours;
       if (isThisMonth) rolUsedThisMonth += hours;
+      if (leave.startDate <= today) rolUsedPast += hours;
+      else if (isPredictor) rolFuturePredictor += hours;
+      else rolFutureHuman += hours;
     }
   }
 
@@ -256,6 +289,9 @@ export function computeLeaveBalanceFromData(
     vacationAccrued,
     vacationAccrualAdjust,
     vacationUsed: Math.round(vacationUsed * 100) / 100,
+    vacationUsedPast: Math.round(vacationUsedPast * 100) / 100,
+    vacationFutureHuman: Math.round(vacationFutureHuman * 100) / 100,
+    vacationFuturePredictor: Math.round(vacationFuturePredictor * 100) / 100,
     vacationCarryOver,
     vacationRemaining:
       Math.round(
@@ -265,6 +301,9 @@ export function computeLeaveBalanceFromData(
     rolAccrued,
     rolAccrualAdjust,
     rolUsed: Math.round(rolUsed * 100) / 100,
+    rolUsedPast: Math.round(rolUsedPast * 100) / 100,
+    rolFutureHuman: Math.round(rolFutureHuman * 100) / 100,
+    rolFuturePredictor: Math.round(rolFuturePredictor * 100) / 100,
     rolCarryOver,
     rolRemaining:
       Math.round(

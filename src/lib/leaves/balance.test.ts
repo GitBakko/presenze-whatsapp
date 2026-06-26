@@ -255,3 +255,53 @@ describe("computeLeaveBalanceFromData", () => {
     expect(r.vacationRemaining).toBe(18);
   });
 });
+
+describe("computeLeaveBalanceFromData — past/future/predictor split", () => {
+  const emp = {
+    id: "e1",
+    hireDate: new Date("2020-01-01"),
+    terminationDate: null,
+    contractType: "FULL_TIME",
+    schedule: fullTimeSchedule(),
+  };
+
+  it("splits vacation into past vs future-human vs future-predictor", () => {
+    const now = new Date("2026-06-15T12:00:00");
+    const leaves = [
+      { type: "VACATION", startDate: "2026-03-02", endDate: "2026-03-03", hours: null, timeSlots: null, source: "MANAGER" }, // 2 wd past
+      { type: "VACATION", startDate: "2026-09-07", endDate: "2026-09-08", hours: null, timeSlots: null, source: "MANAGER" }, // 2 wd future human
+      { type: "VACATION", startDate: "2026-10-05", endDate: "2026-10-05", hours: null, timeSlots: null, source: "PREDICTOR" }, // 1 wd future predictor
+    ];
+    const r = computeLeaveBalanceFromData(emp, null, leaves, 2026, now);
+    expect(r.vacationUsedPast).toBe(2);
+    expect(r.vacationFutureHuman).toBe(2);
+    expect(r.vacationFuturePredictor).toBe(1);
+    expect(r.vacationUsed).toBe(5);
+    expect(r.vacationUsedPast + r.vacationFutureHuman + r.vacationFuturePredictor).toBe(r.vacationUsed);
+  });
+
+  it("splits a vacation spanning today into past + future portions", () => {
+    const now = new Date("2026-06-15T12:00:00"); // Mon
+    const leaves = [
+      { type: "VACATION", startDate: "2026-06-11", endDate: "2026-06-18", hours: null, timeSlots: null, source: "MANAGER" },
+    ];
+    const r = computeLeaveBalanceFromData(emp, null, leaves, 2026, now);
+    // working days 11(Thu),12(Fri),15(Mon today→past) = 3 past; 16,17,18 = 3 future
+    expect(r.vacationUsedPast).toBe(3);
+    expect(r.vacationFutureHuman).toBe(3);
+    expect(r.vacationUsed).toBe(6);
+  });
+
+  it("splits ROL hours by startDate and source", () => {
+    const now = new Date("2026-06-15T12:00:00");
+    const leaves = [
+      { type: "ROL", startDate: "2026-05-04", endDate: "2026-05-04", hours: 4, timeSlots: null, source: "MANAGER" }, // past
+      { type: "ROL", startDate: "2026-08-04", endDate: "2026-08-04", hours: 8, timeSlots: null, source: "PREDICTOR" }, // future predictor
+    ];
+    const r = computeLeaveBalanceFromData(emp, null, leaves, 2026, now);
+    expect(r.rolUsedPast).toBe(4);
+    expect(r.rolFuturePredictor).toBe(8);
+    expect(r.rolFutureHuman).toBe(0);
+    expect(r.rolUsed).toBe(12);
+  });
+});

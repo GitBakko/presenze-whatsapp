@@ -1,0 +1,178 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { toast } from "sonner";
+import { RefreshCw, ChevronLeft, CalendarClock } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { useNotificationsContext } from "@/components/NotificationsProvider";
+import { PlanByEmployee, type PlanEmployee, type PlanDay } from "./_components/PlanByEmployee";
+
+export default function AmortizationPage() {
+  const confirm = useConfirm();
+  const { lastEvent } = useNotificationsContext();
+  const [employees, setEmployees] = useState<PlanEmployee[]>([]);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const fetchPlan = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/leaves/predictor/plan");
+      if (res.ok) {
+        const data = await res.json();
+        setEmployees(data.employees ?? []);
+        setYear(data.year ?? new Date().getFullYear());
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Errore ${res.status}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPlan();
+  }, [fetchPlan]);
+
+  // Refresh on any leave event coming over the notifications bus.
+  useEffect(() => {
+    if (lastEvent && lastEvent.action.startsWith("LEAVE")) fetchPlan();
+  }, [lastEvent, fetchPlan]);
+
+  // Dates where ≥2 employees are planned off → highlight as collisions.
+  const collisionDates = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const e of employees) for (const d of e.days) count.set(d.date, (count.get(d.date) ?? 0) + 1);
+    const set = new Set<string>();
+    for (const [date, n] of count) if (n >= 2) set.add(date);
+    return set;
+  }, [employees]);
+
+  async function recompute() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/leaves/predictor/recompute", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Piano ricalcolato: ${data.created} giorni generati`);
+        await fetchPlan();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Errore ${res.status}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDay(id: string) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leaves/${id}/confirm`, { method: "POST" });
+      if (res.ok) await fetchPlan();
+      else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Errore ${res.status}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelDay(day: PlanDay) {
+    const ok = await confirm({
+      title: "Cancella giorno predittore",
+      message: `Cancellare il giorno ${day.date}? Usa questa azione se il dipendente non ha potuto goderne.`,
+      confirmLabel: "Cancella",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leaves/${day.id}`, { method: "DELETE" });
+      if (res.ok) await fetchPlan();
+      else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Errore ${res.status}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmAll(emp: PlanEmployee) {
+    const unconfirmed = emp.days.filter((d) => !d.confirmedAt);
+    if (unconfirmed.length === 0) return;
+    setBusy(true);
+    try {
+      const results = await Promise.all(
+        unconfirmed.map((d) => fetch(`/api/leaves/${d.id}/confirm`, { method: "POST" })),
+      );
+      const failed = results.filter((r) => !r.ok).length;
+      if (failed === 0) toast.success(`${unconfirmed.length} giorni confermati`);
+      else toast.error(`${failed} conferme non riuscite`);
+      await fetchPlan();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const totalPlanned = employees.reduce((s, e) => s + e.days.length, 0);
+  const totalToConfirm = employees.reduce((s, e) => s + e.days.filter((d) => !d.confirmedAt).length, 0);
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <Link href="/leaves" className="mb-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+            <ChevronLeft className="h-3.5 w-3.5" /> Ferie
+          </Link>
+          <h1 className="flex items-center gap-2 font-display text-xl font-bold text-on-surface">
+            <CalendarClock className="h-5 w-5 text-primary" />
+            Piano ammortamento {year}
+          </h1>
+          <p className="mt-0.5 text-sm text-on-surface-variant">
+            {totalPlanned} giorni pianificati · {totalToConfirm} da confermare
+          </p>
+        </div>
+        <button
+          onClick={recompute}
+          disabled={busy}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-container disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+          Ricalcola
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-8 text-center text-sm text-on-surface-variant">
+          Caricamento…
+        </div>
+      ) : employees.length === 0 ? (
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-8 text-center text-sm text-on-surface-variant">
+          Nessun dipendente con predittore attivo. Abilita il predittore dal profilo di un dipendente
+          (Modifica → &quot;Predittore ammortamento ferie&quot;).
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {employees.map((emp) => (
+            <PlanByEmployee
+              key={emp.employeeId}
+              emp={emp}
+              collisionDates={collisionDates}
+              busy={busy}
+              onConfirm={confirmDay}
+              onCancel={cancelDay}
+              onConfirmAll={confirmAll}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

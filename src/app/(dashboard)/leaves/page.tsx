@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import Link from "next/link";
 import {
-  Hourglass, Plus, Calendar, List, Users,
+  Hourglass, Plus, Calendar, List, Users, CalendarClock,
 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useConfirm, useConfirmWithPrompt } from "@/components/ConfirmProvider";
@@ -270,6 +271,15 @@ export default function LeavesPage() {
               <Hourglass className="h-3.5 w-3.5" />
               {pendingCount} da approvare
             </StatusBadge>
+          )}
+          {isLeavesAdmin && (
+            <Link
+              href="/leaves/amortization"
+              className="inline-flex items-center gap-2 rounded-lg bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface-variant transition-all hover:bg-surface-container-high"
+            >
+              <CalendarClock className="h-4 w-4" />
+              Piano ammortamento
+            </Link>
           )}
           <button
             onClick={() => setShowForm(true)}

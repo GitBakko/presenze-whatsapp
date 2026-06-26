@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { checkAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db";
 import { computeMonteTrend, type MonteTrendEmployeeInput } from "@/lib/leaves/monte-trend";
+import { getPayrollCutoffEnd } from "@/lib/leaves";
 
 /**
  * GET /api/leaves/monte-trend
@@ -19,12 +20,13 @@ export async function GET() {
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
 
-  const [employees, balances, leaves] = await Promise.all([
+  const [employees, balances, leaves, cutoffEnd] = await Promise.all([
     prisma.employee.findMany({ include: { schedule: true }, orderBy: { name: "asc" } }),
     prisma.leaveBalance.findMany({ where: { year } }),
     prisma.leaveRequest.findMany({
       where: { status: "APPROVED", startDate: { gte: yearStart, lte: yearEnd } },
     }),
+    getPayrollCutoffEnd(year),
   ]);
 
   // Drop employees who left before this year started — they would only flatline.
@@ -55,5 +57,5 @@ export async function GET() {
     })),
   }));
 
-  return NextResponse.json(computeMonteTrend(inputs, year, now));
+  return NextResponse.json(computeMonteTrend(inputs, year, now, cutoffEnd));
 }

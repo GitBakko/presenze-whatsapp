@@ -12,7 +12,7 @@
  *   4. records a LeavePredictorRun for observability.
  */
 import { prisma } from "../db";
-import { computeLeaveBalanceFromData, projectYearEndResidual } from "./balance";
+import { computeLeaveBalanceFromData, projectYearEndResidual, getPayrollCutoffEnd } from "./balance";
 import { computePool, planAmortization, type EmployeeAmortInput, type PlannedDay } from "./amortization";
 
 function pad2(n: number): string {
@@ -58,11 +58,12 @@ export async function recomputeAmortization(
   }
 
   const empIds = employees.map((e) => e.id);
-  const [balances, allLeaves] = await Promise.all([
+  const [balances, allLeaves, cutoffEnd] = await Promise.all([
     prisma.leaveBalance.findMany({ where: { employeeId: { in: empIds }, year } }),
     prisma.leaveRequest.findMany({
       where: { employeeId: { in: empIds }, status: "APPROVED", startDate: { gte: yearStart, lte: yearEnd } },
     }),
+    getPayrollCutoffEnd(year),
   ]);
   const balByEmp = new Map(balances.map((b) => [b.employeeId, b]));
   const leavesByEmp = new Map<string, typeof allLeaves>();
@@ -90,6 +91,7 @@ export async function recomputeAmortization(
       leaves.map((l) => ({ type: l.type, startDate: l.startDate, endDate: l.endDate, hours: l.hours, timeSlots: l.timeSlots, source: l.source })),
       year,
       now,
+      cutoffEnd,
     );
     // Occupied = every date covered by an existing approved leave we are keeping
     // (predictor must never double up on a day the employee is already off).

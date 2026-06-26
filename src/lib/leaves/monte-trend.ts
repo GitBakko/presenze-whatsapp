@@ -69,6 +69,8 @@ export function computeMonteTrend(
   employees: MonteTrendEmployeeInput[],
   year: number,
   now: Date = new Date(),
+  /** Carico commercialista cutoff ("YYYY-MM-31"); see computeLeaveBalanceFromData. */
+  cutoffEnd: string | null = null,
 ): MonteTrend {
   const lastMonth = monthsToPlot(year, now);
   const months: string[] = [];
@@ -90,7 +92,7 @@ export function computeMonteTrend(
         continue;
       }
 
-      const bal = computeLeaveBalanceFromData(e.employee, e.balance, e.leaves, year, snapshot);
+      const bal = computeLeaveBalanceFromData(e.employee, e.balance, e.leaves, year, snapshot, cutoffEnd);
       const monteDays = round2(bal.vacationRemainingAsOfToday + bal.rolRemainingAsOfToday / MONTE_DAILY_DIVISOR);
       points.push(monteDays);
       total[m - 1] = round2(total[m - 1] + monteDays);

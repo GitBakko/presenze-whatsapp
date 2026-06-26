@@ -102,9 +102,7 @@ export async function buildPreview(buffer: Buffer): Promise<PreviewResult> {
       pdfFer: pdfRow.fer,
       pdfRol,
       appVacationAccrued: summary.vacationAccrued,
-      appVacationUsed: summary.vacationUsed,
       appRolAccrued: summary.rolAccrued,
-      appRolUsed: summary.rolUsed,
     });
 
     rows.push({

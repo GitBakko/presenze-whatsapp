@@ -7,7 +7,7 @@ import {
   type EmployeeScheduleDay,
 } from "@/lib/calculator";
 import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
-import { computeLeaveBalanceFromData } from "@/lib/leaves";
+import { computeLeaveBalanceFromData, getPayrollCutoffEnd } from "@/lib/leaves";
 import { computeMonteTrend, type MonteTrendEmployeeInput } from "@/lib/leaves/monte-trend";
 import { isActiveOn } from "@/lib/employees/active";
 import { isNonWorkingDay, getNonWorkingDayLabel } from "@/lib/holidays-it";
@@ -415,6 +415,7 @@ export async function GET(request: NextRequest) {
     leavesByEmp.set(l.employeeId, arr);
   }
 
+  const payrollCutoffEnd = await getPayrollCutoffEnd(currentYear);
   for (const emp of allEmployees) {
     try {
       const bal = computeLeaveBalanceFromData(
@@ -428,6 +429,8 @@ export async function GET(request: NextRequest) {
         balanceByEmp.get(emp.id) ?? null,
         leavesByEmp.get(emp.id) ?? [],
         currentYear,
+        new Date(),
+        payrollCutoffEnd,
       );
       const vacTotal = bal.vacationCarryOver + bal.vacationAccrued + bal.vacationAccrualAdjust;
       // Progress "to today": only goduto (past) consumption fills the bar, so
@@ -486,7 +489,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (chart === "monte_ferie" || chart === "all") {
-    charts.monteFeriePermessi = computeMonteTrend(monteTrendInputs, currentYear, now);
+    charts.monteFeriePermessi = computeMonteTrend(monteTrendInputs, currentYear, now, payrollCutoffEnd);
   }
 
   // Grafici ritardo e straordinario per dipendente (solo admin, chart=all)
@@ -639,6 +642,7 @@ export async function GET(request: NextRequest) {
         monteTrendInputs.filter((i) => i.id === selfEmployeeId),
         currentYear,
         now,
+        payrollCutoffEnd,
       );
     }
 

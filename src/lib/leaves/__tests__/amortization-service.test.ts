@@ -6,6 +6,7 @@ vi.mock("../../db", () => {
     leaveBalance: { findMany: vi.fn() },
     leaveRequest: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
     leavePredictorRun: { create: vi.fn() },
+    payrollImport: { findFirst: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
   };
   return { prisma: db };
@@ -54,6 +55,7 @@ beforeEach(() => {
   mock.leaveRequest.deleteMany.mockResolvedValue({ count: 0 });
   mock.leaveRequest.createMany.mockResolvedValue({ count: 0 });
   mock.leavePredictorRun.create.mockResolvedValue({ id: "run1" });
+  mock.payrollImport.findFirst.mockResolvedValue(null); // no payroll cutoff in these tests
 });
 
 describe("recomputeAmortization", () => {

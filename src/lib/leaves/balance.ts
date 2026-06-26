@@ -196,6 +196,15 @@ export function computeLeaveBalanceFromData(
   approvedLeaves: ApprovedLeaveRow[],
   year: number,
   now: Date = new Date(),
+  /**
+   * "Carico commercialista" cutoff: end-of-month string ("YYYY-MM-31") of the
+   * latest imported payroll. Ferie/permessi with startDate ≤ this are already
+   * baked into the certified residuo (carryOver + adjust) and must NOT be
+   * counted again as `used` — counting them double-subtracts (the bug fixed
+   * here). `null` = no payroll imported → count every approved leave of the year.
+   * Malattia (SICK) is never part of the ferie/permessi carico → always counted.
+   */
+  cutoffEnd: string | null = null,
 ): LeaveBalanceSummary {
   const weeklyHours = employee.schedule.length > 0
     ? calcWeeklyHours(employee.schedule)
@@ -286,6 +295,11 @@ export function computeLeaveBalanceFromData(
     const isThisMonth = leave.startDate >= monthStart && leave.startDate <= monthEnd;
     const isPredictor = leave.source === "PREDICTOR";
 
+    // Carico commercialista: ferie/permessi entro il mese di taglio sono già
+    // nel residuo certificato → saltali (no doppio conteggio). Malattia esclusa
+    // dalla regola (non fa parte del carico ferie/permessi).
+    if (cutoffEnd !== null && type !== "SICK" && leave.startDate <= cutoffEnd) continue;
+
     if (type === "VACATION") {
       const days = countWorkDays(leave.startDate, leave.endDate, scheduleMap);
       vacationUsed += days;
@@ -364,6 +378,35 @@ export function computeLeaveBalanceFromData(
  * Compute the full leave balance for an employee for a given year.
  * Calculates accrual based on hireDate and schedule, then subtracts used from approved requests.
  */
+const ITALIAN_MONTHS: Record<string, number> = {
+  gennaio: 1, febbraio: 2, marzo: 3, aprile: 4, maggio: 5, giugno: 6,
+  luglio: 7, agosto: 8, settembre: 9, ottobre: 10, novembre: 11, dicembre: 12,
+};
+
+/** Parse a payroll month label ("Maggio 2026") → month number 1-12, else null. */
+export function parsePayrollMonthLabel(sourceMonth: string): number | null {
+  const first = sourceMonth.trim().split(/\s+/)[0]?.toLowerCase();
+  return first ? (ITALIAN_MONTHS[first] ?? null) : null;
+}
+
+/**
+ * Cutoff end-of-month ("YYYY-MM-31") from the LATEST payroll import of the year,
+ * or null if none. Leaves dated ≤ this are already certified in the carico
+ * residuo (carryOver + adjust) and must not be re-counted as `used`. The "-31"
+ * upper bound is intentional: it's only used for string comparison, so it works
+ * for every month regardless of its real length.
+ */
+export async function getPayrollCutoffEnd(year: number): Promise<string | null> {
+  const latest = await prisma.payrollImport.findFirst({
+    where: { year },
+    orderBy: { createdAt: "desc" },
+    select: { sourceMonth: true },
+  });
+  if (!latest) return null;
+  const m = parsePayrollMonthLabel(latest.sourceMonth);
+  return m ? `${year}-${String(m).padStart(2, "0")}-31` : null;
+}
+
 export async function computeLeaveBalance(
   employeeId: string,
   year: number
@@ -380,7 +423,7 @@ export async function computeLeaveBalance(
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
 
-  const [balance, approvedLeaves] = await Promise.all([
+  const [balance, approvedLeaves, cutoffEnd] = await Promise.all([
     prisma.leaveBalance.findUnique({
       where: { employeeId_year: { employeeId, year } },
     }),
@@ -391,6 +434,7 @@ export async function computeLeaveBalance(
         startDate: { gte: yearStart, lte: yearEnd },
       },
     }),
+    getPayrollCutoffEnd(year),
   ]);
 
   return computeLeaveBalanceFromData(
@@ -404,6 +448,8 @@ export async function computeLeaveBalance(
     balance,
     approvedLeaves,
     year,
+    new Date(),
+    cutoffEnd,
   );
 }
 

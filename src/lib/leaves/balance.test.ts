@@ -3,6 +3,7 @@ import {
   computeLeaveBalanceFromData,
   remainingAccrualMonths,
   projectYearEndResidual,
+  parsePayrollMonthLabel,
 } from "./balance";
 
 type ScheduleRow = {
@@ -431,5 +432,56 @@ describe("projectYearEndResidual", () => {
     const p = projectYearEndResidual(8, 3, 40, new Date("2026-12-31T12:00:00"), 2026, null);
     expect(p.vacationRemaining).toBe(8);
     expect(p.rolRemaining).toBe(3);
+  });
+});
+
+describe("parsePayrollMonthLabel", () => {
+  it("maps an Italian month label to its number", () => {
+    expect(parsePayrollMonthLabel("Maggio 2026")).toBe(5);
+    expect(parsePayrollMonthLabel("gennaio 2026")).toBe(1);
+    expect(parsePayrollMonthLabel("Dicembre 2025")).toBe(12);
+  });
+  it("returns null for an unrecognised label", () => {
+    expect(parsePayrollMonthLabel("Foo 2026")).toBeNull();
+    expect(parsePayrollMonthLabel("")).toBeNull();
+  });
+});
+
+describe("payroll cutoff — carico commercialista già ingloba le ferie pregresse", () => {
+  const ft = {
+    id: "stef", hireDate: new Date("2020-01-01"), terminationDate: null,
+    contractType: "FULL_TIME", schedule: fullTimeSchedule(),
+  };
+  // Stefano (prod): carico Maggio 2026 → residuo 31,82 ⇒ carryOver 22,65 + adjust −2,83.
+  const bal = { vacationCarryOver: 22.65, rolCarryOver: 0, vacationAccrualAdjust: -2.83, rolAccrualAdjust: 0 };
+  const leaves = [
+    { type: "VACATION", startDate: "2026-05-08", endDate: "2026-05-08", hours: null, timeSlots: null, source: "MANAGER" }, // ≤ taglio
+    { type: "VACATION", startDate: "2026-05-29", endDate: "2026-05-29", hours: null, timeSlots: null, source: "MANAGER" }, // ≤ taglio
+    { type: "VACATION", startDate: "2026-06-12", endDate: "2026-06-12", hours: null, timeSlots: null, source: "MANAGER" }, // > taglio
+    { type: "VACATION", startDate: "2026-08-24", endDate: "2026-08-30", hours: null, timeSlots: null, source: "MANAGER" }, // > taglio (5 gg lav.)
+  ];
+  const now = new Date("2026-06-26T12:00:00"); // accrued = 6 mesi × 2 = 12
+
+  it("con taglio fine maggio: conta SOLO le ferie dopo maggio (no doppio conteggio)", () => {
+    const r = computeLeaveBalanceFromData(ft, bal, leaves, 2026, now, "2026-05-31");
+    expect(r.vacationUsed).toBe(6); // 12 giu (1) + 24-30 ago (5); 8 e 29 maggio sono nel carico
+    expect(r.vacationRemaining).toBe(25.82); // 22,65 + 12 − 2,83 − 6
+  });
+
+  it("senza taglio (null): conta tutte le ferie dell'anno (retro-compatibile)", () => {
+    const r = computeLeaveBalanceFromData(ft, bal, leaves, 2026, now, null);
+    expect(r.vacationUsed).toBe(8); // include anche 8 e 29 maggio
+    expect(r.vacationRemaining).toBe(23.82);
+  });
+
+  it("il taglio esclude anche i permessi ROL ≤ taglio ma NON la malattia", () => {
+    const rolLeaves = [
+      { type: "ROL", startDate: "2026-04-10", endDate: "2026-04-10", hours: 3, timeSlots: null, source: "MANAGER" }, // ≤ taglio
+      { type: "ROL", startDate: "2026-06-04", endDate: "2026-06-04", hours: 2, timeSlots: null, source: "MANAGER" }, // > taglio
+      { type: "SICK", startDate: "2026-03-02", endDate: "2026-03-04", hours: null, timeSlots: null, source: "MANAGER" }, // ≤ taglio ma malattia
+    ];
+    const r = computeLeaveBalanceFromData(ft, bal, rolLeaves, 2026, now, "2026-05-31");
+    expect(r.rolUsed).toBe(2); // solo il ROL di giugno; aprile è nel carico
+    expect(r.sickDays).toBe(3); // malattia sempre conteggiata (non fa parte del carico ferie/permessi)
   });
 });

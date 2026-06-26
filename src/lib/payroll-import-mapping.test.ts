@@ -15,32 +15,40 @@ describe("fuseRolFromPdf", () => {
 });
 
 describe("computeMappedBalance", () => {
-  it("Brunelli case: sets carryOver and adjust so remaining matches PDF", () => {
+  it("aligns carryOver + accrued + adjust = residuo (goduto stays in the carico, not added back)", () => {
     const out = computeMappedBalance({
       pdfFer: { resAP: 24.65, maturato: 5.50, goduto: 0, residuo: 30.15 },
       pdfRol: { resAP: 7.01, maturato: 22, goduto: 0, residuo: 29.01 },
       appVacationAccrued: 6.0,
-      appVacationUsed: 0,
       appRolAccrued: 6.0,
-      appRolUsed: 0,
     });
     expect(out.vacationCarryOver).toBeCloseTo(24.65, 2);
-    expect(out.vacationAccrualAdjust).toBeCloseTo(-0.50, 2);
+    expect(out.vacationAccrualAdjust).toBeCloseTo(-0.50, 2); // 30.15 − (24.65 + 6)
     expect(out.rolCarryOver).toBeCloseTo(7.01, 2);
-    expect(out.rolAccrualAdjust).toBeCloseTo(16.00, 2);
+    expect(out.rolAccrualAdjust).toBeCloseTo(16.00, 2); // 29.01 − (7.01 + 6)
   });
 
-  it("preserves negative resAP", () => {
+  it("Stefano Maggio: residuo 31.82, accrued 12 → carryOver 22.65, adjust −2.83", () => {
+    const out = computeMappedBalance({
+      pdfFer: { resAP: 22.65, maturato: 9.17, goduto: 0, residuo: 31.82 },
+      pdfRol: { resAP: 0, maturato: 0, goduto: 0, residuo: 28.77 },
+      appVacationAccrued: 12,
+      appRolAccrued: 0,
+    });
+    expect(out.vacationCarryOver).toBeCloseTo(22.65, 2);
+    expect(out.vacationAccrualAdjust).toBeCloseTo(-2.83, 2); // 31.82 − (22.65 + 12)
+  });
+
+  it("does NOT add back goduto/used — adjust depends only on residuo, resAP, accrued", () => {
     const out = computeMappedBalance({
       pdfFer: { resAP: -0.19, maturato: 5.5, goduto: 3, residuo: 2.31 },
       pdfRol: { resAP: 0, maturato: 22, goduto: 11, residuo: 11 },
       appVacationAccrued: 5.5,
-      appVacationUsed: 3,
       appRolAccrued: 22,
-      appRolUsed: 11,
     });
     expect(out.vacationCarryOver).toBeCloseTo(-0.19, 2);
-    expect(out.vacationAccrualAdjust).toBeCloseTo(0, 2);
+    expect(out.vacationAccrualAdjust).toBeCloseTo(-3.0, 2); // 2.31 − (−0.19 + 5.5)
+    expect(out.rolAccrualAdjust).toBeCloseTo(-11.0, 2); // 11 − (0 + 22)
   });
 
   it("is idempotent: applying mapping then re-applying yields same outputs", () => {
@@ -48,9 +56,7 @@ describe("computeMappedBalance", () => {
       pdfFer: { resAP: 24.65, maturato: 5.50, goduto: 0, residuo: 30.15 },
       pdfRol: { resAP: 7.01, maturato: 22, goduto: 0, residuo: 29.01 },
       appVacationAccrued: 6.0,
-      appVacationUsed: 0,
       appRolAccrued: 6.0,
-      appRolUsed: 0,
     };
     const first = computeMappedBalance(inputs);
     const second = computeMappedBalance(inputs);

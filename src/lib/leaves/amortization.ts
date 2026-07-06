@@ -26,6 +26,9 @@ export interface EmployeeAmortInput {
   vacationRemaining: number; // days
   rolRemaining: number; // hours
   occupiedDates: Set<string>; // dates already taken by this employee's existing leaves
+  /** Admin-vetoed dates (rischedulazione): never plan here, but unlike occupied
+   *  days they don't count as "someone is off" for the collision penalty. */
+  excludedDates?: Set<string>;
 }
 
 export interface PlannedDay {
@@ -115,14 +118,14 @@ function buildScheduleMap(input: EmployeeAmortInput): ScheduleMap {
   return buildWorkingScheduleMap(input.schedule, input.contractType);
 }
 
-/** Candidate working dates (today+1 .. yearEnd) minus holidays, occupied days, and >= terminationDate. */
+/** Candidate working dates (today+1 .. yearEnd) minus holidays, occupied days, admin-excluded days, and >= terminationDate. */
 export function candidateDays(input: EmployeeAmortInput, now: Date, yearEnd: string): string[] {
   const map = buildScheduleMap(input);
   const term = input.terminationDate ? dateStr(input.terminationDate) : null;
   const start = nextDay(dateStr(now));
   if (start > yearEnd) return [];
   return expandToWorkingDays(start, yearEnd, map).filter(
-    (d) => !input.occupiedDates.has(d) && (term === null || d < term),
+    (d) => !input.occupiedDates.has(d) && !input.excludedDates?.has(d) && (term === null || d < term),
   );
 }
 

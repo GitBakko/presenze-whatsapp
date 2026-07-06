@@ -6,6 +6,7 @@ vi.mock("../../db", () => {
     leaveBalance: { findMany: vi.fn() },
     leaveRequest: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
     leavePredictorRun: { create: vi.fn() },
+    leavePredictorExclusion: { findMany: vi.fn() },
     payrollImport: { findFirst: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
   };
@@ -55,6 +56,7 @@ beforeEach(() => {
   mock.leaveRequest.deleteMany.mockResolvedValue({ count: 0 });
   mock.leaveRequest.createMany.mockResolvedValue({ count: 0 });
   mock.leavePredictorRun.create.mockResolvedValue({ id: "run1" });
+  mock.leavePredictorExclusion.findMany.mockResolvedValue([]);
   mock.payrollImport.findFirst.mockResolvedValue(null); // no payroll cutoff in these tests
 });
 
@@ -111,6 +113,16 @@ describe("recomputeAmortization", () => {
     await recomputeAmortization(YEAR, "MANUAL", "user1");
     const reCount = mock.leaveRequest.createMany.mock.calls[1][0].data.length;
     expect(reCount).toBe(baseCount);
+  });
+
+  it("never plans on dates vetoed by a LeavePredictorExclusion", async () => {
+    const YEAR = new Date().getFullYear();
+    const vetoed = futureWeekdays(YEAR, 3);
+    mock.leavePredictorExclusion.findMany.mockResolvedValue(vetoed.map((d, i) => ({ id: `x${i}`, employeeId: "e1", date: d })));
+    await recomputeAmortization(YEAR, "RESCHEDULE", "user1");
+    const rows = mock.leaveRequest.createMany.mock.calls[0][0].data;
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(vetoed).not.toContain(row.startDate);
   });
 
   it("no enabled employees → no wipe/create, writes an empty run", async () => {

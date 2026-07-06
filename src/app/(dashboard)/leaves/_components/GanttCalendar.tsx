@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getShortName } from "@/lib/avatar-utils";
 import { todayRome } from "@/lib/tz";
 import type { CalendarDay } from "./types";
-import { TYPE_COLORS } from "./types";
+import { TYPE_COLORS, PREDICTOR_STYLES } from "./types";
 
 /** Working hours: 09:00 – 18:30 in 30-min slots = 19 slots */
 const DAY_START = 9 * 60; // 540 min
@@ -190,7 +190,11 @@ export function GanttCalendar({
                     const heightPx = Math.max(14, ((clampedEnd - clampedStart) / DAY_SPAN) * TIMELINE_HEIGHT);
                     const isPending = block.status === "PENDING";
                     const isPredictor = block.source === "PREDICTOR";
-                    const isUnconfirmedPredictor = isPredictor && !block.confirmedAt;
+                    // Predictor blocks replace the type color with the violet
+                    // ghost style: dashed = proposta, solid = confermata.
+                    const blockColor = isPredictor
+                      ? block.confirmedAt ? PREDICTOR_STYLES.confirmed : PREDICTOR_STYLES.unconfirmed
+                      : TYPE_COLORS[block.type] ?? "bg-surface-container-high text-on-surface";
 
                     // Stack blocks side by side: compute column among overlapping blocks
                     const overlapping = blocks.filter((b, j) =>
@@ -209,7 +213,7 @@ export function GanttCalendar({
                       <div
                         key={bi}
                         aria-label={`${block.employeeName} — ${block.typeLabel}${isPredictor ? (block.confirmedAt ? " (predittore, confermato)" : " (predittore, da confermare)") : ""}`}
-                        className={`absolute overflow-hidden rounded px-1 py-0.5 text-[9px] font-semibold leading-tight ${TYPE_COLORS[block.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400" : ""} ${isPredictor ? "ring-1 ring-inset ring-amber-500" : ""} ${isUnconfirmedPredictor ? "opacity-70" : ""}`}
+                        className={`absolute overflow-hidden rounded px-1 py-0.5 text-[9px] font-semibold leading-tight ${blockColor} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400" : ""}`}
                         style={{
                           top: topPx,
                           height: heightPx,
@@ -243,6 +247,8 @@ export function GanttCalendar({
           { label: "ROL", color: "bg-amber-100 text-amber-800" },
           { label: "Malattia", color: "bg-red-100 text-red-800" },
           { label: "Altro", color: "bg-purple-100 text-purple-800" },
+          { label: "Predittore (proposta)", color: PREDICTOR_STYLES.unconfirmed },
+          { label: "Predittore confermato", color: PREDICTOR_STYLES.confirmed },
         ].map((item) => (
           <span key={item.label} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold ${item.color}`}>
             {item.label}

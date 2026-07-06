@@ -37,7 +37,7 @@ export interface RecomputeResult {
 
 export async function recomputeAmortization(
   year: number,
-  trigger: "PAYROLL_IMPORT" | "MANUAL",
+  trigger: "PAYROLL_IMPORT" | "MANUAL" | "RESCHEDULE",
   actorUserId?: string,
 ): Promise<RecomputeResult> {
   const now = new Date();
@@ -58,12 +58,15 @@ export async function recomputeAmortization(
   }
 
   const empIds = employees.map((e) => e.id);
-  const [balances, allLeaves, cutoffEnd] = await Promise.all([
+  const [balances, allLeaves, cutoffEnd, exclusions] = await Promise.all([
     prisma.leaveBalance.findMany({ where: { employeeId: { in: empIds }, year } }),
     prisma.leaveRequest.findMany({
       where: { employeeId: { in: empIds }, status: "APPROVED", startDate: { gte: yearStart, lte: yearEnd } },
     }),
     getPayrollCutoffEnd(year),
+    prisma.leavePredictorExclusion.findMany({
+      where: { employeeId: { in: empIds }, date: { gte: yearStart, lte: yearEnd } },
+    }),
   ]);
   const balByEmp = new Map(balances.map((b) => [b.employeeId, b]));
   const leavesByEmp = new Map<string, typeof allLeaves>();
@@ -71,6 +74,13 @@ export async function recomputeAmortization(
     const arr = leavesByEmp.get(l.employeeId) ?? [];
     arr.push(l);
     leavesByEmp.set(l.employeeId, arr);
+  }
+  // Admin-vetoed dates (rischedulazioni): hard-blocked per employee.
+  const exclByEmp = new Map<string, Set<string>>();
+  for (const x of exclusions) {
+    const set = exclByEmp.get(x.employeeId) ?? new Set<string>();
+    set.add(x.date);
+    exclByEmp.set(x.employeeId, set);
   }
 
   // The leaves we are about to WIPE (unconfirmed future predictor days) must not
@@ -117,6 +127,7 @@ export async function recomputeAmortization(
       vacationRemaining: projected.vacationRemaining,
       rolRemaining: projected.rolRemaining,
       occupiedDates,
+      excludedDates: exclByEmp.get(e.id),
     };
   });
 

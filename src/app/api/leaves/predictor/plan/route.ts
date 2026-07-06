@@ -1,28 +1,38 @@
 import { NextResponse } from "next/server";
 import { checkAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db";
-import { computeLeaveBalance } from "@/lib/leaves";
-import { projectYearEndResidual } from "@/lib/leaves/balance";
+import {
+  computeLeaveBalanceFromData,
+  getPayrollCutoffEnd,
+  projectYearEndResidual,
+  monthlyVacationAccrual,
+  monthlyRolAccrual,
+} from "@/lib/leaves/balance";
 import { computePool } from "@/lib/leaves/amortization";
+import { computeMonteTrend, MONTE_DAILY_DIVISOR, type MonteTrendEmployeeInput } from "@/lib/leaves/monte-trend";
 import { CONTRACT_DAILY_HOURS } from "@/lib/employees/schedule-fallback";
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * GET /api/leaves/predictor/plan
  *
  * Admin-only. Returns the current amortization plan per predictor-enabled
- * employee: residual, unified hour-pool, and the predictor leave days (with
- * confirmation state) for the Piano ammortamento page.
+ * employee: residual, unified hour-pool, the predictor leave days (with
+ * confirmation state), the admin-vetoed dates (rischedulazioni), and the
+ * decision-support data for the preview — current unified monte, the monthly
+ * accrual step, and the month-by-month monte trend (burn-down + accrual).
  *
  * Note: residuals are PROJECTED to year-end (current remaining — already net of
- * the predictor days — plus the 2 ferie + 4 ROL h/month still to accrue), so
- * `pool.totalDays` reflects what a fresh recompute would still distribute
- * (≈ 0 right after a recompute).
+ * the predictor days — plus the ferie/ROL still to accrue), so `pool.totalDays`
+ * reflects what a fresh recompute would still distribute (≈ 0 right after one).
  */
 export async function GET() {
   const denied = await checkAuth();
   if (denied) return denied;
 
-  const year = new Date().getFullYear();
+  const now = new Date();
+  const year = now.getFullYear();
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
 
@@ -31,12 +41,62 @@ export async function GET() {
     include: { schedule: true },
     orderBy: { name: "asc" },
   });
+  const empIds = employees.map((e) => e.id);
+
+  const [balances, allLeaves, cutoffEnd, exclusions] = await Promise.all([
+    prisma.leaveBalance.findMany({ where: { employeeId: { in: empIds }, year } }),
+    prisma.leaveRequest.findMany({
+      where: { employeeId: { in: empIds }, status: "APPROVED", startDate: { gte: yearStart, lte: yearEnd } },
+      orderBy: { startDate: "asc" },
+    }),
+    getPayrollCutoffEnd(year),
+    // Year-scoped: prior-year vetoes can never block this year's candidates and
+    // would render as phantom "giorni esclusi" chips (fmtDate drops the year).
+    prisma.leavePredictorExclusion.findMany({
+      where: { employeeId: { in: empIds }, date: { gte: yearStart, lte: yearEnd } },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+  const balByEmp = new Map(balances.map((b) => [b.employeeId, b]));
+  const leavesByEmp = new Map<string, typeof allLeaves>();
+  for (const l of allLeaves) {
+    const arr = leavesByEmp.get(l.employeeId) ?? [];
+    arr.push(l);
+    leavesByEmp.set(l.employeeId, arr);
+  }
+  const exclByEmp = new Map<string, Array<{ id: string; date: string }>>();
+  for (const x of exclusions) {
+    const arr = exclByEmp.get(x.employeeId) ?? [];
+    arr.push({ id: x.id, date: x.date });
+    exclByEmp.set(x.employeeId, arr);
+  }
+
+  // Month-by-month monte (burn-down + accrual) for ALL enabled employees at once.
+  const trendInputs: MonteTrendEmployeeInput[] = employees.map((e) => ({
+    id: e.id,
+    name: e.displayName || e.name,
+    employee: { id: e.id, hireDate: e.hireDate, terminationDate: e.terminationDate, contractType: e.contractType, schedule: e.schedule },
+    balance: balByEmp.get(e.id) ?? null,
+    leaves: (leavesByEmp.get(e.id) ?? []).map((l) => ({
+      type: l.type, startDate: l.startDate, endDate: l.endDate, hours: l.hours, timeSlots: l.timeSlots, source: l.source,
+    })),
+  }));
+  const trend = computeMonteTrend(trendInputs, year, now, cutoffEnd);
+  const trendByEmp = new Map(trend.series.map((s) => [s.employeeId, s.points]));
 
   const result = [];
   for (const e of employees) {
+    const leaves = leavesByEmp.get(e.id) ?? [];
     let balance;
     try {
-      balance = await computeLeaveBalance(e.id, year);
+      balance = computeLeaveBalanceFromData(
+        { id: e.id, hireDate: e.hireDate, terminationDate: e.terminationDate, contractType: e.contractType, schedule: e.schedule },
+        balByEmp.get(e.id) ?? null,
+        leaves.map((l) => ({ type: l.type, startDate: l.startDate, endDate: l.endDate, hours: l.hours, timeSlots: l.timeSlots, source: l.source })),
+        year,
+        now,
+        cutoffEnd,
+      );
     } catch {
       continue; // skip employees whose balance can't be computed
     }
@@ -45,7 +105,7 @@ export async function GET() {
     // displayed pool matches what a recompute amortises (the predictor zeroes the
     // PROJECTED 31/12 monte, not just today's residual).
     const projected = projectYearEndResidual(
-      balance.vacationRemaining, balance.rolRemaining, balance.weeklyHours, new Date(), year, e.terminationDate,
+      balance.vacationRemaining, balance.rolRemaining, balance.weeklyHours, now, year, e.terminationDate,
     );
     const pool = computePool({
       id: e.id,
@@ -56,11 +116,7 @@ export async function GET() {
       rolRemaining: projected.rolRemaining,
       occupiedDates: new Set(),
     });
-    const days = await prisma.leaveRequest.findMany({
-      where: { employeeId: e.id, source: "PREDICTOR", startDate: { gte: yearStart, lte: yearEnd } },
-      orderBy: { startDate: "asc" },
-      select: { id: true, startDate: true, type: true, hours: true, confirmedAt: true },
-    });
+    const days = leaves.filter((l) => l.source === "PREDICTOR");
 
     result.push({
       employeeId: e.id,
@@ -69,7 +125,14 @@ export async function GET() {
       vacationRemaining: projected.vacationRemaining,
       rolRemaining: projected.rolRemaining,
       dailyH,
-      unifiedHours: Math.round((projected.vacationRemaining * dailyH + projected.rolRemaining) * 100) / 100,
+      unifiedHours: round2(projected.vacationRemaining * dailyH + projected.rolRemaining),
+      // Decision support: today's unified monte (ferie gg + ROL h/8) and the step
+      // it grows by at every month change.
+      monteTodayDays: round2(balance.vacationRemainingAsOfToday + balance.rolRemainingAsOfToday / MONTE_DAILY_DIVISOR),
+      monthlyAccrualDays: round2(
+        monthlyVacationAccrual(balance.weeklyHours) + monthlyRolAccrual(balance.weeklyHours) / MONTE_DAILY_DIVISOR,
+      ),
+      trend: trendByEmp.get(e.id) ?? [],
       pool: {
         vacWholeDays: pool.vacWholeDays,
         rolWholeDays: pool.rolWholeDays,
@@ -83,8 +146,14 @@ export async function GET() {
         hours: d.hours,
         confirmedAt: d.confirmedAt?.toISOString() ?? null,
       })),
+      exclusions: exclByEmp.get(e.id) ?? [],
     });
   }
 
-  return NextResponse.json({ year, employees: result });
+  return NextResponse.json({
+    year,
+    months: trend.months,
+    currentMonthLabel: trend.currentMonthLabel,
+    employees: result,
+  });
 }

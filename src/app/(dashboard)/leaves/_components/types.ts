@@ -139,9 +139,19 @@ export const SOURCE_LABELS: Record<string, string> = {
   PREDICTOR: "Predittore",
 };
 
-/** Badge style for a leave row by source. Predictor stands out in amber. */
+/** Badge style for a leave row by source. Predictor stands out in violet. */
 export const SOURCE_BADGE: Record<string, string> = {
   MANAGER: "bg-surface-container-high text-on-surface-variant",
   EXTERNAL_API: "bg-surface-container-high text-on-surface-variant",
-  PREDICTOR: "bg-amber-100 text-amber-800",
+  PREDICTOR: "bg-violet-100 text-violet-800",
 };
+
+/**
+ * Ghost style for predictor days: dashed violet outline = proposta (da
+ * confermare), solid violet = confermata dall'HR. Replaces the leave-type color
+ * wherever a predictor day is rendered (calendari, piano ammortamento).
+ */
+export const PREDICTOR_STYLES = {
+  unconfirmed: "border border-dashed border-violet-400 bg-violet-50 text-violet-700",
+  confirmed: "border border-violet-300 bg-violet-100 text-violet-800",
+} as const;

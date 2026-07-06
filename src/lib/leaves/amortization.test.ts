@@ -137,6 +137,27 @@ describe("planAmortization", () => {
     expect(plan.get("e1")!.some((d) => d.date === "2026-12-02")).toBe(false);
   });
 
+  it("never plans on admin-excluded dates (rischedulazione), still schedules the full count", () => {
+    // 2026-12-04 is a Friday — the top-scoring day of its week; the veto must win.
+    const plan = planAmortization([
+      { ...base, schedule: ftSched(), vacationRemaining: 3, rolRemaining: 0, excludedDates: new Set<string>(["2026-12-04", "2026-12-07"]) },
+    ], now, yearEnd);
+    const days = plan.get("e1")!;
+    expect(days.length).toBe(3);
+    expect(days.some((d) => d.date === "2026-12-04" || d.date === "2026-12-07")).toBe(false);
+  });
+
+  it("an excluded date does not repel OTHER employees (no phantom occupancy)", () => {
+    // e1 vetoed on Fri 2026-12-04; e2 is free to take it — and should, it's the
+    // best day of that week for a long weekend.
+    const plan = planAmortization([
+      { ...base, id: "e1", schedule: ftSched(), vacationRemaining: 1, rolRemaining: 0, excludedDates: new Set<string>(["2026-12-04"]) },
+      { ...base, id: "e2", schedule: ftSched(), vacationRemaining: 1, rolRemaining: 0 },
+    ], now, yearEnd);
+    expect(plan.get("e1")!.some((d) => d.date === "2026-12-04")).toBe(false);
+    expect(plan.get("e2")!.map((d) => d.date)).toContain("2026-12-04");
+  });
+
   it("zero-residual employee gets an empty plan", () => {
     const plan = planAmortization([
       { ...base, schedule: ftSched(), vacationRemaining: 0, rolRemaining: 0 },

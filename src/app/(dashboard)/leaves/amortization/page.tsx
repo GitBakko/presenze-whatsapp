@@ -6,12 +6,14 @@ import { toast } from "sonner";
 import { RefreshCw, ChevronLeft, CalendarClock } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
-import { PlanByEmployee, type PlanEmployee, type PlanDay } from "./_components/PlanByEmployee";
+import { PlanByEmployee, type PlanEmployee, type PlanDay, type PlanExclusion } from "./_components/PlanByEmployee";
 
 export default function AmortizationPage() {
   const confirm = useConfirm();
   const { lastEvent } = useNotificationsContext();
   const [employees, setEmployees] = useState<PlanEmployee[]>([]);
+  const [months, setMonths] = useState<string[]>([]);
+  const [currentMonthLabel, setCurrentMonthLabel] = useState<string | null>(null);
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -23,6 +25,8 @@ export default function AmortizationPage() {
       if (res.ok) {
         const data = await res.json();
         setEmployees(data.employees ?? []);
+        setMonths(data.months ?? []);
+        setCurrentMonthLabel(data.currentMonthLabel ?? null);
         setYear(data.year ?? new Date().getFullYear());
       } else {
         const err = await res.json().catch(() => ({}));
@@ -74,6 +78,48 @@ export default function AmortizationPage() {
       const res = await fetch(`/api/leaves/${id}/confirm`, { method: "POST" });
       if (res.ok) await fetchPlan();
       else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Errore ${res.status}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rescheduleDay(day: PlanDay) {
+    const ok = await confirm({
+      title: "Rischedula giorno",
+      message: day.confirmedAt
+        ? `Il giorno ${day.date} è già CONFERMATO: rischedulandolo verrà annullato (il dipendente riceverà l'avviso di annullamento) ed escluso definitivamente; il predittore ricollocherà la feria su un'altra data.`
+        : `Il dipendente non può fare ferie il ${day.date}? Il giorno verrà escluso definitivamente e il predittore ricollocherà la feria su un'altra data (i giorni non ancora confermati possono essere ridistribuiti).`,
+      confirmLabel: "Rischedula",
+      danger: !!day.confirmedAt,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leaves/predictor/${day.id}/reschedule`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Giorno ${data.excludedDate} escluso — piano ricalcolato (${data.created} giorni)`);
+        await fetchPlan();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Errore ${res.status}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeExclusion(x: PlanExclusion) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leaves/predictor/exclusions/${x.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(`Esclusione ${x.date} rimossa. Usa "Ricalcola" per riutilizzare il giorno.`);
+        await fetchPlan();
+      } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || `Errore ${res.status}`);
       }
@@ -164,11 +210,15 @@ export default function AmortizationPage() {
             <PlanByEmployee
               key={emp.employeeId}
               emp={emp}
+              months={months}
+              currentMonthLabel={currentMonthLabel}
               collisionDates={collisionDates}
               busy={busy}
               onConfirm={confirmDay}
               onCancel={cancelDay}
+              onReschedule={rescheduleDay}
               onConfirmAll={confirmAll}
+              onRemoveExclusion={removeExclusion}
             />
           ))}
         </div>

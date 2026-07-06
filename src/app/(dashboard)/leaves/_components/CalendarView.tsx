@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Hourglass, Pencil, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hourglass, Pencil, Sparkles, X } from "lucide-react";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { getShortName } from "@/lib/avatar-utils";
 import { todayRome } from "@/lib/tz";
 import type { CalendarDay, CalendarEvent } from "./types";
-import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS, SOURCE_LABELS } from "./types";
+import { TYPE_COLORS, STATUS_COLORS, STATUS_LABELS, SOURCE_LABELS, PREDICTOR_STYLES } from "./types";
 
 export function CalendarView({
   calendarDays,
@@ -105,19 +105,23 @@ export function CalendarView({
                 {day.events.slice(0, 3).map((ev, i) => {
                   const isPending = ev.status === "PENDING";
                   const isPredictor = ev.source === "PREDICTOR";
-                  const isUnconfirmedPredictor = isPredictor && !ev.confirmedAt;
                   const predictorHint = isPredictor
                     ? ` (predittore${ev.confirmedAt ? ", confermato" : ", da confermare"})`
                     : "";
+                  // Predictor days replace the type color with the violet ghost
+                  // style: dashed = proposta, solid = confermata.
+                  const pillColor = isPredictor
+                    ? ev.confirmedAt ? PREDICTOR_STYLES.confirmed : PREDICTOR_STYLES.unconfirmed
+                    : TYPE_COLORS[ev.type] ?? "bg-surface-container-high text-on-surface";
                   return (
                     <button
                       key={i}
                       onClick={() => setSelectedEvent(ev)}
                       aria-label={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}${predictorHint}`}
-                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-semibold leading-tight ${TYPE_COLORS[ev.type] ?? "bg-surface-container-high text-on-surface"} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400 ring-offset-0" : ""} ${isPredictor ? "ring-1 ring-inset ring-amber-500" : ""} ${isUnconfirmedPredictor ? "opacity-70" : ""}`}
+                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-semibold leading-tight ${pillColor} ${isPending ? "opacity-60 ring-1 ring-inset ring-yellow-400 ring-offset-0" : ""}`}
                       title={`${ev.employeeName} — ${ev.typeLabel}${isPending ? " (in attesa)" : ""}${predictorHint}`}
                     >
-                      {isPending && <Hourglass className="mr-0.5 inline h-2.5 w-2.5" />}{isPredictor && <span className="mr-0.5 font-extrabold text-amber-700">P</span>}{getShortName(ev.employeeName, allNames)}
+                      {isPending && <Hourglass className="mr-0.5 inline h-2.5 w-2.5" />}{isPredictor && <Sparkles className="mr-0.5 inline h-2.5 w-2.5" />}{getShortName(ev.employeeName, allNames)}
                     </button>
                   );
                 })}
@@ -147,8 +151,11 @@ export function CalendarView({
         <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-400">
           <Hourglass className="h-2.5 w-2.5" /> In attesa
         </span>
-        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-500">
-          <span className="font-extrabold">P</span> Predittore
+        <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold ${PREDICTOR_STYLES.unconfirmed}`}>
+          <Sparkles className="h-2.5 w-2.5" /> Predittore (proposta)
+        </span>
+        <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold ${PREDICTOR_STYLES.confirmed}`}>
+          <Sparkles className="h-2.5 w-2.5" /> Predittore confermato
         </span>
       </div>
 

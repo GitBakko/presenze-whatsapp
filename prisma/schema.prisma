@@ -53,6 +53,7 @@ model Employee {
   schedule     EmployeeSchedule[]
   leaves       LeaveRequest[]
   balances     LeaveBalance[]
+  predictorExclusions LeavePredictorExclusion[]
   terminatedBy User?              @relation("EmployeeTerminatedBy", fields: [terminatedById], references: [id])
 }
 
@@ -177,12 +178,28 @@ model LeaveBalance {
 model LeavePredictorRun {
   id            String   @id @default(cuid())
   triggeredById String?  // null = ricalcolo automatico da import tabulato paghe
-  trigger       String   // "PAYROLL_IMPORT" | "MANUAL"
+  trigger       String   // "PAYROLL_IMPORT" | "MANUAL" | "RESCHEDULE"
   runAt         DateTime @default(now())
   year          Int
   payload       String   // JSON: per-dipendente { employeeId, generated, vacDays, rolDays, scrapHours }
 
   @@index([runAt])
+}
+
+// Giorno vietato al predittore per un dipendente: l'admin "rischedula" un giorno
+// proposto → il giorno diventa esclusione permanente e il piano viene rigenerato
+// altrove. Rimuovibile dalla pagina Piano ammortamento.
+model LeavePredictorExclusion {
+  id          String   @id @default(cuid())
+  employeeId  String
+  date        String   // YYYY-MM-DD — giorno su cui il predittore non deve pianificare
+  createdById String?  // admin che ha richiesto la rischedulazione (audit)
+  createdAt   DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
 }
 
 model ApiKey {

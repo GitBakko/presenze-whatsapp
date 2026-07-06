@@ -53,6 +53,15 @@ New-Item -ItemType Directory -Path "$stage\prisma" -Force | Out-Null
 Copy-Item '.\prisma\schema.prisma' "$stage\prisma\schema.prisma"
 Copy-Item '.\deploy\env.production.template' "$stage\.env.template"
 
+# Script operativi server: publish-server.ps1 sposta E:\www\hr nel backup datato
+# e NON ripristina deploy\ — senza questi file nello zip la cartella
+# E:\www\hr\deploy sparirebbe a ogni publish (successo il 2026-06-22/07-06).
+New-Item -ItemType Directory -Path "$stage\deploy" -Force | Out-Null
+Copy-Item '.\deploy\publish-server.ps1'  "$stage\deploy\"
+Copy-Item '.\deploy\backup-db.ps1'       "$stage\deploy\"
+Copy-Item '.\deploy\install-service.ps1' "$stage\deploy\"
+Copy-Item '.\deploy\env.production.template' "$stage\deploy\"
+
 $zipPath = Join-Path $repo 'presenze-hr-deploy.zip'
 Remove-Item $zipPath -ErrorAction SilentlyContinue
 Compress-Archive -Path "$stage\*" -DestinationPath $zipPath -Force

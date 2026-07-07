@@ -135,6 +135,9 @@ export async function checkOverlap(
     where: {
       employeeId,
       status: { in: ["APPROVED", "PENDING"] },
+      // Predictor-generated days are soft proposals: they never block a human
+      // request — the request supersedes them (see supersedePredictorLeaves).
+      source: { not: "PREDICTOR" },
       startDate: { lte: request.endDate },
       endDate: { gte: request.startDate },
       ...(options.excludeId ? { NOT: { id: options.excludeId } } : {}),
@@ -153,4 +156,28 @@ export async function checkOverlap(
   }));
 
   return classifyOverlap(request, existing);
+}
+
+/**
+ * A human leave request always supersedes predictor-generated days (confirmed
+ * or not): call this right before persisting the request to delete every
+ * predictor day intersecting its range. Pass `db` when inside a transaction.
+ */
+export async function supersedePredictorLeaves(
+  employeeId: string,
+  startDate: string,
+  endDate: string,
+  options: { excludeId?: string; db?: { leaveRequest: Pick<typeof prisma.leaveRequest, "deleteMany"> } } = {},
+): Promise<number> {
+  const db = options.db ?? prisma;
+  const res = await db.leaveRequest.deleteMany({
+    where: {
+      employeeId,
+      source: "PREDICTOR",
+      startDate: { lte: endDate },
+      endDate: { gte: startDate },
+      ...(options.excludeId ? { NOT: { id: options.excludeId } } : {}),
+    },
+  });
+  return res.count;
 }

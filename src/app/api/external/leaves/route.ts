@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
-import { checkOverlap } from "@/lib/leaves/overlap";
+import { checkOverlap, supersedePredictorLeaves } from "@/lib/leaves/overlap";
 import { validateApiKey } from "@/lib/api-key-auth";
 import { isTerminatedOnDate } from "@/lib/employees/termination";
 
@@ -93,6 +93,8 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+
+  await supersedePredictorLeaves(employee.id, startDate, endDate);
 
   // External requests → PENDING approval
   const leave = await prisma.leaveRequest.create({

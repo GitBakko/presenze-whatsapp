@@ -108,6 +108,7 @@ export function PlanByEmployee({
   onCancel,
   onReschedule,
   onConfirmAll,
+  onDeleteAll,
   onRemoveExclusion,
 }: {
   emp: PlanEmployee;
@@ -119,11 +120,13 @@ export function PlanByEmployee({
   onCancel: (day: PlanDay) => void;
   onReschedule: (day: PlanDay) => void;
   onConfirmAll: (emp: PlanEmployee) => void;
+  onDeleteAll: (emp: PlanEmployee) => void;
   onRemoveExclusion: (exclusion: PlanExclusion) => void;
 }) {
   const confirmed = emp.days.filter((d) => d.confirmedAt).length;
   const toConfirm = emp.days.length - confirmed;
   const today = todayRome();
+  const futureDays = emp.days.filter((d) => d.date > today).length;
 
   // Days grouped by month (1-based month number, chronological) so the admin
   // sees the burn-down month by month with the accrual step at each change.
@@ -160,6 +163,16 @@ export function PlanByEmployee({
               className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary hover:bg-primary-container disabled:opacity-50"
             >
               <CheckCheck className="h-4 w-4" /> Conferma tutti
+            </button>
+          )}
+          {futureDays > 0 && (
+            <button
+              onClick={() => onDeleteAll(emp)}
+              disabled={busy}
+              title="Elimina tutti i giorni futuri del predittore (anche confermati)"
+              className="inline-flex items-center gap-1 rounded-lg border border-error/40 px-3 py-1.5 text-xs font-semibold text-error hover:bg-error-container/50 disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" /> Elimina tutti
             </button>
           )}
         </div>

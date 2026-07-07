@@ -27,6 +27,7 @@ import { calculateDailyStats, type DailyRecord, type EmployeeScheduleDay } from 
 import { syncAnomalies } from "./anomaly-sync";
 import { notificationsBus, type NotificationAction } from "./notifications-bus";
 import { getTelegramBot, type TelegramMessage, type TelegramUpdate } from "./telegram-bot";
+import { supersedePredictorLeaves } from "./leaves/overlap";
 import { PUNCH_KEYBOARD, BUTTON_ENTRY, BUTTON_EXIT, BUTTON_PAUSE_START, BUTTON_PAUSE_END } from "./telegram-keyboards";
 import { parseLeaveDates } from "./leaves/validation";
 import { formatItDate } from "./leaves/format";
@@ -382,6 +383,7 @@ const handleFerie: CommandHandler = async (ctx, args) => {
   const { startDate, endDate } = parsed;
 
   try {
+    await supersedePredictorLeaves(ctx.employee.id, startDate, endDate);
     await prisma.leaveRequest.create({
       data: {
         employeeId: ctx.employee.id,
@@ -441,6 +443,7 @@ const handlePermesso: CommandHandler = async (ctx, args) => {
     const hours = Math.round(((toMin - fromMin) / 60) * 10) / 10;
 
     try {
+      await supersedePredictorLeaves(ctx.employee.id, parsed.startDate, parsed.startDate);
       await prisma.leaveRequest.create({
         data: {
           employeeId: ctx.employee.id,
@@ -477,6 +480,7 @@ const handlePermesso: CommandHandler = async (ctx, args) => {
   }
 
   try {
+    await supersedePredictorLeaves(ctx.employee.id, parsed.startDate, parsed.endDate);
     await prisma.leaveRequest.create({
       data: {
         employeeId: ctx.employee.id,

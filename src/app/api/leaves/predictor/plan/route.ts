@@ -1,6 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { checkAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db";
+import { todayRome } from "@/lib/tz";
+import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
+import { notifyLeaveCancellation } from "@/lib/telegram-handlers";
+import { sendMail } from "@/lib/mail-send";
+import { leaveCancellationNotification } from "@/lib/mail-templates";
+import { notificationsBus } from "@/lib/notifications-bus";
 import {
   computeLeaveBalanceFromData,
   getPayrollCutoffEnd,
@@ -156,4 +162,92 @@ export async function GET() {
     currentMonthLabel: trend.currentMonthLabel,
     employees: result,
   });
+}
+
+/**
+ * DELETE /api/leaves/predictor/plan[?employeeId=...]
+ *
+ * Admin-only one-click wipe of the FUTURE predictor days (confirmed AND
+ * unconfirmed) — for everyone or, with ?employeeId, a single employee. Past
+ * days stay (already enjoyed; the per-day trash covers those). Employees get
+ * the cancellation notice only for confirmed days: unconfirmed proposals were
+ * never announced to them.
+ */
+export async function DELETE(request: NextRequest) {
+  const denied = await checkAuth();
+  if (denied) return denied;
+
+  const employeeId = new URL(request.url).searchParams.get("employeeId");
+  const today = todayRome();
+  const yearEnd = `${new Date().getFullYear()}-12-31`;
+
+  const doomed = await prisma.leaveRequest.findMany({
+    where: {
+      source: "PREDICTOR",
+      startDate: { gt: today, lte: yearEnd },
+      ...(employeeId ? { employeeId } : {}),
+    },
+    include: { employee: true },
+    orderBy: { startDate: "asc" },
+  });
+  if (doomed.length === 0) {
+    return NextResponse.json({ deleted: 0, confirmedDeleted: 0 });
+  }
+
+  await prisma.leaveRequest.deleteMany({ where: { id: { in: doomed.map((d) => d.id) } } });
+
+  const confirmedDoomed = doomed.filter((d) => d.confirmedAt);
+  for (const leave of confirmedDoomed) {
+    try {
+      await notifyLeaveCancellation({
+        employeeChatId: leave.employee.telegramChatId,
+        previousStatus: "APPROVED",
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        reason: "Piano di ammortamento eliminato dall'amministratore",
+      });
+    } catch (err) {
+      console.error("[predictor/plan DELETE] notifyLeaveCancellation failed:", err);
+    }
+    if (leave.employee.email) {
+      try {
+        const reply = leaveCancellationNotification({
+          previousStatus: "APPROVED",
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          employeeName: leave.employee.displayName || leave.employee.name,
+          reason: "Piano di ammortamento eliminato dall'amministratore",
+        });
+        await sendMail({ to: leave.employee.email, subject: reply.subject, text: reply.text, html: reply.html });
+      } catch (err) {
+        console.error("[predictor/plan DELETE] sendMail cancellation failed:", err);
+      }
+    }
+  }
+
+  // One bus event per employee: enough to refresh sidebar + open leave pages.
+  const seen = new Set<string>();
+  for (const d of doomed) {
+    if (seen.has(d.employeeId)) continue;
+    seen.add(d.employeeId);
+    try {
+      notificationsBus.publish({
+        employeeId: d.employeeId,
+        employeeName: d.employee.displayName || d.employee.name,
+        action: "LEAVE_CANCELLED",
+        time: LEAVE_TYPES[d.type as LeaveType]?.label ?? d.type,
+        date: d.startDate,
+        details: {
+          leaveId: d.id,
+          leaveType: d.type,
+          leaveStartDate: d.startDate,
+          leaveEndDate: d.endDate,
+        },
+      });
+    } catch (err) {
+      console.error("[predictor/plan DELETE] bus publish failed:", err);
+    }
+  }
+
+  return NextResponse.json({ deleted: doomed.length, confirmedDeleted: confirmedDoomed.length });
 }

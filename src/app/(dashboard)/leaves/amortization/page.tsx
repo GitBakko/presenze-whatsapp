@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { RefreshCw, ChevronLeft, CalendarClock } from "lucide-react";
+import { RefreshCw, ChevronLeft, CalendarClock, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useNotificationsContext } from "@/components/NotificationsProvider";
+import { todayRome } from "@/lib/tz";
 import { PlanByEmployee, type PlanEmployee, type PlanDay, type PlanExclusion } from "./_components/PlanByEmployee";
 
 export default function AmortizationPage() {
@@ -17,6 +18,7 @@ export default function AmortizationPage() {
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [employeeFilter, setEmployeeFilter] = useState("");
 
   const fetchPlan = useCallback(async () => {
     setLoading(true);
@@ -149,6 +151,41 @@ export default function AmortizationPage() {
     }
   }
 
+  async function deletePlan(emp?: PlanEmployee) {
+    const today = todayRome();
+    const scope = emp ? [emp] : employees;
+    const future = scope.flatMap((e) => e.days).filter((d) => d.date > today);
+    if (future.length === 0) return;
+    const confirmedCount = future.filter((d) => d.confirmedAt).length;
+    const ok = await confirm({
+      title: emp ? `Elimina piano di ${emp.name}` : "Elimina piano predittore",
+      message:
+        `Verranno eliminati ${future.length} giorni futuri generati dal predittore` +
+        (confirmedCount > 0
+          ? `, di cui ${confirmedCount} già confermati (i dipendenti riceveranno l'avviso di annullamento)`
+          : "") +
+        ". I giorni passati restano. Continuare?",
+      confirmLabel: "Elimina",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const qs = emp ? `?employeeId=${emp.employeeId}` : "";
+      const res = await fetch(`/api/leaves/predictor/plan${qs}`, { method: "DELETE" });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`${data.deleted} giorni del predittore eliminati`);
+        await fetchPlan();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Errore ${res.status}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmAll(emp: PlanEmployee) {
     const unconfirmed = emp.days.filter((d) => !d.confirmedAt);
     if (unconfirmed.length === 0) return;
@@ -168,6 +205,11 @@ export default function AmortizationPage() {
 
   const totalPlanned = employees.reduce((s, e) => s + e.days.length, 0);
   const totalToConfirm = employees.reduce((s, e) => s + e.days.filter((d) => !d.confirmedAt).length, 0);
+  const today = todayRome();
+  const hasFutureDays = employees.some((e) => e.days.some((d) => d.date > today));
+  const visibleEmployees = employeeFilter
+    ? employees.filter((e) => e.employeeId === employeeFilter)
+    : employees;
 
   return (
     <div className="space-y-5">
@@ -185,14 +227,40 @@ export default function AmortizationPage() {
             {totalPlanned} giorni pianificati · {totalToConfirm} da confermare
           </p>
         </div>
-        <button
-          onClick={recompute}
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-container disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
-          Ricalcola
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {employees.length > 1 && (
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              aria-label="Filtra per dipendente"
+              className="rounded-lg border border-outline-variant/50 bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none"
+            >
+              <option value="">Tutti i dipendenti</option>
+              {employees.map((e) => (
+                <option key={e.employeeId} value={e.employeeId}>{e.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={recompute}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-container disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+            Ricalcola
+          </button>
+          {hasFutureDays && (
+            <button
+              onClick={() => deletePlan()}
+              disabled={busy}
+              title="Elimina tutti i giorni futuri del predittore (anche confermati)"
+              className="inline-flex items-center gap-2 rounded-lg border border-error/40 px-4 py-2 text-sm font-semibold text-error hover:bg-error-container/50 disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" />
+              Elimina piano
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -206,7 +274,7 @@ export default function AmortizationPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {employees.map((emp) => (
+          {visibleEmployees.map((emp) => (
             <PlanByEmployee
               key={emp.employeeId}
               emp={emp}
@@ -218,6 +286,7 @@ export default function AmortizationPage() {
               onCancel={cancelDay}
               onReschedule={rescheduleDay}
               onConfirmAll={confirmAll}
+              onDeleteAll={deletePlan}
               onRemoveExclusion={removeExclusion}
             />
           ))}

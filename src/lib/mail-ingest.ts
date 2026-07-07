@@ -29,7 +29,7 @@
 import { createHash } from "crypto";
 import { prisma } from "./db";
 import { parseLeaveDates, detectLeaveTypeFromSubject } from "./leaves/validation";
-import { checkOverlap } from "./leaves/overlap";
+import { checkOverlap, supersedePredictorLeaves } from "./leaves/overlap";
 import { todayRome } from "./tz";
 import { sendMail } from "./mail-send";
 import {
@@ -316,7 +316,8 @@ async function processOne(msg: GraphMessage, stats: IngestStats) {
     return;
   }
 
-  // 7. Crea LeaveRequest PENDING
+  // 7. Crea LeaveRequest PENDING (sovrascrivendo eventuali giorni del predittore)
+  await supersedePredictorLeaves(employee.id, parsed.startDate, parsed.endDate);
   const leave = await prisma.leaveRequest.create({
     data: {
       employeeId: employee.id,

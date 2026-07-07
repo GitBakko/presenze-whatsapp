@@ -4,7 +4,7 @@ import { checkAuthAny, isAuthUser, resolveEmployeeId } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { LEAVE_TYPES, type LeaveType } from "@/lib/leaves";
 import { createLeaveSchema } from "@/lib/leaves/validation";
-import { checkOverlap } from "@/lib/leaves/overlap";
+import { checkOverlap, supersedePredictorLeaves } from "@/lib/leaves/overlap";
 import { notifyAdminsOfPendingLeave } from "@/lib/leave-notifications";
 import { notificationsBus } from "@/lib/notifications-bus";
 import { isTerminatedOnDate } from "@/lib/employees/termination";
@@ -131,6 +131,8 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+
+    await supersedePredictorLeaves(body.employeeId, body.startDate, body.endDate);
 
     const leave = await prisma.leaveRequest.create({
       data: {

@@ -6,7 +6,7 @@
  * the transaction (best-effort).
  */
 import { prisma } from "../db";
-import { checkOverlap } from "./overlap";
+import { checkOverlap, supersedePredictorLeaves } from "./overlap";
 import { computeDiff } from "./audit";
 import { type EditLeaveInput } from "./validation";
 
@@ -74,6 +74,9 @@ export async function editLeaveRequest(
     if (overlap.kind === "REQUIRES_CONFIRM" && !input.confirmOverride) {
       throw new LeaveEditError("OVERLAP_REQUIRES_CONFIRM", "Confirmation required");
     }
+
+    // La richiesta editata sovrascrive eventuali giorni del predittore nel nuovo range.
+    await supersedePredictorLeaves(current.employeeId, next.startDate, next.endDate, { excludeId: leaveId, db: tx });
 
     const updated = await tx.leaveRequest.update({
       where: { id: leaveId },
